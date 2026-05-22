@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
+            VALUE "CompanyName", "overengineeredhobbies" "\0"
             VALUE "FileDescription", "Pellucid" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "pellucid" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 overengineeredhobbies. All rights reserved." "\0"
             VALUE "OriginalFilename", "pellucid.exe" "\0"
             VALUE "ProductName", "Pellucid" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

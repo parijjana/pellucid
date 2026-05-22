@@ -1,4 +1,4 @@
-package com.example.writer_app
+package com.overengineeredhobbies.pellucid
 
 import io.flutter.embedding.android.FlutterActivity
 

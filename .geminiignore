@@ -1,0 +1,21 @@
+# Build Artifacts
+**/build/
+**/.dart_tool/
+**/.pub-cache/
+**/.pub/
+**/ios/Flutter/.last_build_id
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Project Specific Ignores
+evolutionary-memory/
+agent_log/
+.librarian/
+*.md
+*.db
+*.py
+*.html
+.gemini/

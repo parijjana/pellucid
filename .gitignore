@@ -27,6 +27,12 @@ migrate_working_dir/
 .pub/
 build/
 /coverage/
+**/generated_plugin_registrant.cc
+**/generated_plugin_registrant.h
+**/generated_plugins.cmake
+**/GeneratedPluginRegistrant.swift
+**/generated_plugin_registrant.dart
+
 
 # Android Studio will place build artifacts here
 /android/app/debug

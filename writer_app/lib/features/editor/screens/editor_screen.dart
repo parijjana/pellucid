@@ -10,18 +10,18 @@ import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/screens/notes_sidebar.dart';
-import '../../sidebar/providers/notes_provider.dart';
 import '../widgets/editor_status_bar.dart';
 import '../widgets/markdown_controller.dart';
 import '../widgets/alignment_bar.dart';
 import '../widgets/noise_overlay.dart';
 import '../widgets/formatting_toolbar.dart';
-import '../widgets/glowing_border.dart';
 import '../widgets/integrated_header.dart';
 import '../../sync/providers/sync_provider.dart';
 import 'package:flutter/services.dart';
 import '../widgets/shortcuts.dart';
 import '../providers/shortcuts_provider.dart';
+import '../widgets/editor_navigation_sidebar.dart';
+import '../widgets/editor_paper_area.dart';
 import 'dart:io';
 
 class EditorScreen extends StatefulWidget {
@@ -57,9 +57,39 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   void _jumpToHeader(int lineIndex) {
-    final double estimatedPosition = lineIndex * 28.8 + 100;
+    final text = _editorController.text;
+    final lines = text.split('\n');
+    int charOffset = 0;
+    for (int i = 0; i < lineIndex && i < lines.length; i++) {
+      charOffset += lines[i].length + 1;
+    }
+
+    final zoomLevel = context.read<EditorProvider>().zoomLevel;
+    final pageWidth = context.read<EditorProvider>().pageWidth;
+    final textWidth = pageWidth * zoomLevel - 120.0;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 16.0 * zoomLevel,
+          height: 1.8,
+          fontFamily: 'Georgia',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout(maxWidth: textWidth);
+    final offset = textPainter.getOffsetForCaret(
+      TextPosition(offset: charOffset),
+      Rect.zero,
+    );
+
+    final targetScrollOffset = offset.dy + 100.0;
+
     _scrollController.animateTo(
-      estimatedPosition,
+      targetScrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
     );
@@ -85,7 +115,6 @@ class _EditorScreenState extends State<EditorScreen> {
     final theme = context.watch<ThemeProvider>().currentTheme;
     final editorProvider = context.watch<EditorProvider>();
     final settings = context.watch<SettingsProvider>();
-    final sync = context.watch<SyncProvider>();
     final uiState = context.watch<ShortcutsProvider>();
     
     if (_editorController.text != editorProvider.content) {
@@ -154,24 +183,36 @@ class _EditorScreenState extends State<EditorScreen> {
                       children: [
                         Positioned.fill(
                           child: NoiseOverlay(
-                            child: GlowingBorder(
-                              isActive: syncStatusToActive(sync.status) || settings.isAlarmTriggered,
-                              color: settings.isAlarmTriggered ? Colors.red : Colors.blue,
-                              child: Stack(
-                                children: [
-                                  _buildPaperArea(theme, editorProvider),
-                                  if (uiState.isToolbarOpen)
-                                    Positioned(
-                                      top: 20, left: 0, right: 0,
-                                      child: Center(
-                                        child: FormattingToolbar(
-                                          theme: theme,
-                                          onApplyFormat: (format) => _applyFormat(format),
-                                        ),
+                            child: Stack(
+                              children: [
+                                EditorPaperArea(
+                                  theme: theme,
+                                  provider: editorProvider,
+                                  controller: _editorController,
+                                  scrollController: _scrollController,
+                                  focusNode: _editorFocusNode,
+                                  onChanged: (val) {
+                                    final settings = context.read<SettingsProvider>();
+                                    final sync = context.read<SyncProvider>();
+                                    context.read<EditorProvider>().updateContent(
+                                      val,
+                                      syncProvider: sync,
+                                      projectName: settings.currentProjectName,
+                                    );
+                                    setState(() {});
+                                  },
+                                ),
+                                if (uiState.isToolbarOpen)
+                                  Positioned(
+                                    top: 20, left: 0, right: 0,
+                                    child: Center(
+                                      child: FormattingToolbar(
+                                        theme: theme,
+                                        onApplyFormat: (format) => _applyFormat(format),
                                       ),
                                     ),
-                                ],
-                              ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
@@ -188,7 +229,11 @@ class _EditorScreenState extends State<EditorScreen> {
                                   color: theme.sidebarColor.withValues(alpha: 0.8),
                                   border: Border(right: BorderSide(color: theme.foregroundColor.withValues(alpha: 0.05))),
                                 ),
-                                child: _buildNavigationSidebar(theme, headers),
+                                 child: EditorNavigationSidebar(
+                                   theme: theme,
+                                   headers: headers,
+                                   onHeaderTap: _jumpToHeader,
+                                 ),
                               ),
                             ),
                           ),
@@ -231,8 +276,12 @@ class _EditorScreenState extends State<EditorScreen> {
                   ),
                 ],
               ),
-              Positioned(
-                left: 20, right: 20, bottom: 60,
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                left: uiState.isLeftSidebarOpen ? 270 : 20,
+                right: uiState.isRightSidebarOpen ? 320 : 20,
+                bottom: 60,
                 child: AlignmentBar(
                   theme: theme,
                   pageWidth: editorProvider.pageWidth,
@@ -258,117 +307,7 @@ class _EditorScreenState extends State<EditorScreen> {
     );
     setState(() {});
   }
-  
-  bool syncStatusToActive(SyncStatus status) => status == SyncStatus.syncing;
-
-  Widget _buildPaperArea(WriterTheme theme, EditorProvider provider) {
-    final zoomLevel = provider.zoomLevel;
-    final pageWidth = provider.pageWidth;
-    final horizontalPos = provider.horizontalPosition;
-
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      alignment: Alignment(horizontalPos * 2 - 1, 0),
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.symmetric(vertical: 100),
-        child: Container(
-          width: pageWidth * zoomLevel,
-          constraints: const BoxConstraints(minHeight: 1000),
-          decoration: BoxDecoration(
-            color: theme.backgroundColor,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 40,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(60),
-          child: TextField(
-            controller: _editorController,
-            focusNode: _editorFocusNode,
-            maxLines: null,
-            cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
-            style: TextStyle(
-              color: theme.foregroundColor,
-              fontSize: 16 * zoomLevel,
-              height: 1.8,
-              fontFamily: 'Georgia',
-            ),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              enabledBorder: InputBorder.none,
-            ),
-            onChanged: (val) {
-              final settings = context.read<SettingsProvider>();
-              final sync = context.read<SyncProvider>();
-              context.read<EditorProvider>().updateContent(
-                val,
-                syncProvider: sync,
-                projectName: settings.currentProjectName,
-              );
-              setState(() {});
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavigationSidebar(WriterTheme theme, List<({String title, int line, int level})> headers) {
-    return Container(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Text('TABLE OF CONTENTS', style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2), fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.2)),
-          ),
-          Expanded(
-            child: headers.isEmpty 
-              ? Center(
-                  child: Text(
-                    'No headers found',
-                    style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2), fontSize: 12),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: headers.length,
-                  itemBuilder: (context, index) {
-                    final h = headers[index];
-                    return _sidebarItem(h.title, theme, false, level: h.level, onTap: () => _jumpToHeader(h.line));
-                  },
-                ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _sidebarItem(String label, WriterTheme theme, bool isActive, {int level = 1, VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.only(left: 20.0 * level, right: 20, top: 12, bottom: 12),
-        color: isActive ? theme.foregroundColor.withValues(alpha: 0.03) : Colors.transparent,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? theme.foregroundColor : theme.foregroundColor.withValues(alpha: 0.4),
-            fontSize: 13 - (level - 1) * 1.0,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
+    
 
   int _calculateWordCount(String text) {
     if (text.trim().isEmpty) return 0;

@@ -9,6 +9,7 @@ import 'package:pellucid/features/settings/providers/project_stats.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/settings/providers/history_provider.dart';
 import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
+import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -49,6 +50,8 @@ void main() {
     when(() => mockSettings.targetSessionEnabled).thenReturn(false);
     when(() => mockSettings.focusTimerEnabled).thenReturn(false);
     when(() => mockSettings.isAlarmTriggered).thenReturn(false);
+    when(() => mockSettings.batteryGuardEnabled).thenReturn(false);
+    when(() => mockSettings.batteryAlertThreshold).thenReturn(20);
 
     when(() => mockSync.status).thenReturn(SyncStatus.idle);
     when(() => mockSync.isLoggedIn).thenReturn(false);
@@ -70,6 +73,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
         ],
         child: const MaterialApp(home: EditorScreen()),
       ),

@@ -7,6 +7,7 @@ environment:
   sdk: ^3.11.4
 
 dependencies:
+  battery_plus: ^7.0.0
   cupertino_icons: ^1.0.9
   epub_builder: ^0.2.2
   file: ^7.0.1

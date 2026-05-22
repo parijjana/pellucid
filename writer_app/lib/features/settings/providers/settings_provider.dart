@@ -42,6 +42,14 @@ class SettingsProvider extends ChangeNotifier {
   // Window Focus
   bool _isWindowFocused = true;
 
+  // Battery Settings
+  bool _batteryGuardEnabled = true;
+  int _batteryAlertThreshold = 20;
+  bool _showBatteryPercentage = true;
+
+  // Notes Dialog Settings
+  bool _lastNotesFullscreenState = false;
+
   // Project Settings
   String? _masterDirectoryPath;
   String? _currentProjectName;
@@ -60,6 +68,10 @@ class SettingsProvider extends ChangeNotifier {
     _currentSessionEnabled = settings['current_session_enabled'] == 1;
     _targetSessionEnabled = settings['target_session_enabled'] == 1;
     _focusTimerEnabled = settings['focus_timer_enabled'] == 1;
+    _batteryGuardEnabled = (settings['battery_guard_enabled'] ?? 1) == 1;
+    _batteryAlertThreshold = settings['battery_alert_threshold'] ?? 20;
+    _showBatteryPercentage = (settings['show_battery_percentage'] ?? 1) == 1;
+    _lastNotesFullscreenState = (settings['last_notes_fullscreen_state'] ?? 0) == 1;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
     
@@ -96,6 +108,10 @@ class SettingsProvider extends ChangeNotifier {
   String? get currentProjectName => _currentProjectName;
   List<ProjectInfo> get availableProjects => _availableProjects;
   bool get isWindowFocused => _isWindowFocused;
+  bool get batteryGuardEnabled => _batteryGuardEnabled;
+  int get batteryAlertThreshold => _batteryAlertThreshold;
+  bool get showBatteryPercentage => _showBatteryPercentage;
+  bool get lastNotesFullscreenState => _lastNotesFullscreenState;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -125,6 +141,30 @@ class SettingsProvider extends ChangeNotifier {
   void toggleTargetSession(bool enabled) {
     _targetSessionEnabled = enabled;
     _db.updateSetting('target_session_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleBatteryGuard(bool enabled) {
+    _batteryGuardEnabled = enabled;
+    _db.updateSetting('battery_guard_enabled', enabled);
+    notifyListeners();
+  }
+
+  void setBatteryAlertThreshold(int threshold) {
+    _batteryAlertThreshold = threshold.clamp(5, 100);
+    _db.updateSetting('battery_alert_threshold', _batteryAlertThreshold);
+    notifyListeners();
+  }
+
+  void toggleShowBatteryPercentage(bool enabled) {
+    _showBatteryPercentage = enabled;
+    _db.updateSetting('show_battery_percentage', enabled);
+    notifyListeners();
+  }
+
+  void setLastNotesFullscreenState(bool isFullscreen) {
+    _lastNotesFullscreenState = isFullscreen;
+    _db.updateSetting('last_notes_fullscreen_state', isFullscreen);
     notifyListeners();
   }
 

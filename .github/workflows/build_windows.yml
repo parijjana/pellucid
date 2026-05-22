@@ -1,0 +1,74 @@
+name: Build & Package Windows Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  test_and_build:
+    name: Test and Build Windows Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: |
+          cd writer_app
+          flutter pub get
+
+      - name: Run Tests
+        run: |
+          cd writer_app
+          flutter test
+
+      - name: Build Windows Executable
+        run: |
+          cd writer_app
+          flutter build windows --release --dart-define=GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" --dart-define=GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+
+      # Option A: Compress the raw Release folder for quick distribution
+      - name: Package Release Directory (ZIP)
+        run: |
+          Compress-Archive -Path writer_app\build\windows\x64\runner\Release\* -DestinationPath writer_app\build\windows\x64\runner\pellucid-windows-release.zip
+
+      # Option B (Optional): Build MSIX Installer if configured in pubspec.yaml
+      # Uncomment the step below if you add package:msix to dev_dependencies
+      # - name: Build MSIX Installer
+      #   run: |
+      #     cd writer_app
+      #     dart run msix:create
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pellucid-windows-release
+          path: writer_app/build/windows/x64/runner/pellucid-windows-release.zip
+          retention-days: 7
+
+      # If a tag v* was pushed, automatically create a GitHub Release and upload the ZIP
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            writer_app/build/windows/x64/runner/pellucid-windows-release.zip
+            # If using MSIX, uncomment the next line:
+            # writer_app/build/windows/x64/runner/*.msix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,11 +1,17 @@
+// @trace FEAT-20260522-0001
+// Description: Sidebar interface showing the notes list and handling creation & edit triggers.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../providers/notes_provider.dart';
 import '../providers/note_card.dart';
 import '../widgets/note_mini_card.dart';
+import '../widgets/note_editor_dialog.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../../editor/widgets/shortcuts.dart';
+import '../../editor/providers/editor_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 
 class NotesSidebar extends StatefulWidget {
   const NotesSidebar({super.key});
@@ -15,15 +21,46 @@ class NotesSidebar extends StatefulWidget {
 }
 
 class _NotesSidebarState extends State<NotesSidebar> {
+  void _createNewNoteAndEdit(BuildContext context, NotesProvider provider) {
+    final sync = context.read<SyncProvider>();
+    provider.addCard(category: 'general', syncProvider: sync);
+    final newNoteId = provider.cards.last.id;
+    showDialog(
+      context: context,
+      builder: (context) => NoteEditorDialog(noteId: newNoteId),
+    );
+  }
+
+  void _createAttributionNote(BuildContext context, NotesProvider provider) {
+    final sync = context.read<SyncProvider>();
+    provider.addAttributionCard(syncProvider: sync);
+    final attributionCard = provider.cards.firstWhere((c) => c.isAttribution);
+
+    // Sync to manuscript
+    final editor = context.read<EditorProvider>();
+    final settings = context.read<SettingsProvider>();
+    editor.syncAttributions(attributionCard, syncProvider: sync, projectName: settings.currentProjectName);
+
+    showDialog(
+      context: context,
+      builder: (context) => NoteEditorDialog(noteId: attributionCard.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>().currentTheme;
     final notesProvider = context.watch<NotesProvider>();
+    final normalCards = notesProvider.cards.where((c) => !c.isAttribution).toList();
+    final attributionCard = notesProvider.cards.cast<NoteCard?>().firstWhere(
+      (c) => c!.isAttribution,
+      orElse: () => null,
+    );
 
     return Actions(
       actions: <Type, Action<Intent>>{
         AddNoteIntent: CallbackAction<AddNoteIntent>(onInvoke: (_) {
-          _showAddNoteDialog(context, notesProvider, theme);
+          _createNewNoteAndEdit(context, notesProvider);
           return null;
         }),
       },
@@ -48,7 +85,7 @@ class _NotesSidebarState extends State<NotesSidebar> {
                   ),
                   _GhostIconButton(
                     icon: Icons.add,
-                    onPressed: () => _showAddNoteDialog(context, notesProvider, theme),
+                    onPressed: () => _createNewNoteAndEdit(context, notesProvider),
                     theme: theme,
                   ),
                 ],
@@ -57,120 +94,45 @@ class _NotesSidebarState extends State<NotesSidebar> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: notesProvider.cards.length,
+                itemCount: normalCards.length,
                 itemBuilder: (context, index) {
-                  final card = notesProvider.cards[index];
+                  final card = normalCards[index];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: NoteMiniCard(
                       card: card,
                       theme: theme,
                       onTap: () {
-                        // Logic to view/edit note
+                        showDialog(
+                          context: context,
+                          builder: (context) => NoteEditorDialog(noteId: card.id),
+                        );
                       },
                     ),
                   );
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              child: _AttributionsTextButton(
+                onTap: () {
+                  if (attributionCard == null) {
+                    _createAttributionNote(context, notesProvider);
+                  } else {
+                    showDialog(
+                      context: context,
+                      builder: (context) => NoteEditorDialog(noteId: attributionCard.id),
+                    );
+                  }
+                },
+                theme: theme,
+              ),
+            ),
           ],
         ),
       ),
     );
-  }
-
-  void _showAddNoteDialog(BuildContext context, NotesProvider provider, WriterTheme theme) {
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
-    NoteCategory selectedCategory = NoteCategory.general;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => Actions(
-          actions: <Type, Action<Intent>>{
-            SaveNoteIntent: CallbackAction<SaveNoteIntent>(onInvoke: (_) {
-              _handleSave(context, provider, titleController, contentController, selectedCategory);
-              return null;
-            }),
-            CycleNoteCategoryIntent: CallbackAction<CycleNoteCategoryIntent>(onInvoke: (_) {
-              setDialogState(() {
-                final categories = NoteCategory.values;
-                final currentIndex = categories.indexOf(selectedCategory);
-                selectedCategory = categories[(currentIndex + 1) % categories.length];
-              });
-              return null;
-            }),
-          },
-          child: AlertDialog(
-            backgroundColor: theme.sidebarColor,
-            title: Text('New Research Note', style: TextStyle(color: theme.foregroundColor)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  autofocus: true,
-                  style: TextStyle(color: theme.foregroundColor),
-                  decoration: InputDecoration(
-                    hintText: 'Title (Alt+B to Save)',
-                    hintStyle: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: contentController,
-                  maxLines: 5,
-                  style: TextStyle(color: theme.foregroundColor),
-                  decoration: InputDecoration(
-                    hintText: 'Content...',
-                    hintStyle: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButton<NoteCategory>(
-                  value: selectedCategory,
-                  dropdownColor: theme.sidebarColor,
-                  isExpanded: true,
-                  items: NoteCategory.values.map((category) {
-                    return DropdownMenuItem(
-                      value: category,
-                      child: Text(category.name.toUpperCase(), style: TextStyle(color: theme.foregroundColor, fontSize: 12)),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setDialogState(() => selectedCategory = val);
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-              TextButton(
-                onPressed: () => _handleSave(context, provider, titleController, contentController, selectedCategory),
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _handleSave(BuildContext context, NotesProvider provider, TextEditingController title, TextEditingController content, NoteCategory category) {
-    if (title.text.isNotEmpty) {
-      final sync = context.read<SyncProvider>();
-      provider.addCard(category: category, syncProvider: sync);
-      final newId = provider.cards.last.id;
-      provider.updateCard(
-        newId, 
-        title: title.text, 
-        content: content.text, 
-        category: category,
-        syncProvider: sync,
-      );
-      Navigator.pop(context);
-    }
   }
 }
 
@@ -206,3 +168,49 @@ class _GhostIconButtonState extends State<_GhostIconButton> {
     );
   }
 }
+
+class _AttributionsTextButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final WriterTheme theme;
+
+  const _AttributionsTextButton({
+    required this.onTap,
+    required this.theme,
+  });
+
+  @override
+  State<_AttributionsTextButton> createState() => _AttributionsTextButtonState();
+}
+
+class _AttributionsTextButtonState extends State<_AttributionsTextButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: _isHovered ? 0.8 : 0.4,
+            child: Text(
+              'Attributions',
+              style: TextStyle(
+                color: widget.theme.foregroundColor,
+                fontSize: 13,
+                decoration: _isHovered ? TextDecoration.underline : TextDecoration.none,
+                decorationColor: widget.theme.foregroundColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

@@ -32,6 +32,9 @@ void main() {
     test('initial values should be correct', () {
       expect(settingsProvider.clockEnabled, false);
       expect(settingsProvider.isWindowFocused, true);
+      expect(settingsProvider.batteryGuardEnabled, true);
+      expect(settingsProvider.batteryAlertThreshold, 20);
+      expect(settingsProvider.showBatteryPercentage, true);
     });
 
     test('toggleClock should update state and database', () async {
@@ -42,6 +45,23 @@ void main() {
       
       expect(settingsProvider.clockEnabled, true);
       verify(() => mockSettingsDatabase.updateSetting('clock_enabled', true)).called(1);
+    });
+
+    test('toggleBatteryGuard and setBatteryAlertThreshold should update state and database', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+      
+      settingsProvider.toggleBatteryGuard(false);
+      expect(settingsProvider.batteryGuardEnabled, false);
+      verify(() => mockSettingsDatabase.updateSetting('battery_guard_enabled', false)).called(1);
+
+      settingsProvider.setBatteryAlertThreshold(25);
+      expect(settingsProvider.batteryAlertThreshold, 25);
+      verify(() => mockSettingsDatabase.updateSetting('battery_alert_threshold', 25)).called(1);
+
+      settingsProvider.toggleShowBatteryPercentage(false);
+      expect(settingsProvider.showBatteryPercentage, false);
+      verify(() => mockSettingsDatabase.updateSetting('show_battery_percentage', false)).called(1);
     });
 
     test('setMasterDirectory should update state and database', () async {
@@ -70,17 +90,18 @@ void main() {
       verify(() => mockSettingsDatabase.updateSetting('current_project_name', 'My Project')).called(1);
     });
 
-    test('loadSettings should restore state from database', () async {
-      final mockData = {
+    test('loadSettings should populate settings from database', () async {
+      when(() => mockSettingsDatabase.getSettings()).thenAnswer((_) async => {
         'clock_enabled': 1,
         'current_session_enabled': 0,
         'target_session_enabled': 0,
         'focus_timer_enabled': 1,
+        'battery_guard_enabled': 0,
+        'battery_alert_threshold': 15,
+        'show_battery_percentage': 0,
         'master_directory_path': '/persisted/path',
         'current_project_name': 'Old Project',
-      };
-      
-      when(() => mockSettingsDatabase.getSettings()).thenAnswer((_) async => mockData);
+      });
       when(() => mockStorageService.initProject(any(), any(), initialContent: any(named: 'initialContent')))
           .thenAnswer((_) async {});
       when(() => mockStorageService.listProjects(any()))
@@ -92,6 +113,9 @@ void main() {
       
       expect(settingsProvider.clockEnabled, true);
       expect(settingsProvider.focusTimerEnabled, true);
+      expect(settingsProvider.batteryGuardEnabled, false);
+      expect(settingsProvider.batteryAlertThreshold, 15);
+      expect(settingsProvider.showBatteryPercentage, false);
       expect(settingsProvider.masterDirectoryPath, '/persisted/path');
       expect(settingsProvider.currentProjectName, 'Old Project');
     });

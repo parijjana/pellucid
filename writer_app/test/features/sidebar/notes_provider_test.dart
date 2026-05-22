@@ -16,6 +16,10 @@ void main() {
   setUp(() {
     mockStorageService = MockStorageService();
     notesProvider = NotesProvider(storageService: mockStorageService);
+    when(() => mockStorageService.readCategories(any()))
+        .thenAnswer((_) async => ['general', 'people', 'places', 'events']);
+    when(() => mockStorageService.saveCategories(any(), any()))
+        .thenAnswer((_) async {});
   });
 
   group('NotesProvider', () {

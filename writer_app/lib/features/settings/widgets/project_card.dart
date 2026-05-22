@@ -2,7 +2,6 @@
 // Description: Card widgets for project selection and creation.
 
 import 'package:flutter/material.dart';
-import '../providers/settings_provider.dart';
 import '../../editor/providers/theme_provider.dart';
 
 class ProjectCard extends StatelessWidget {

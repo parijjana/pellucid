@@ -30,7 +30,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 4, // Incremented for last_synced_time
+      version: 7, // Incremented for last_notes_fullscreen_state
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -50,7 +50,11 @@ class SettingsDatabase {
         last_synced_time TEXT,
         page_width REAL,
         horizontal_position REAL,
-        zoom_level REAL
+        zoom_level REAL,
+        battery_guard_enabled INTEGER,
+        battery_alert_threshold INTEGER,
+        show_battery_percentage INTEGER,
+        last_notes_fullscreen_state INTEGER
       )
     ''');
 
@@ -73,6 +77,10 @@ class SettingsDatabase {
       'page_width': 800.0,
       'horizontal_position': 0.5,
       'zoom_level': 1.0,
+      'battery_guard_enabled': 1,
+      'battery_alert_threshold': 20,
+      'show_battery_percentage': 1,
+      'last_notes_fullscreen_state': 0,
     });
   }
 
@@ -92,6 +100,16 @@ class SettingsDatabase {
     }
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE settings ADD COLUMN last_synced_time TEXT');
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE settings ADD COLUMN battery_guard_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN battery_alert_threshold INTEGER DEFAULT 20');
+    }
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE settings ADD COLUMN show_battery_percentage INTEGER DEFAULT 1');
+    }
+    if (oldVersion < 7) {
+      await db.execute('ALTER TABLE settings ADD COLUMN last_notes_fullscreen_state INTEGER DEFAULT 0');
     }
   }
 

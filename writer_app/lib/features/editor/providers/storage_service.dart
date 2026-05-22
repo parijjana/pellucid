@@ -144,4 +144,27 @@ Pellucid is designed to be operated entirely from the keyboard.
     if (!await file.parent.exists()) await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(stats.toJson()), flush: true);
   }
+
+  // Categories I/O
+  static const String _categoriesName = 'categories.json';
+
+  Future<List<String>> readCategories(String projectPath) async {
+    try {
+      final file = _fileSystem.file('$projectPath/$_categoriesName');
+      if (!await file.exists()) {
+        return ['general', 'people', 'places', 'events'];
+      }
+      final String content = await file.readAsString();
+      final List<dynamic> jsonList = jsonDecode(content);
+      return List<String>.from(jsonList);
+    } catch (e) {
+      return ['general', 'people', 'places', 'events'];
+    }
+  }
+
+  Future<void> saveCategories(String projectPath, List<String> categories) async {
+    final file = _fileSystem.file('$projectPath/$_categoriesName');
+    if (!await file.parent.exists()) await file.parent.create(recursive: true);
+    await file.writeAsString(jsonEncode(categories), flush: true);
+  }
 }

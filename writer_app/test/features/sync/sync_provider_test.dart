@@ -43,7 +43,7 @@ void main() {
   test('syncCurrentFile updates status to success on success', () async {
     when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
     // Re-init with logged in status
-    syncProvider = SyncProvider(service: mockService);
+    syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
     // Need to wait for _checkLoginStatus to finish
     await Future.microtask(() {}); 
 
@@ -52,6 +52,7 @@ void main() {
       fileName: any(named: 'fileName'),
       content: any(named: 'content'),
     )).thenAnswer((_) async {});
+    when(() => mockService.getLastModified(any(), any())).thenAnswer((_) async => DateTime.now());
 
     await syncProvider.syncCurrentFile(
       projectName: 'Test',
@@ -64,7 +65,7 @@ void main() {
 
   test('syncCurrentFile updates status to error on failure', () async {
     when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
-    syncProvider = SyncProvider(service: mockService);
+    syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
     await Future.microtask(() {}); 
 
     when(() => mockService.syncFile(

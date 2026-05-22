@@ -14,6 +14,8 @@ import 'package:flutter/services.dart';
 import 'features/editor/providers/shortcuts_provider.dart';
 import 'features/editor/widgets/shortcuts.dart';
 import 'features/settings/screens/settings_screen.dart';
+import 'features/editor/widgets/glowing_border.dart';
+import 'features/sidebar/widgets/note_editor_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,105 +77,120 @@ class WriterApp extends StatelessWidget {
     final bool isMac = Platform.isMacOS;
     final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
-    return Shortcuts(
-      shortcuts: <ShortcutActivator, Intent>{
-        // Global Toggles
-        SingleActivator(LogicalKeyboardKey.digit1, alt: !isMac, meta: isMac, control: isMac): const ToggleToCIntent(),
-        SingleActivator(LogicalKeyboardKey.digit2, alt: !isMac, meta: isMac, control: isMac): const ToggleNotesIntent(),
-        SingleActivator(LogicalKeyboardKey.digit3, alt: !isMac, meta: isMac, control: isMac): const ToggleToolbarIntent(),
-        SingleActivator(LogicalKeyboardKey.digit4, alt: !isMac, meta: isMac, control: isMac): const OpenSettingsIntent(),
-        const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
-        SingleActivator(LogicalKeyboardKey.enter, alt: !isMac, meta: isMac, control: isMac): const ToggleFullscreenIntent(),
-        
-        // Status Bar Peeks
-        SingleActivator(LogicalKeyboardKey.keyC, alt: !isMac, meta: isMac, control: isMac): const PeekClockIntent(),
-        SingleActivator(LogicalKeyboardKey.keyS, alt: !isMac, meta: isMac, control: isMac): const PeekSessionIntent(),
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && (event.logicalKey.keyLabel.length == 1 || event.logicalKey == LogicalKeyboardKey.enter)) {
+          if (HardwareKeyboard.instance.isAltPressed || (isMac && HardwareKeyboard.instance.isMetaPressed)) {
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
       },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          ToggleToCIntent: CallbackAction<ToggleToCIntent>(onInvoke: (intent) {
-            context.read<ShortcutsProvider>().toggleLeftSidebar();
-            return null;
-          }),
-          ToggleNotesIntent: CallbackAction<ToggleNotesIntent>(onInvoke: (intent) {
-            context.read<ShortcutsProvider>().toggleRightSidebar();
-            return null;
-          }),
-          ToggleToolbarIntent: CallbackAction<ToggleToolbarIntent>(onInvoke: (intent) {
-            context.read<ShortcutsProvider>().toggleToolbar();
-            return null;
-          }),
-          PeekClockIntent: CallbackAction<PeekClockIntent>(onInvoke: (intent) {
-            context.read<ShortcutsProvider>().peekClock();
-            return null;
-          }),
-          PeekSessionIntent: CallbackAction<PeekSessionIntent>(onInvoke: (intent) {
-            context.read<ShortcutsProvider>().peekSession();
-            return null;
-          }),
-          ToggleFullscreenIntent: CallbackAction<ToggleFullscreenIntent>(onInvoke: (intent) async {
-            final provider = context.read<ShortcutsProvider>();
-            final newValue = !provider.isFullscreen;
-            await windowManager.setFullScreen(newValue);
-            provider.setFullscreen(newValue);
-            return null;
-          }),
-          OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (intent) {
-            final state = navKey.currentState;
-            if (state == null) return null;
-
-            bool isSettingsOpen = false;
-            state.popUntil((route) {
-              if (route.settings.name == '/settings') isSettingsOpen = true;
-              return true;
-            });
-
-            if (isSettingsOpen) {
-              state.pop();
-            } else {
-              final uiState = context.read<ShortcutsProvider>();
-              state.push(MaterialPageRoute(
-                settings: const RouteSettings(name: '/settings'),
-                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-              ));
-            }
-            return null;
-          }),
+      child: Shortcuts(
+        shortcuts: <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.digit1, alt: !isMac, meta: isMac, control: isMac): const ToggleToCIntent(),
+          SingleActivator(LogicalKeyboardKey.digit2, alt: !isMac, meta: isMac, control: isMac): const ToggleNotesIntent(),
+          SingleActivator(LogicalKeyboardKey.digit3, alt: !isMac, meta: isMac, control: isMac): const ToggleToolbarIntent(),
+          SingleActivator(LogicalKeyboardKey.digit4, alt: !isMac, meta: isMac, control: isMac): const OpenSettingsIntent(),
+          const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
+          SingleActivator(LogicalKeyboardKey.enter, alt: !isMac, meta: isMac, control: isMac): const ToggleFullscreenIntent(),
+          SingleActivator(LogicalKeyboardKey.keyC, alt: !isMac, meta: isMac, control: isMac): const PeekClockIntent(),
+          SingleActivator(LogicalKeyboardKey.keyS, alt: !isMac, meta: isMac, control: isMac): const PeekSessionIntent(),
+          SingleActivator(LogicalKeyboardKey.keyN, alt: !isMac, meta: isMac, control: isMac): const AddNoteIntent(),
         },
-        child: Focus(
-          autofocus: true,
-          onKeyEvent: (node, event) {
-            // SILENCE THE BELL: 
-            // Return 'handled' for any Alt/Meta combo, but ONLY if it's NOT a standard 
-            // text editing command (like Ctrl+C/V) or a character-producing key.
-            // Flutter's Shortcut widget will have already processed the Intent 
-            // because it is a parent of this Focus widget in the hierarchy I've built.
-            if (event is KeyDownEvent && (event.logicalKey.keyLabel.length == 1 || event.logicalKey == LogicalKeyboardKey.enter)) {
-              if (HardwareKeyboard.instance.isAltPressed || (isMac && HardwareKeyboard.instance.isMetaPressed)) {
-                return KeyEventResult.handled;
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ToggleToCIntent: CallbackAction<ToggleToCIntent>(onInvoke: (intent) {
+              context.read<ShortcutsProvider>().toggleLeftSidebar();
+              return null;
+            }),
+            ToggleNotesIntent: CallbackAction<ToggleNotesIntent>(onInvoke: (intent) {
+              context.read<ShortcutsProvider>().toggleRightSidebar();
+              return null;
+            }),
+            ToggleToolbarIntent: CallbackAction<ToggleToolbarIntent>(onInvoke: (intent) {
+              context.read<ShortcutsProvider>().toggleToolbar();
+              return null;
+            }),
+            PeekClockIntent: CallbackAction<PeekClockIntent>(onInvoke: (intent) {
+              context.read<ShortcutsProvider>().peekClock();
+              return null;
+            }),
+            PeekSessionIntent: CallbackAction<PeekSessionIntent>(onInvoke: (intent) {
+              context.read<ShortcutsProvider>().peekSession();
+              return null;
+            }),
+            AddNoteIntent: CallbackAction<AddNoteIntent>(onInvoke: (intent) {
+              final ctx = navKey.currentContext;
+              if (ctx != null) {
+                final notesProvider = ctx.read<NotesProvider>();
+                final sync = ctx.read<SyncProvider>();
+                notesProvider.addCard(category: 'general', syncProvider: sync);
+                final newNoteId = notesProvider.cards.last.id;
+                showDialog(
+                  context: ctx,
+                  builder: (context) => NoteEditorDialog(noteId: newNoteId),
+                );
               }
-            }
-            return KeyEventResult.ignored;
+              return null;
+            }),
+            ToggleFullscreenIntent: CallbackAction<ToggleFullscreenIntent>(onInvoke: (intent) async {
+              final provider = context.read<ShortcutsProvider>();
+              final newValue = !provider.isFullscreen;
+              await windowManager.setFullScreen(newValue);
+              provider.setFullscreen(newValue);
+              return null;
+            }),
+            OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (intent) {
+              final state = navKey.currentState;
+              if (state == null) return null;
+
+              bool isSettingsOpen = false;
+              state.popUntil((route) {
+                if (route.settings.name == '/settings') isSettingsOpen = true;
+                return true;
+              });
+
+              if (isSettingsOpen) {
+                state.pop();
+              } else {
+                final uiState = context.read<ShortcutsProvider>();
+                state.push(MaterialPageRoute(
+                  settings: const RouteSettings(name: '/settings'),
+                  builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                ));
+              }
+              return null;
+            }),
           },
-          child: MaterialApp(
-            navigatorKey: navKey,
-            title: 'Pellucid',
-            debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueGrey,
-                brightness: Brightness.light,
-              ),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueGrey,
-                brightness: Brightness.dark,
-              ),
-            ),
-            home: const EditorScreen(),
+          child: Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return MaterialApp(
+                navigatorKey: navKey,
+                title: 'Pellucid',
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData(
+                  useMaterial3: true,
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: Colors.blueGrey,
+                    brightness: Brightness.light,
+                  ),
+                ),
+                darkTheme: ThemeData(
+                  useMaterial3: true,
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: Colors.blueGrey,
+                    brightness: Brightness.dark,
+                  ),
+                ),
+                home: GlowingBorder(
+                  isActive: settings.isAlarmTriggered,
+                  color: Colors.red,
+                  child: const EditorScreen(),
+                ),
+              );
+            },
           ),
         ),
       ),

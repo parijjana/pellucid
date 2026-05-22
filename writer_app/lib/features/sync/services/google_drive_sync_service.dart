@@ -22,8 +22,8 @@ class GoogleDriveSyncService {
   static const String _vaultFolderName = 'Pellucid Vault';
   static const String _tokenKey = 'google_drive_token';
 
-  static const String _clientId = 'YOUR_GOOGLE_CLIENT_ID';
-  static const String _clientSecret = 'YOUR_GOOGLE_CLIENT_SECRET';
+  static const String _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_CLIENT_ID');
+  static const String _clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET', defaultValue: 'YOUR_GOOGLE_CLIENT_SECRET');
 
   drive.DriveApi? _driveApi;
 

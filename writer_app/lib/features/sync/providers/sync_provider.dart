@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import '../services/google_drive_sync_service.dart';
 import '../../settings/providers/settings_database.dart';

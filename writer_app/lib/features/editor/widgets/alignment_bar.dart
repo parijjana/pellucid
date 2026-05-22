@@ -30,21 +30,23 @@ class _AlignmentBarState extends State<AlignmentBar> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedOpacity(
-        opacity: (_isHovered || _isDragging) ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          height: 40,
-          margin: const EdgeInsets.symmetric(horizontal: 40),
-          child: LayoutBuilder(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedOpacity(
+          opacity: (_isHovered || _isDragging) ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: SizedBox(
+            height: 40,
+            child: LayoutBuilder(
             builder: (context, constraints) {
               final maxTx = constraints.maxWidth - widget.pageWidth;
               final currentTx = widget.horizontalPosition * maxTx;
 
               return Stack(
+                clipBehavior: Clip.hardEdge,
                 children: [
                   Positioned(
                     left: currentTx,
@@ -86,8 +88,9 @@ class _AlignmentBarState extends State<AlignmentBar> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHandle(bool isLeft) {
     return _GlowHandle(

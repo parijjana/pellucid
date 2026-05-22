@@ -18,7 +18,6 @@ import '../widgets/project_card.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../../editor/widgets/shortcuts.dart';
-import '../../editor/providers/shortcuts_provider.dart';
 
 enum ProjectSort { date, name }
 
@@ -365,12 +364,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             isActive: settings.currentProjectName == project.name,
             theme: theme,
             onTap: () async {
+              final editorProvider = context.read<EditorProvider>();
+              final syncProvider = context.read<SyncProvider>();
+              final notesProvider = context.read<NotesProvider>();
+              final historyProvider = context.read<HistoryProvider>();
+
+              await editorProvider.flushSync(
+                syncProvider: syncProvider,
+                projectName: settings.currentProjectName,
+              );
               await settings.setCurrentProject(project.name);
               if (mounted) {
                 final path = settings.currentProjectPath;
-                await context.read<EditorProvider>().loadProject(path);
-                await context.read<NotesProvider>().loadProject(path, projectName: project.name);
-                await context.read<HistoryProvider>().loadProjectStats(path);
+                await editorProvider.loadProject(path);
+                await notesProvider.loadProject(path, projectName: project.name);
+                await historyProvider.loadProjectStats(path);
               }
             },
           );
@@ -592,6 +600,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _buildToggleRow(label: 'Display Clock', value: settings.clockEnabled, onChanged: settings.toggleClock, theme: theme),
         _buildToggleRow(label: 'Session Timer', value: settings.currentSessionEnabled, onChanged: settings.toggleCurrentSession, theme: theme),
         _buildToggleRow(label: 'Focus Timer', value: settings.focusTimerEnabled, onChanged: settings.toggleFocusTimer, theme: theme),
+        _buildToggleRow(label: 'Battery Guard', value: settings.batteryGuardEnabled, onChanged: settings.toggleBatteryGuard, theme: theme),
+        if (settings.batteryGuardEnabled) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: _buildToggleRow(
+              label: 'Show Battery Percentage',
+              value: settings.showBatteryPercentage,
+              onChanged: settings.toggleShowBatteryPercentage,
+              theme: theme,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Battery Alert Threshold', style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.6), fontSize: 13)),
+                DropdownButton<int>(
+                  value: settings.batteryAlertThreshold,
+                  dropdownColor: theme.sidebarColor,
+                  style: TextStyle(color: theme.foregroundColor, fontSize: 13),
+                  underline: const SizedBox(),
+                  onChanged: (int? value) {
+                    if (value != null) {
+                      settings.setBatteryAlertThreshold(value);
+                    }
+                  },
+                  items: [10, 15, 20, 25, 30].map<DropdownMenuItem<int>>((int value) {
+                    return DropdownMenuItem<int>(
+                      value: value,
+                      child: Text('$value%'),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -601,7 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: Text(label, style: TextStyle(color: theme.foregroundColor, fontSize: 13)),
       value: value,
       onChanged: onChanged,
-      activeColor: Colors.blue,
+      activeThumbColor: Colors.blue,
       contentPadding: EdgeInsets.zero,
     );
   }
@@ -662,13 +708,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () async {
               if (controller.text.isNotEmpty) {
+                final editorProvider = context.read<EditorProvider>();
+                final syncProvider = context.read<SyncProvider>();
+                final notesProvider = context.read<NotesProvider>();
+                final historyProvider = context.read<HistoryProvider>();
+                final navigator = Navigator.of(context);
+
+                await editorProvider.flushSync(
+                  syncProvider: syncProvider,
+                  projectName: settings.currentProjectName,
+                );
                 await settings.createProject(controller.text);
-                if (context.mounted) {
+                if (mounted) {
                   final path = settings.currentProjectPath;
-                  await context.read<EditorProvider>().loadProject(path);
-                  await context.read<NotesProvider>().loadProject(path, projectName: controller.text);
-                  await context.read<HistoryProvider>().loadProjectStats(path);
-                  Navigator.pop(context);
+                  await editorProvider.loadProject(path);
+                  await notesProvider.loadProject(path, projectName: controller.text);
+                  await historyProvider.loadProjectStats(path);
+                  navigator.pop();
                 }
               }
             },

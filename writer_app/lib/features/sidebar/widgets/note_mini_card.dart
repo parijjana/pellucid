@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../providers/note_card.dart';
 import '../providers/notes_provider.dart';
 import '../../editor/providers/theme_provider.dart';
+import '../../editor/providers/editor_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 
 class NoteMiniCard extends StatelessWidget {
@@ -22,27 +24,18 @@ class NoteMiniCard extends StatelessWidget {
 
   Color _getCategoryColor() {
     switch (card.category) {
-      case NoteCategory.people:
+      case 'people':
         return Colors.blue.withValues(alpha: 0.1);
-      case NoteCategory.places:
+      case 'places':
         return Colors.green.withValues(alpha: 0.1);
-      case NoteCategory.events:
+      case 'events':
         return Colors.orange.withValues(alpha: 0.1);
-      case NoteCategory.general:
+      case 'general':
         return theme.foregroundColor.withValues(alpha: 0.05);
-    }
-  }
-
-  Color _getCategoryBorderColor() {
-    switch (card.category) {
-      case NoteCategory.people:
-        return Colors.blue.withValues(alpha: 0.4);
-      case NoteCategory.places:
-        return Colors.green.withValues(alpha: 0.4);
-      case NoteCategory.events:
-        return Colors.orange.withValues(alpha: 0.4);
-      case NoteCategory.general:
-        return theme.foregroundColor.withValues(alpha: 0.1);
+      default:
+        final int hash = card.category.hashCode.abs();
+        final Color baseColor = Colors.primaries[hash % Colors.primaries.length];
+        return baseColor.withValues(alpha: 0.1);
     }
   }
 
@@ -83,7 +76,16 @@ class NoteMiniCard extends StatelessWidget {
                   onSelected: (val) {
                     if (val == 'delete') {
                       final sync = context.read<SyncProvider>();
+                      final wasAttribution = card.isAttribution;
                       context.read<NotesProvider>().deleteCard(card.id, syncProvider: sync);
+                      if (wasAttribution) {
+                        final settings = context.read<SettingsProvider>();
+                        context.read<EditorProvider>().syncAttributions(
+                          null,
+                          syncProvider: sync,
+                          projectName: settings.currentProjectName,
+                        );
+                      }
                     }
                   },
                   itemBuilder: (context) => [
@@ -97,7 +99,7 @@ class NoteMiniCard extends StatelessWidget {
             ),
             if (card.title.isNotEmpty) const SizedBox(height: 4),
             Text(
-              card.content,
+              card.isAttribution ? card.getAttributionMarkdown() : card.content,
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

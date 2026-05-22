@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
@@ -40,7 +39,7 @@ class DesktopOAuthHelper {
       return Response.notFound('No code found');
     });
 
-    final server = await io.serve(router, 'localhost', port);
+    final server = await io.serve(router.call, 'localhost', port);
     
     // Construct the auth URL
     final authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?'

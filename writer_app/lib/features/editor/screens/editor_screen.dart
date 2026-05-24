@@ -20,6 +20,8 @@ import '../widgets/shortcuts.dart';
 import '../providers/shortcuts_provider.dart';
 import '../widgets/editor_navigation_sidebar.dart';
 import '../widgets/editor_paper_area.dart';
+import '../../settings/providers/history_provider.dart';
+import '../../sidebar/providers/notes_provider.dart';
 import 'dart:io';
 
 class EditorScreen extends StatefulWidget {
@@ -58,6 +60,29 @@ class _EditorScreenState extends State<EditorScreen> {
     return false;
   }
 
+  void _onEditorFocusChange() {
+    if (mounted) {
+      try {
+        final history = Provider.of<HistoryProvider>(context, listen: false);
+        history.setEditorFocus(_editorFocusNode.hasFocus);
+      } catch (_) {
+        // HistoryProvider not in tree
+      }
+    }
+  }
+
+  void _onEditorTextChanged() {
+    if (mounted) {
+      final count = _calculateWordCount(_editorController.text);
+      try {
+        final history = Provider.of<HistoryProvider>(context, listen: false);
+        history.updateWordCount(count);
+      } catch (_) {
+        // HistoryProvider not in tree
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -68,11 +93,21 @@ class _EditorScreenState extends State<EditorScreen> {
       text: editorProvider.content,
       theme: themeProvider.currentTheme,
     );
+    _editorFocusNode.addListener(_onEditorFocusChange);
+    _editorController.addListener(_onEditorTextChanged);
     HardwareKeyboard.instance.addHandler(_handleGlobalKey);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _onEditorTextChanged();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _editorFocusNode.removeListener(_onEditorFocusChange);
+    _editorController.removeListener(_onEditorTextChanged);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _editorController.dispose();
     _scrollController.dispose();
@@ -199,7 +234,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
     final zoomLevel = context.read<EditorProvider>().zoomLevel;
     final pageWidth = context.read<EditorProvider>().pageWidth;
-    final textWidth = pageWidth * zoomLevel - 120.0;
+    final textWidth = pageWidth - 120.0;
 
     final textPainter = TextPainter(
       text: TextSpan(
@@ -278,13 +313,17 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Actions(
         actions: <Type, Action<Intent>>{
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (_) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                settings: const RouteSettings(name: '/settings'),
-                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-              ),
-            );
+            context.read<HistoryProvider>().saveStatsNow().then((_) {
+              if (context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: '/settings'),
+                    builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                  ),
+                );
+              }
+            });
             return null;
           }),
           SetTitleIntent: CallbackAction<SetTitleIntent>(onInvoke: (_) => _applyFormat('# ')),
@@ -308,15 +347,30 @@ class _EditorScreenState extends State<EditorScreen> {
                       theme: theme,
                       projectName: settings.currentProjectName ?? 'User Manual',
                       showWindowControls: !uiState.isFullscreen,
+                      onRename: (newName) async {
+                        final success = await settings.renameProject(settings.currentProjectName!, newName);
+                        if (success && mounted) {
+                          final path = settings.currentProjectPath;
+                          await context.read<EditorProvider>().loadProject(path);
+                          await context.read<NotesProvider>().loadProject(path, projectName: newName);
+                          await context.read<HistoryProvider>().loadProjectStats(path);
+                        }
+                      },
                       actionButton: IconButton(
                         icon: const Icon(Icons.settings, size: 20),
-                        onPressed: () => Navigator.push(
-                          context, 
-                          MaterialPageRoute(
-                            settings: const RouteSettings(name: '/settings'),
-                            builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                          ),
-                        ),
+                        onPressed: () {
+                          context.read<HistoryProvider>().saveStatsNow().then((_) {
+                            if (context.mounted) {
+                              Navigator.push(
+                                context, 
+                                MaterialPageRoute(
+                                  settings: const RouteSettings(name: '/settings'),
+                                  builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                                ),
+                              );
+                            }
+                          });
+                        },
                         tooltip: 'Settings',
                       ),
                     ),

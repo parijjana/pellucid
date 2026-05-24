@@ -112,21 +112,21 @@ void main() {
     });
 
     test('cloud sync should throttle on continuous typing', () async {
-      editorProvider.syncDebounceDuration = const Duration(milliseconds: 100);
-      editorProvider.syncThrottleDuration = const Duration(milliseconds: 40);
+      editorProvider.syncDebounceDuration = const Duration(milliseconds: 400);
+      editorProvider.syncThrottleDuration = const Duration(milliseconds: 150);
 
       await editorProvider.loadProject('/test/project/path');
 
-      // Continuous typing: update at t=0, t=15, t=30
+      // Continuous typing: update at t=0, t=30, t=60
       editorProvider.updateContent('Content 1', syncProvider: mockSyncProvider, projectName: 'TestProject');
-      await Future.delayed(const Duration(milliseconds: 15));
+      await Future.delayed(const Duration(milliseconds: 30));
       editorProvider.updateContent('Content 2', syncProvider: mockSyncProvider, projectName: 'TestProject');
-      await Future.delayed(const Duration(milliseconds: 15));
+      await Future.delayed(const Duration(milliseconds: 30));
       editorProvider.updateContent('Content 3', syncProvider: mockSyncProvider, projectName: 'TestProject');
 
-      // At this point (t=30ms), debounce would be at t=130ms.
-      // But throttle should fire at t=40ms.
-      await Future.delayed(const Duration(milliseconds: 15)); // t=45ms total
+      // At this point (t=60ms), debounce would be at t=460ms.
+      // But throttle should fire at t=150ms. We wait 110ms more to reach t=170ms.
+      await Future.delayed(const Duration(milliseconds: 110));
 
       verify(() => mockSyncProvider.syncCurrentFile(
         projectName: 'TestProject',

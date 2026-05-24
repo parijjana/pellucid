@@ -242,4 +242,17 @@ Double-tap the Alt key (left or right Alt) at any time to display a temporary ov
     if (!await file.parent.exists()) await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(categories), flush: true);
   }
+
+  Future<bool> renameProject(String masterPath, String oldName, String newName) async {
+    final oldDir = _fileSystem.directory('$masterPath/$oldName');
+    final newDir = _fileSystem.directory('$masterPath/$newName');
+    if (await newDir.exists()) {
+      return false;
+    }
+    if (await oldDir.exists()) {
+      await oldDir.rename(newDir.path);
+      return true;
+    }
+    return false;
+  }
 }

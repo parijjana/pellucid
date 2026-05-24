@@ -40,8 +40,8 @@ class DailyStats {
 }
 
 class HistoryProvider extends ChangeNotifier {
-  final SettingsDatabase _db = SettingsDatabase.instance;
-  final StorageService _storageService = StorageService();
+  final SettingsDatabase _db;
+  final StorageService _storageService;
   
   List<DailyStats> _history = [];
   DailyStats? _todayStats;
@@ -53,8 +53,11 @@ class HistoryProvider extends ChangeNotifier {
   bool _isEditorFocused = false;
   bool _isNotesFocused = false;
   Timer? _metricsTimer;
+  int _baseTodayWordCountDelta = 0;
 
-  HistoryProvider() {
+  HistoryProvider({SettingsDatabase? settingsDatabase, StorageService? storageService})
+      : _db = settingsDatabase ?? SettingsDatabase.instance,
+        _storageService = storageService ?? StorageService() {
     _loadHistoryFromDB();
     _startMetricsTracker();
   }
@@ -84,6 +87,8 @@ class HistoryProvider extends ChangeNotifier {
 
   Future<void> loadProjectStats(String? projectPath) async {
     _currentProjectPath = projectPath;
+    _initialWordCount = -1;
+    _baseTodayWordCountDelta = 0;
     if (projectPath == null) {
       _currentProjectStats = ProjectStats();
     } else {
@@ -153,16 +158,33 @@ class HistoryProvider extends ChangeNotifier {
     
     if (_initialWordCount == -1) {
       _initialWordCount = count;
+      _baseTodayWordCountDelta = _todayStats!.wordCountDelta;
     }
     
-    final delta = count - _initialWordCount;
-    _todayStats!.wordCountDelta = delta;
+    final sessionDelta = count - _initialWordCount;
+    _todayStats!.wordCountDelta = _baseTodayWordCountDelta + sessionDelta;
     
     _currentProjectStats = _currentProjectStats.copyWith(totalWordCount: count);
     
     _autoSaveToDB();
     _autoSaveProjectStats();
     notifyListeners();
+  }
+
+  Future<void> saveStatsNow() async {
+    _statsDebouncer?.cancel();
+    _dbDebouncer?.cancel();
+    if (_currentProjectPath != null) {
+      await _storageService.saveProjectStats(_currentProjectPath!, _currentProjectStats);
+    }
+    if (_todayStats != null) {
+      await _db.upsertHistory(
+        _todayStats!.date, 
+        _todayStats!.editorTime.inSeconds, 
+        _todayStats!.notesTime.inSeconds, 
+        _todayStats!.wordCountDelta
+      );
+    }
   }
 
   @override

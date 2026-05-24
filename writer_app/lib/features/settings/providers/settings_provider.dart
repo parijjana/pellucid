@@ -294,6 +294,29 @@ class SettingsProvider extends ChangeNotifier {
     });
   }
 
+  Future<bool> renameProject(String oldName, String newName) async {
+    if (_masterDirectoryPath == null) return false;
+    if (oldName == 'User Manual') return false; // Protect User Manual
+    final cleanName = newName.trim();
+    if (cleanName.isEmpty || cleanName == oldName) return false;
+
+    try {
+      final success = await _storageService.renameProject(_masterDirectoryPath!, oldName, cleanName);
+      if (!success) return false;
+
+      if (_currentProjectName == oldName) {
+        _currentProjectName = cleanName;
+        await _db.updateSetting('current_project_name', cleanName);
+      }
+
+      await refreshProjects();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _sessionTimer?.cancel();

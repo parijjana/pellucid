@@ -65,15 +65,20 @@ void main() {
     when(() => mockTheme.currentTheme).thenReturn(WriterTheme.presets[0]);
 
     when(() => mockSettings.currentProjectName).thenReturn('Test Project');
+    when(() => mockSettings.currentProjectPath).thenReturn('/test_project');
+    when(() => mockSettings.masterDirectoryPath).thenReturn('/test_master');
+    when(() => mockSettings.availableProjects).thenReturn([]);
     when(() => mockSettings.clockEnabled).thenReturn(false);
     when(() => mockSettings.currentSessionEnabled).thenReturn(false);
     when(() => mockSettings.targetSessionEnabled).thenReturn(false);
     when(() => mockSettings.focusTimerEnabled).thenReturn(false);
     when(() => mockSettings.isAlarmTriggered).thenReturn(false);
     when(() => mockSettings.batteryGuardEnabled).thenReturn(false);
+    when(() => mockSettings.showBatteryPercentage).thenReturn(false);
     when(() => mockSettings.batteryAlertThreshold).thenReturn(20);
     when(() => mockSettings.lastNotesFullscreenState).thenReturn(false);
     when(() => mockSettings.setLastNotesFullscreenState(any())).thenAnswer((_) async {});
+    when(() => mockSettings.refreshProjects()).thenAnswer((_) async {});
 
     when(() => mockSync.status).thenReturn(SyncStatus.idle);
     when(() => mockSync.isLoggedIn).thenReturn(false);
@@ -81,6 +86,8 @@ void main() {
 
     when(() => mockHistory.history).thenReturn([]);
     when(() => mockHistory.currentProjectStats).thenReturn(ProjectStats());
+    when(() => mockHistory.saveStatsNow()).thenAnswer((_) async {});
+    when(() => mockHistory.loadProjectStats(any())).thenAnswer((_) async {});
 
     when(() => mockNotes.cards).thenReturn([]);
     when(() => mockNotes.categories).thenReturn(['general', 'people', 'places', 'events']);

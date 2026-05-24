@@ -11,6 +11,7 @@ import '../providers/note_editor_controller.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../settings/providers/history_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 import 'note_editor_power_panel.dart';
 import 'note_editor_standard_field.dart';
@@ -43,6 +44,9 @@ class _NoteEditorDialogState extends State<NoteEditorDialog> {
     _controller.init(notesProvider);
 
     _controller.addListener(_handleControllerUpdate);
+    try {
+      context.read<HistoryProvider>().setNotesFocus(true);
+    } catch (_) {}
 
     // Save initial state (if we auto-created the first item) after the build frame finishes
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -72,6 +76,9 @@ class _NoteEditorDialogState extends State<NoteEditorDialog> {
 
   @override
   void dispose() {
+    try {
+      context.read<HistoryProvider>().setNotesFocus(false);
+    } catch (_) {}
     _controller.removeListener(_handleControllerUpdate);
     _controller.dispose();
     super.dispose();

@@ -41,6 +41,7 @@ void main() async {
   await settingsProvider.loadSettings();
   await editorProvider.loadProject(settingsProvider.currentProjectPath);
   await notesProvider.loadProject(settingsProvider.currentProjectPath);
+  await historyProvider.loadProjectStats(settingsProvider.currentProjectPath);
 
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1200, 800),

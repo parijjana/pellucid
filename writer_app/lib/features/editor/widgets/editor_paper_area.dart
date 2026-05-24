@@ -34,7 +34,7 @@ class EditorPaperArea extends StatelessWidget {
         controller: scrollController,
         padding: const EdgeInsets.symmetric(vertical: 100),
         child: Container(
-          width: pageWidth * zoomLevel,
+          width: pageWidth,
           constraints: const BoxConstraints(minHeight: 1000),
           decoration: BoxDecoration(
             color: theme.backgroundColor,

@@ -8,6 +8,8 @@ import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/widgets/integrated_header.dart';
+import '../../editor/providers/editor_provider.dart';
+import '../../sidebar/providers/notes_provider.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -26,6 +28,18 @@ class StatsScreen extends StatelessWidget {
           IntegratedHeader(
             theme: theme,
             projectName: settings.currentProjectName ?? 'User Manual',
+            onRename: (newName) async {
+              final editor = context.read<EditorProvider>();
+              final notes = context.read<NotesProvider>();
+              final history = context.read<HistoryProvider>();
+              final success = await settings.renameProject(settings.currentProjectName!, newName);
+              if (success && context.mounted) {
+                final path = settings.currentProjectPath;
+                await editor.loadProject(path);
+                await notes.loadProject(path, projectName: newName);
+                await history.loadProjectStats(path);
+              }
+            },
             actionButton: IconButton(
               icon: Icon(Icons.arrow_back, size: 20, color: theme.foregroundColor.withValues(alpha: 0.4)),
               onPressed: () => Navigator.pop(context),

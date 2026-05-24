@@ -14,6 +14,7 @@ import '../../sync/providers/sync_provider.dart';
 import '../../editor/widgets/shortcuts.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../settings/providers/history_provider.dart';
 
 class NotesSidebar extends StatefulWidget {
   const NotesSidebar({super.key});
@@ -27,14 +28,24 @@ class _NotesSidebarState extends State<NotesSidebar> {
   int _highlightedIndex = -1;
   bool _wasOpen = false;
 
+  void _onSidebarFocusChange() {
+    if (mounted) {
+      try {
+        context.read<HistoryProvider>().setNotesFocus(_sidebarFocusNode.hasFocus);
+      } catch (_) {}
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _sidebarFocusNode = FocusNode();
+    _sidebarFocusNode.addListener(_onSidebarFocusChange);
   }
 
   @override
   void dispose() {
+    _sidebarFocusNode.removeListener(_onSidebarFocusChange);
     _sidebarFocusNode.dispose();
     super.dispose();
   }

@@ -39,6 +39,7 @@ void main() {
     when(() => mockSettings.currentProjectName).thenReturn('Test Project');
     when(() => mockSettings.masterDirectoryPath).thenReturn('/test/path');
     when(() => mockSettings.availableProjects).thenReturn([]);
+    when(() => mockSettings.refreshProjects()).thenAnswer((_) async {});
     when(() => mockSettings.clockEnabled).thenReturn(false);
     when(() => mockSettings.currentSessionEnabled).thenReturn(false);
     when(() => mockSettings.focusTimerEnabled).thenReturn(false);

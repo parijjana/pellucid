@@ -40,6 +40,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isStatsExpanded = true;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<SettingsProvider>().refreshProjects();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -172,6 +182,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   theme: theme,
                   projectName: settings.currentProjectName ?? 'User Manual',
                   showWindowControls: !widget.isFullscreen,
+                  onRename: (newName) async {
+                    final editor = context.read<EditorProvider>();
+                    final notes = context.read<NotesProvider>();
+                    final history = context.read<HistoryProvider>();
+                    final success = await settings.renameProject(settings.currentProjectName!, newName);
+                    if (success && context.mounted) {
+                      final path = settings.currentProjectPath;
+                      await editor.loadProject(path);
+                      await notes.loadProject(path, projectName: newName);
+                      await history.loadProjectStats(path);
+                    }
+                  },
                   actionButton: IconButton(
                     icon: Icon(Icons.arrow_back, size: 20, color: theme.foregroundColor.withValues(alpha: 0.4)),
                     onPressed: () => Navigator.pop(context),
@@ -360,8 +382,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         border: Border.all(color: theme.foregroundColor.withValues(alpha: 0.05)),
       ),
       child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 220,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           childAspectRatio: 1.4,
@@ -592,7 +614,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 2.5),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 180,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 2.5,
+      ),
       itemCount: WriterTheme.presets.length,
       itemBuilder: (context, index) {
         final t = WriterTheme.presets[index];

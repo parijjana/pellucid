@@ -117,6 +117,25 @@ class SettingsDatabase {
   Future<Map<String, dynamic>> getSettings() async {
     final db = await instance.database;
     final maps = await db.query('settings', where: 'id = ?', whereArgs: [1]);
+    if (maps.isEmpty) {
+      await db.insert('settings', {
+        'id': 1,
+        'theme_name': 'Paper',
+        'clock_enabled': 0,
+        'current_session_enabled': 0,
+        'target_session_enabled': 0,
+        'focus_timer_enabled': 0,
+        'page_width': 800.0,
+        'horizontal_position': 0.5,
+        'zoom_level': 1.0,
+        'battery_guard_enabled': 1,
+        'battery_alert_threshold': 20,
+        'show_battery_percentage': 1,
+        'last_notes_fullscreen_state': 0,
+      });
+      final mapsRetry = await db.query('settings', where: 'id = ?', whereArgs: [1]);
+      return mapsRetry.first;
+    }
     return maps.first;
   }
 
@@ -124,6 +143,25 @@ class SettingsDatabase {
     final db = await instance.database;
     dynamic dbValue = value;
     if (value is bool) dbValue = value ? 1 : 0;
+    
+    final maps = await db.query('settings', where: 'id = ?', whereArgs: [1]);
+    if (maps.isEmpty) {
+      await db.insert('settings', {
+        'id': 1,
+        'theme_name': 'Paper',
+        'clock_enabled': 0,
+        'current_session_enabled': 0,
+        'target_session_enabled': 0,
+        'focus_timer_enabled': 0,
+        'page_width': 800.0,
+        'horizontal_position': 0.5,
+        'zoom_level': 1.0,
+        'battery_guard_enabled': 1,
+        'battery_alert_threshold': 20,
+        'show_battery_percentage': 1,
+        'last_notes_fullscreen_state': 0,
+      });
+    }
     await db.update('settings', {key: dbValue}, where: 'id = ?', whereArgs: [1]);
   }
 

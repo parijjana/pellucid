@@ -139,7 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.digit4, alt: !isMac, meta: isMac, control: isMac): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -148,95 +148,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
             return null;
           }),
         },
-        child: Scaffold(
-          backgroundColor: theme.backgroundColor,
-          body: Column(
-            children: [
-              IntegratedHeader(
-                theme: theme,
-                showWindowControls: !widget.isFullscreen,
-                actionButton: IconButton(
-                  icon: Icon(Icons.arrow_back, size: 20, color: theme.foregroundColor.withValues(alpha: 0.4)),
-                  onPressed: () => Navigator.pop(context),
-                  tooltip: 'Back',
-                ),
-              ),
-              
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // --- PART 1: SETUP ---
-                      _collapsibleHeader(
-                        title: 'Setup',
-                        theme: theme,
-                        isExpanded: _isSetupExpanded,
-                        onToggle: () => setState(() => _isSetupExpanded = !_isSetupExpanded),
-                      ),
-                      if (_isSetupExpanded) ...[
-                        const SizedBox(height: 24),
-                        _buildFolderPicker(settings, theme),
-                        const SizedBox(height: 32),
-                        _buildSyncTile(sync, theme, settings.masterDirectoryPath != null),
-                        if (sync.lastSynced != null) ...[
-                          const SizedBox(height: 8),
-                          Text('Last synced: ${_formatDateTime(sync.lastSynced!)}',
-                            style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.3), fontSize: 11, fontStyle: FontStyle.italic)),
-                        ],
-                        const SizedBox(height: 32),
-                        _subHeader('Focus & Productivity', theme),
-                        _buildFocusToggles(settings, theme),
-                        const SizedBox(height: 32),
-                        _subHeader('Appearance', theme),
-                        const SizedBox(height: 16),
-                        _buildThemeGrid(context, theme),
-                      ],
-
-                      const SizedBox(height: 60),
-
-                      // --- PART 2: PROJECTS ---
-                      _collapsibleHeader(
-                        title: 'Projects',
-                        theme: theme,
-                        isExpanded: _isProjectsExpanded,
-                        onToggle: () => setState(() => _isProjectsExpanded = !_isProjectsExpanded),
-                      ),
-                      if (_isProjectsExpanded) ...[
-                        const SizedBox(height: 24),
-                        if (settings.masterDirectoryPath != null) ...[
-                          _buildProjectControls(theme),
-                          const SizedBox(height: 16),
-                          _buildProjectArea(settings, theme),
-                          const SizedBox(height: 40),
-                          _subHeader('Publish & Export', theme),
-                          const SizedBox(height: 16),
-                          _buildExportOptions(context, theme, editor.content, settings.currentProjectName ?? 'Untitled', settings.currentProjectPath),
-                        ] else ...[
-                          _buildPlaceholderTile('Please select a Master Storage Folder to view projects.', theme),
-                        ],
-                      ],
-
-                      const SizedBox(height: 60),
-
-                      // --- PART 3: STATISTICS ---
-                      _collapsibleHeader(
-                        title: 'Statistics',
-                        theme: theme,
-                        isExpanded: _isStatsExpanded,
-                        onToggle: () => setState(() => _isStatsExpanded = !_isStatsExpanded),
-                      ),
-                      if (_isStatsExpanded) ...[
-                        const SizedBox(height: 24),
-                        _buildStatisticsArea(history, theme),
-                      ],
-                      const SizedBox(height: 60),
-                    ],
+        child: Focus(
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent) {
+              final isAltPressed = HardwareKeyboard.instance.isAltPressed;
+              final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+              final bool match = isMac
+                  ? (isMetaPressed && isAltPressed && event.logicalKey == LogicalKeyboardKey.digit4)
+                  : (isAltPressed && event.logicalKey == LogicalKeyboardKey.digit4);
+              if (match) {
+                Navigator.pop(context);
+                return KeyEventResult.handled;
+              }
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Scaffold(
+            backgroundColor: theme.backgroundColor,
+            body: Column(
+              children: [
+                IntegratedHeader(
+                  theme: theme,
+                  projectName: settings.currentProjectName ?? 'User Manual',
+                  showWindowControls: !widget.isFullscreen,
+                  actionButton: IconButton(
+                    icon: Icon(Icons.arrow_back, size: 20, color: theme.foregroundColor.withValues(alpha: 0.4)),
+                    onPressed: () => Navigator.pop(context),
+                    tooltip: 'Back',
                   ),
                 ),
-              ),
-            ],
+                
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // --- PART 1: SETUP ---
+                        _collapsibleHeader(
+                          title: 'Setup',
+                          theme: theme,
+                          isExpanded: _isSetupExpanded,
+                          onToggle: () => setState(() => _isSetupExpanded = !_isSetupExpanded),
+                        ),
+                        if (_isSetupExpanded) ...[
+                          const SizedBox(height: 24),
+                          _buildFolderPicker(settings, theme),
+                          const SizedBox(height: 32),
+                          _buildSyncTile(sync, theme, settings.masterDirectoryPath != null),
+                          if (sync.lastSynced != null) ...[
+                            const SizedBox(height: 8),
+                            Text('Last synced: ${_formatDateTime(sync.lastSynced!)}',
+                              style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.3), fontSize: 11, fontStyle: FontStyle.italic)),
+                          ],
+                          const SizedBox(height: 32),
+                          _subHeader('Focus & Productivity', theme),
+                          _buildFocusToggles(settings, theme),
+                          const SizedBox(height: 32),
+                          _subHeader('Appearance', theme),
+                          const SizedBox(height: 16),
+                          _buildThemeGrid(context, theme),
+                        ],
+
+                        const SizedBox(height: 60),
+
+                        // --- PART 2: PROJECTS ---
+                        _collapsibleHeader(
+                          title: 'Projects',
+                          theme: theme,
+                          isExpanded: _isProjectsExpanded,
+                          onToggle: () => setState(() => _isProjectsExpanded = !_isProjectsExpanded),
+                        ),
+                        if (_isProjectsExpanded) ...[
+                          const SizedBox(height: 24),
+                          if (settings.masterDirectoryPath != null) ...[
+                            _buildProjectControls(theme),
+                            const SizedBox(height: 16),
+                            _buildProjectArea(settings, theme),
+                            const SizedBox(height: 40),
+                            _subHeader('Publish & Export', theme),
+                            const SizedBox(height: 16),
+                            _buildExportOptions(context, theme, editor.content, settings.currentProjectName ?? 'Untitled', settings.currentProjectPath),
+                          ] else ...[
+                            _buildPlaceholderTile('Please select a Master Storage Folder to view projects.', theme),
+                          ],
+                        ],
+
+                        const SizedBox(height: 60),
+
+                        // --- PART 3: STATISTICS ---
+                        _collapsibleHeader(
+                          title: 'Statistics',
+                          theme: theme,
+                          isExpanded: _isStatsExpanded,
+                          onToggle: () => setState(() => _isStatsExpanded = !_isStatsExpanded),
+                        ),
+                        if (_isStatsExpanded) ...[
+                          const SizedBox(height: 24),
+                          _buildStatisticsArea(history, theme),
+                        ],
+                        const SizedBox(height: 60),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

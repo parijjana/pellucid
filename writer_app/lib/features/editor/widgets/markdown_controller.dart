@@ -26,6 +26,8 @@ class MarkdownEditingController extends TextEditingController {
         _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold);
       } else if (line.startsWith('## ')) {
         _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold);
+      } else if (line.startsWith('### ')) {
+        _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold);
       } else if (line.startsWith('- ')) {
         _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, isBullet: true);
       } else {

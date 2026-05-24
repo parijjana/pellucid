@@ -1,7 +1,4 @@
-// @trace FEAT-20260516-120000-0001
-// Description: Unit tests for StorageService.
-// TestID: TEST-20260516-120000-0001
-
+import 'dart:io' as io;
 import 'package:file/memory.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
@@ -38,5 +35,14 @@ void main() {
       final content = await storageService.readDocument(testPath);
       expect(content, 'Second content');
     });
+
+    test('USER_MANUAL.md in repository root must match StorageService.userManualContent', () {
+      final file = io.File('../USER_MANUAL.md');
+      expect(file.existsSync(), isTrue, reason: 'USER_MANUAL.md does not exist at repo root');
+      final content = file.readAsStringSync().replaceAll('\r\n', '\n');
+      final compiledContent = StorageService.userManualContent.replaceAll('\r\n', '\n');
+      expect(compiledContent, content, reason: 'The compiled userManualContent does not match USER_MANUAL.md');
+    });
   });
 }
+

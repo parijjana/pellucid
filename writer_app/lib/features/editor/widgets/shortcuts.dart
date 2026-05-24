@@ -28,6 +28,8 @@ class ResetPomodoroIntent extends Intent { const ResetPomodoroIntent(); }
 class AddNoteIntent extends Intent { const AddNoteIntent(); }
 class SaveNoteIntent extends Intent { const SaveNoteIntent(); }
 class CycleNoteCategoryIntent extends Intent { const CycleNoteCategoryIntent(); }
+class OpenAttributionIntent extends Intent { const OpenAttributionIntent(); }
+
 
 // Alignment
 class IncreaseWidthIntent extends Intent { const IncreaseWidthIntent(); }

@@ -51,13 +51,34 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
-  // Give Flutter, including plugins, an opportunity to handle window messages.
+  // 1. Intercept system char and menu messages early to completely mute Windows warning beeps.
+  // We handle these before Flutter's engine is given a chance to pass them to DefWindowProc.
+  if (message == WM_SYSCHAR) {
+    if (wparam != VK_SPACE) {
+      return 0;
+    }
+  }
+  if (message == WM_SYSCOMMAND && (wparam & 0xFFF0) == SC_KEYMENU) {
+    return 0;
+  }
+  if (message == WM_MENUCHAR) {
+    return MAKELRESULT(0, MNC_CLOSE);
+  }
+
+  // 2. Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
         flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,
                                                       lparam);
     if (result) {
       return *result;
+    }
+  }
+
+  // 3. Suppress unhandled system key presses so they don't trigger Default Beeps in DefWindowProc.
+  if (message == WM_SYSKEYDOWN || message == WM_SYSKEYUP) {
+    if (wparam != VK_F4 && wparam != VK_SPACE) {
+      return 0;
     }
   }
 

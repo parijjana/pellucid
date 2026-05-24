@@ -15,6 +15,7 @@ import 'package:pellucid/features/sidebar/screens/notes_sidebar.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 import 'package:pellucid/features/editor/providers/editor_provider.dart';
+import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
 import 'package:pellucid/features/sidebar/widgets/note_editor_attribution_list.dart';
 import 'package:provider/provider.dart';
 
@@ -450,6 +451,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
           ],
           child: const MaterialApp(
             home: Scaffold(
@@ -490,6 +492,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
           ],
           child: const MaterialApp(
             home: Scaffold(
@@ -627,6 +630,86 @@ void main() {
 
       // Still should have 2 TextFields (no new item created on Shift+Enter)
       expect(find.byType(TextField), findsNWidgets(2));
+    });
+
+    testWidgets('NotesSidebar handles arrow key navigation and Enter-key activation', (WidgetTester tester) async {
+      when(() => mockSettings.lastNotesFullscreenState).thenReturn(false);
+      await notesProvider.loadProject('test_path');
+
+      // Add two notes
+      notesProvider.addCard(); // note 1
+      notesProvider.addCard(); // note 2
+
+      final shortcuts = ShortcutsProvider();
+      // Set right sidebar open to trigger automatic focus request in NotesSidebar.build
+      shortcuts.toggleRightSidebar();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<NotesProvider>.value(value: notesProvider),
+            ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+            ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+            ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+            ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<ShortcutsProvider>.value(value: shortcuts),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: NotesSidebar(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify no card is highlighted initially
+      var card1 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).first);
+      var card2 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).last);
+      var attrBtn = tester.widget<AttributionsTextButton>(find.byType(AttributionsTextButton));
+      expect(card1.isHighlighted, isFalse);
+      expect(card2.isHighlighted, isFalse);
+      expect(attrBtn.isHighlighted, isFalse);
+
+      // Press Arrow Down -> Highlights note 1
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      card1 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).first);
+      card2 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).last);
+      attrBtn = tester.widget<AttributionsTextButton>(find.byType(AttributionsTextButton));
+      expect(card1.isHighlighted, isTrue);
+      expect(card2.isHighlighted, isFalse);
+      expect(attrBtn.isHighlighted, isFalse);
+
+      // Press Arrow Down -> Highlights note 2
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      card1 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).first);
+      card2 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).last);
+      attrBtn = tester.widget<AttributionsTextButton>(find.byType(AttributionsTextButton));
+      expect(card1.isHighlighted, isFalse);
+      expect(card2.isHighlighted, isTrue);
+      expect(attrBtn.isHighlighted, isFalse);
+
+      // Press Arrow Down -> Highlights Attributions button
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      card1 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).first);
+      card2 = tester.widget<NoteMiniCard>(find.byType(NoteMiniCard).last);
+      attrBtn = tester.widget<AttributionsTextButton>(find.byType(AttributionsTextButton));
+      expect(card1.isHighlighted, isFalse);
+      expect(card2.isHighlighted, isFalse);
+      expect(attrBtn.isHighlighted, isTrue);
+
+      // Press Enter -> Opens NoteEditorDialog for Attributions
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NoteEditorDialog), findsOneWidget);
     });
   });
 }

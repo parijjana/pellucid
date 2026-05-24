@@ -14,12 +14,14 @@ class NoteMiniCard extends StatelessWidget {
   final NoteCard card;
   final WriterTheme theme;
   final VoidCallback onTap;
+  final bool isHighlighted;
 
   const NoteMiniCard({
     super.key,
     required this.card,
     required this.theme,
     required this.onTap,
+    this.isHighlighted = false,
   });
 
   Color _getCategoryColor() {
@@ -49,6 +51,10 @@ class NoteMiniCard extends StatelessWidget {
           color: _getCategoryColor(),
           borderRadius: BorderRadius.circular(12),
           boxShadow: theme.sidebarShadows,
+          border: Border.all(
+            color: isHighlighted ? theme.foregroundColor.withValues(alpha: 0.6) : Colors.transparent,
+            width: 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

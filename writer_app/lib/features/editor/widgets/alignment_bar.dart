@@ -77,6 +77,10 @@ class _AlignmentBarState extends State<AlignmentBar> {
                               right: -10, top: -5, bottom: -5,
                               child: _buildHandle(false),
                             ),
+                            Align(
+                              alignment: Alignment.center,
+                              child: _buildCenterSnapButton(),
+                            ),
                           ],
                         ),
                       ),
@@ -92,6 +96,15 @@ class _AlignmentBarState extends State<AlignmentBar> {
   );
 }
 
+  Widget _buildCenterSnapButton() {
+    return _CenterSnapButton(
+      theme: widget.theme,
+      onTap: () {
+        widget.onPositionChanged(0.5);
+      },
+    );
+  }
+
   Widget _buildHandle(bool isLeft) {
     return _GlowHandle(
       theme: widget.theme,
@@ -102,6 +115,53 @@ class _AlignmentBarState extends State<AlignmentBar> {
       },
       onDragStart: () => setState(() => _isDragging = true),
       onDragEnd: () => setState(() => _isDragging = false),
+    );
+  }
+}
+
+class _CenterSnapButton extends StatefulWidget {
+  final WriterTheme theme;
+  final VoidCallback onTap;
+
+  const _CenterSnapButton({
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  State<_CenterSnapButton> createState() => _CenterSnapButtonState();
+}
+
+class _CenterSnapButtonState extends State<_CenterSnapButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: _isHovered 
+                ? widget.theme.foregroundColor.withValues(alpha: 0.45) 
+                : widget.theme.foregroundColor.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Icon(
+              Icons.center_focus_strong,
+              size: 11,
+              color: widget.theme.backgroundColor,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

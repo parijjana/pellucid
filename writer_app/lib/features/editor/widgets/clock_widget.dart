@@ -1,8 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import 'alarm_setter_dialog.dart';
 
 class ClockWidget extends StatefulWidget {
   final WriterTheme theme;
@@ -53,7 +53,7 @@ class _ClockWidgetState extends State<ClockWidget> with SingleTickerProviderStat
           if (settings.isAlarmTriggered) {
             settings.dismissAlarm();
           } else {
-            _pickAlarm(context, settings);
+            _pickAlarm(context);
           }
         },
         child: AnimatedOpacity(
@@ -89,15 +89,11 @@ class _ClockWidgetState extends State<ClockWidget> with SingleTickerProviderStat
     );
   }
 
-  Future<void> _pickAlarm(BuildContext context, SettingsProvider settings) async {
-    final TimeOfDay? picked = await showTimePicker(
+  void _pickAlarm(BuildContext context) {
+    showDialog(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(settings.alarmTime ?? DateTime.now()),
+      builder: (context) => const AlarmSetterDialog(),
     );
-    if (picked != null) {
-      final now = DateTime.now();
-      final alarm = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
-      settings.setAlarm(alarm);
-    }
   }
 }
+

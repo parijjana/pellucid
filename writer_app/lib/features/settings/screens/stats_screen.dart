@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/history_provider.dart';
+import '../providers/settings_provider.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/widgets/integrated_header.dart';
 
@@ -15,6 +16,7 @@ class StatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>().currentTheme;
     final historyProvider = context.watch<HistoryProvider>();
+    final settings = context.watch<SettingsProvider>();
     final stats = historyProvider.history.take(7).toList().reversed.toList();
 
     return Scaffold(
@@ -23,6 +25,7 @@ class StatsScreen extends StatelessWidget {
         children: [
           IntegratedHeader(
             theme: theme,
+            projectName: settings.currentProjectName ?? 'User Manual',
             actionButton: IconButton(
               icon: Icon(Icons.arrow_back, size: 20, color: theme.foregroundColor.withValues(alpha: 0.4)),
               onPressed: () => Navigator.pop(context),

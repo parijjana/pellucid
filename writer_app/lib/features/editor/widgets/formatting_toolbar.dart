@@ -45,7 +45,7 @@ class FormattingToolbar extends StatelessWidget {
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
-        foregroundColor: theme.foregroundColor.withValues(alpha: 0.4),
+        foregroundColor: theme.foregroundColor,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         textStyle: const TextStyle(
           fontSize: 10, 

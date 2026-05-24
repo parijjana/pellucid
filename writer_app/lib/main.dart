@@ -216,10 +216,14 @@ class WriterApp extends StatelessWidget {
               state.pop();
             } else {
               final uiState = context.read<ShortcutsProvider>();
-              state.push(MaterialPageRoute(
-                settings: const RouteSettings(name: '/settings'),
-                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-              ));
+              context.read<HistoryProvider>().saveStatsNow().then((_) {
+                if (state.mounted) {
+                  state.push(MaterialPageRoute(
+                    settings: const RouteSettings(name: '/settings'),
+                    builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                  ));
+                }
+              });
             }
             return null;
           }),

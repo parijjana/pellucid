@@ -259,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (settings.masterDirectoryPath != null) ...[
                             _buildProjectControls(theme),
                             const SizedBox(height: 16),
-                            _buildProjectArea(settings, theme),
+                            _buildProjectArea(settings, history, theme),
                             const SizedBox(height: 40),
                             _subHeader('Publish & Export', theme),
                             const SizedBox(height: 16),
@@ -382,7 +382,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildProjectArea(SettingsProvider settings, WriterTheme theme) {
+  Widget _buildProjectArea(SettingsProvider settings, HistoryProvider history, WriterTheme theme) {
     final filtered = _getFilteredAndSortedProjects(settings.availableProjects);
     
     return Container(
@@ -409,11 +409,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             );
           }
           final project = filtered[index - 1];
+          final isActive = settings.currentProjectName == project.name;
+          final wordCount = isActive ? history.currentProjectStats.totalWordCount : project.stats.totalWordCount;
+          final timeSpent = isActive ? history.currentProjectStats.totalTimeSpent : project.stats.totalTimeSpent;
+
           return ProjectCard(
             name: project.name,
-            wordCount: project.stats.totalWordCount,
-            timeSpent: project.stats.totalTimeSpent,
-            isActive: settings.currentProjectName == project.name,
+            wordCount: wordCount,
+            timeSpent: timeSpent,
+            isActive: isActive,
             theme: theme,
             onTap: () async {
               final editorProvider = context.read<EditorProvider>();

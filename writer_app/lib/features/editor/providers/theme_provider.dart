@@ -94,6 +94,30 @@ class WriterTheme {
         ),
       ],
     ),
+    WriterTheme(
+      name: 'Sakura',
+      backgroundColor: Color(0xFFFFF5F6),
+      foregroundColor: Color(0xFF5C2C35),
+      sidebarColor: Color(0xFFFFF5F6),
+    ),
+    WriterTheme(
+      name: 'Matrix',
+      backgroundColor: Color(0xFF000000),
+      foregroundColor: Color(0xFF39FF14),
+      sidebarColor: Color(0xFF000000),
+    ),
+    WriterTheme(
+      name: 'Aura',
+      backgroundColor: Color(0xFF1A1B26),
+      foregroundColor: Color(0xFFC0CAF5),
+      sidebarColor: Color(0xFF16161E),
+    ),
+    WriterTheme(
+      name: 'Mocha',
+      backgroundColor: Color(0xFFFAF0E6),
+      foregroundColor: Color(0xFF4E3629),
+      sidebarColor: Color(0xFFFAF0E6),
+    ),
   ];
 }
 
@@ -108,17 +132,37 @@ class ThemeProvider extends ChangeNotifier {
 
   Future<void> loadSettings() async {
     final settings = await _db.getSettings();
-    final themeName = settings['theme_name'];
-    _currentTheme = WriterTheme.presets.firstWhere(
-      (t) => t.name == themeName,
-      orElse: () => WriterTheme.presets[0],
-    );
+    final themeName = settings['theme_name'] as String? ?? 'Paper';
+    if (themeName.startsWith('custom_')) {
+      final parts = themeName.split('_');
+      if (parts.length == 3) {
+        final bgVal = int.tryParse(parts[1]) ?? 0xFFFFFFFF;
+        final fgVal = int.tryParse(parts[2]) ?? 0xFF000000;
+        _currentTheme = WriterTheme(
+          name: 'Custom',
+          backgroundColor: Color(bgVal),
+          foregroundColor: Color(fgVal),
+          sidebarColor: Color(bgVal),
+        );
+      }
+    } else {
+      _currentTheme = WriterTheme.presets.firstWhere(
+        (t) => t.name == themeName,
+        orElse: () => WriterTheme.presets[0],
+      );
+    }
     notifyListeners();
   }
 
   void setTheme(WriterTheme theme) {
     _currentTheme = theme;
-    _db.updateSetting('theme_name', theme.name);
+    if (theme.name == 'Custom') {
+      final bgStr = '0x${theme.backgroundColor.value.toRadixString(16).padLeft(8, '0')}';
+      final fgStr = '0x${theme.foregroundColor.value.toRadixString(16).padLeft(8, '0')}';
+      _db.updateSetting('theme_name', 'custom_${bgStr}_${fgStr}');
+    } else {
+      _db.updateSetting('theme_name', theme.name);
+    }
     notifyListeners();
   }
 }

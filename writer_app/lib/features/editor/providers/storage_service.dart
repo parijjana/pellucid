@@ -206,9 +206,27 @@ Double-tap the Alt key (left or right Alt) at any time to display a temporary ov
   Future<ProjectStats> readProjectStats(String projectPath) async {
     try {
       final file = _fileSystem.file('$projectPath/$_statsName');
-      if (!await file.exists()) return ProjectStats();
-      final String content = await file.readAsString();
-      return ProjectStats.fromJson(jsonDecode(content));
+      ProjectStats stats;
+      if (!await file.exists()) {
+        stats = ProjectStats();
+      } else {
+        final String content = await file.readAsString();
+        stats = ProjectStats.fromJson(jsonDecode(content));
+      }
+
+      if (stats.totalWordCount == 0) {
+        final docFile = _fileSystem.file('$projectPath/document.md');
+        if (await docFile.exists()) {
+          final content = await docFile.readAsString();
+          final trimmed = content.trim();
+          if (trimmed.isNotEmpty) {
+            final words = trimmed.split(RegExp(r'\s+')).length;
+            stats = stats.copyWith(totalWordCount: words);
+            await saveProjectStats(projectPath, stats);
+          }
+        }
+      }
+      return stats;
     } catch (e) {
       return ProjectStats();
     }

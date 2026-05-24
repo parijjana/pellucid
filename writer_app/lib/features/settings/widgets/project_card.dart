@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../../editor/providers/theme_provider.dart';
+import '../screens/stats_screen.dart';
 
 class ProjectCard extends StatelessWidget {
   final String name;
@@ -82,7 +83,18 @@ class ProjectCard extends StatelessWidget {
                   ],
                 ),
                 if (isActive)
-                  _HistoryButton(theme: theme),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          settings: const RouteSettings(name: '/stats'),
+                          builder: (context) => const StatsScreen(),
+                        ),
+                      );
+                    },
+                    child: _HistoryButton(theme: theme),
+                  ),
               ],
             ),
           ],

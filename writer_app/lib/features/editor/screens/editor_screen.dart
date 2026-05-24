@@ -285,6 +285,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final settings = context.watch<SettingsProvider>();
     final uiState = context.watch<ShortcutsProvider>();
     
+    _editorController.theme = theme;
     if (_editorController.text != editorProvider.content) {
       _editorController.text = editorProvider.content;
     }

@@ -18,6 +18,9 @@ import '../widgets/project_card.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../../editor/widgets/shortcuts.dart';
+import '../../../features_config.dart';
+import '../widgets/custom_theme_designer.dart';
+import 'stats_screen.dart';
 
 enum ProjectSort { date, name }
 
@@ -231,6 +234,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _subHeader('Appearance', theme),
                           const SizedBox(height: 16),
                           _buildThemeGrid(context, theme),
+                          if (FeaturesConfig.enableColorPicker) ...[
+                            const SizedBox(height: 16),
+                            CustomThemeDesigner(
+                              currentTheme: theme,
+                              onThemeChanged: (newTheme) {
+                                context.read<ThemeProvider>().setTheme(newTheme);
+                              },
+                            ),
+                          ],
                         ],
 
                         const SizedBox(height: 60),
@@ -409,6 +421,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final notesProvider = context.read<NotesProvider>();
               final historyProvider = context.read<HistoryProvider>();
 
+              await historyProvider.saveStatsNow();
               await editorProvider.flushSync(
                 syncProvider: syncProvider,
                 projectName: settings.currentProjectName,
@@ -419,6 +432,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await editorProvider.loadProject(path);
                 await notesProvider.loadProject(path, projectName: project.name);
                 await historyProvider.loadProjectStats(path);
+                await settings.refreshProjects();
               }
             },
           );
@@ -764,6 +778,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final historyProvider = context.read<HistoryProvider>();
                 final navigator = Navigator.of(context);
 
+                await historyProvider.saveStatsNow();
                 await editorProvider.flushSync(
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
@@ -774,6 +789,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await editorProvider.loadProject(path);
                   await notesProvider.loadProject(path, projectName: controller.text);
                   await historyProvider.loadProjectStats(path);
+                  await settings.refreshProjects();
                   navigator.pop();
                 }
               }

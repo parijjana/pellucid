@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
 
 class MarkdownEditingController extends TextEditingController {
-  final WriterTheme theme;
+  WriterTheme theme;
 
   MarkdownEditingController({super.text, required this.theme});
 

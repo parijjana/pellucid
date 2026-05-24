@@ -86,6 +86,9 @@ class HistoryProvider extends ChangeNotifier {
   }
 
   Future<void> loadProjectStats(String? projectPath) async {
+    if (_currentProjectPath != null && _currentProjectPath != projectPath) {
+      await saveStatsNow();
+    }
     _currentProjectPath = projectPath;
     _initialWordCount = -1;
     _baseTodayWordCountDelta = 0;

@@ -539,8 +539,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String _formatHours(Duration d) {
-    final hours = d.inSeconds / 3600;
-    return '${hours.toStringAsFixed(1)} hrs';
+    if (d.inHours < 1) {
+      return '${d.inMinutes}m';
+    } else {
+      final hours = d.inHours.toString().padLeft(2, '0');
+      final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+      return '$hours:$minutes';
+    }
   }
 
   String _formatDateTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';

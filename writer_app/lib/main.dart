@@ -86,6 +86,7 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.digit2, alt: !isMac, meta: isMac, control: isMac): const ToggleNotesIntent(),
         SingleActivator(LogicalKeyboardKey.digit3, alt: !isMac, meta: isMac, control: isMac): const ToggleToolbarIntent(),
         SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.digit5, alt: !isMac, meta: isMac, control: isMac): const ToggleTimelineIntent(),
         const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.enter, alt: !isMac, meta: isMac, control: isMac): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.keyC, alt: !isMac, meta: isMac, control: isMac): const PeekClockIntent(),
@@ -104,6 +105,10 @@ class WriterApp extends StatelessWidget {
           }),
           ToggleNotesIntent: CallbackAction<ToggleNotesIntent>(onInvoke: (intent) {
             context.read<ShortcutsProvider>().toggleRightSidebar();
+            return null;
+          }),
+          ToggleTimelineIntent: CallbackAction<ToggleTimelineIntent>(onInvoke: (intent) {
+            context.read<ShortcutsProvider>().toggleTimeline();
             return null;
           }),
           ToggleToolbarIntent: CallbackAction<ToggleToolbarIntent>(onInvoke: (intent) {

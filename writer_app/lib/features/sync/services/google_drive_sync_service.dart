@@ -21,6 +21,10 @@ class GoogleAuthClient extends http.BaseClient {
 class GoogleDriveSyncService {
   static const String _vaultFolderName = 'Pellucid Vault';
   static const String _tokenKey = 'google_drive_token';
+  static const String _refreshTokenKey = 'google_drive_refresh_token';
+  static const String _expiryKey = 'google_drive_token_expiry';
+  static const String _clientIdKey = 'google_client_id_pref';
+  static const String _clientSecretKey = 'google_client_secret_pref';
 
   static const String _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_CLIENT_ID');
   static const String _clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET', defaultValue: 'YOUR_GOOGLE_CLIENT_SECRET');
@@ -32,17 +36,37 @@ class GoogleDriveSyncService {
     return prefs.getString(_tokenKey) != null;
   }
 
-  Future<void> login() async {
+  Future<void> login({String? customClientId, String? customClientSecret}) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (customClientId != null) {
+      await prefs.setString(_clientIdKey, customClientId);
+    } else {
+      await prefs.remove(_clientIdKey);
+    }
+    if (customClientSecret != null) {
+      await prefs.setString(_clientSecretKey, customClientSecret);
+    } else {
+      await prefs.remove(_clientSecretKey);
+    }
+
+    final clientId = customClientId ?? _clientId;
+    final clientSecret = customClientSecret ?? _clientSecret;
+
     final helper = DesktopOAuthHelper(
-      clientId: _clientId,
-      clientSecret: _clientSecret,
+      clientId: clientId,
+      clientSecret: clientSecret,
       scopes: [drive.DriveApi.driveFileScope, 'email', 'profile'],
     );
 
     final tokens = await helper.authenticate();
     if (tokens != null && tokens['access_token'] != null) {
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, tokens['access_token']);
+      if (tokens['refresh_token'] != null) {
+        await prefs.setString(_refreshTokenKey, tokens['refresh_token']);
+      }
+      final expiresIn = tokens['expires_in'] ?? 3600;
+      await prefs.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
+
       _driveApi = drive.DriveApi(GoogleAuthClient(tokens['access_token']));
     }
   }
@@ -51,6 +75,56 @@ class GoogleDriveSyncService {
     _driveApi = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    await prefs.remove(_refreshTokenKey);
+    await prefs.remove(_expiryKey);
+    await prefs.remove(_clientIdKey);
+    await prefs.remove(_clientSecretKey);
+  }
+
+  Future<bool> _isTokenExpired() async {
+    final prefs = await SharedPreferences.getInstance();
+    final expiry = prefs.getInt(_expiryKey);
+    if (expiry == null) return true;
+    // 1-minute buffer before actual expiry
+    return DateTime.now().millisecondsSinceEpoch > (expiry - 60000);
+  }
+
+  Future<bool> refreshAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString(_refreshTokenKey);
+    if (refreshToken == null) return false;
+
+    final clientId = prefs.getString(_clientIdKey) ?? _clientId;
+    final clientSecret = prefs.getString(_clientSecretKey) ?? _clientSecret;
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://oauth2.googleapis.com/token'),
+        body: {
+          'client_id': clientId,
+          'client_secret': clientSecret,
+          'refresh_token': refreshToken,
+          'grant_type': 'refresh_token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final newAccessToken = data['access_token'];
+        final expiresIn = data['expires_in'] ?? 3600;
+        
+        await prefs.setString(_tokenKey, newAccessToken);
+        await prefs.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
+        
+        if (data['refresh_token'] != null) {
+          await prefs.setString(_refreshTokenKey, data['refresh_token']);
+        }
+        return true;
+      }
+    } catch (e) {
+      if (kDebugMode) print('Failed to refresh access token: $e');
+    }
+    return false;
   }
 
   Future<void> syncFile({
@@ -152,12 +226,22 @@ class GoogleDriveSyncService {
   }
 
   Future<drive.DriveApi?> _getApi() async {
-    if (_driveApi != null) return _driveApi;
+    if (_driveApi != null) {
+      final isExpired = await _isTokenExpired();
+      if (!isExpired) return _driveApi;
+    }
     
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     if (token != null) {
-      _driveApi = drive.DriveApi(GoogleAuthClient(token));
+      final isExpired = await _isTokenExpired();
+      if (isExpired) {
+        final success = await refreshAccessToken();
+        if (!success) return null;
+      }
+      
+      final freshToken = prefs.getString(_tokenKey);
+      _driveApi = drive.DriveApi(GoogleAuthClient(freshToken!));
       return _driveApi;
     }
     return null;

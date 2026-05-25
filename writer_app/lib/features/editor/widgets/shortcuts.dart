@@ -9,6 +9,7 @@ class SetBulletIntent extends Intent { const SetBulletIntent(); }
 // UI Toggles
 class ToggleToCIntent extends Intent { const ToggleToCIntent(); }
 class ToggleNotesIntent extends Intent { const ToggleNotesIntent(); }
+class ToggleTimelineIntent extends Intent { const ToggleTimelineIntent(); }
 class ToggleToolbarIntent extends Intent { const ToggleToolbarIntent(); }
 class OpenSettingsIntent extends Intent { const OpenSettingsIntent(); }
 class ToggleFullscreenIntent extends Intent { const ToggleFullscreenIntent(); }

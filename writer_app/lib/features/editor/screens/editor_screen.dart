@@ -8,6 +8,7 @@ import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/screens/notes_sidebar.dart';
+import '../../sidebar/screens/timeline_sidebar.dart';
 import '../widgets/editor_status_bar.dart';
 import '../widgets/markdown_controller.dart';
 import '../widgets/alignment_bar.dart';
@@ -453,6 +454,24 @@ class _EditorScreenState extends State<EditorScreen> {
                               ),
                             ),
                           ),
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                            right: uiState.isTimelineOpen ? 0 : -300,
+                            top: 0, bottom: 0, width: 300,
+                            child: ClipRect(
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: theme.sidebarColor.withValues(alpha: 0.8),
+                                    border: Border(left: BorderSide(color: theme.foregroundColor.withValues(alpha: 0.05))),
+                                  ),
+                                  child: const TimelineSidebar(),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -477,7 +496,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
                   left: uiState.isLeftSidebarOpen ? 270 : 20,
-                  right: uiState.isRightSidebarOpen ? 320 : 20,
+                  right: (uiState.isRightSidebarOpen || uiState.isTimelineOpen) ? 320 : 20,
                   bottom: 60,
                   child: AlignmentBar(
                     theme: theme,

@@ -37,9 +37,9 @@ class SyncProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login() async {
+  Future<bool> login({String? clientId, String? clientSecret}) async {
     try {
-      await _service.login();
+      await _service.login(customClientId: clientId, customClientSecret: clientSecret);
       await _checkLoginStatus();
       return _isLoggedIn;
     } catch (e) {

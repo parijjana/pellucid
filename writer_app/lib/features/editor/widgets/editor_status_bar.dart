@@ -148,7 +148,16 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
                   theme: widget.theme,
                 ),
                 LowContrastIconButton(
+                  icon: Icons.history,
+                  isSelected: shortcuts.isTimelineOpen,
+                  onPressed: () {
+                    shortcuts.toggleTimeline();
+                  },
+                  theme: widget.theme,
+                ),
+                LowContrastIconButton(
                   icon: widget.isRightSidebarOpen ? Icons.menu_open : Icons.menu,
+                  isSelected: widget.isRightSidebarOpen,
                   flipX: true,
                   onPressed: widget.onToggleRight,
                   theme: widget.theme,

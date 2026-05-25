@@ -30,7 +30,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 7, // Incremented for last_notes_fullscreen_state
+      version: 8, // Incremented for Google OAuth custom credentials
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -54,7 +54,9 @@ class SettingsDatabase {
         battery_guard_enabled INTEGER,
         battery_alert_threshold INTEGER,
         show_battery_percentage INTEGER,
-        last_notes_fullscreen_state INTEGER
+        last_notes_fullscreen_state INTEGER,
+        google_client_id TEXT,
+        google_client_secret TEXT
       )
     ''');
 
@@ -111,6 +113,10 @@ class SettingsDatabase {
     if (oldVersion < 7) {
       await db.execute('ALTER TABLE settings ADD COLUMN last_notes_fullscreen_state INTEGER DEFAULT 0');
     }
+    if (oldVersion < 8) {
+      await db.execute('ALTER TABLE settings ADD COLUMN google_client_id TEXT');
+      await db.execute('ALTER TABLE settings ADD COLUMN google_client_secret TEXT');
+    }
   }
 
   // Settings Methods
@@ -132,6 +138,8 @@ class SettingsDatabase {
         'battery_alert_threshold': 20,
         'show_battery_percentage': 1,
         'last_notes_fullscreen_state': 0,
+        'google_client_id': null,
+        'google_client_secret': null,
       });
       final mapsRetry = await db.query('settings', where: 'id = ?', whereArgs: [1]);
       return mapsRetry.first;
@@ -160,6 +168,8 @@ class SettingsDatabase {
         'battery_alert_threshold': 20,
         'show_battery_percentage': 1,
         'last_notes_fullscreen_state': 0,
+        'google_client_id': null,
+        'google_client_secret': null,
       });
     }
     await db.update('settings', {key: dbValue}, where: 'id = ?', whereArgs: [1]);

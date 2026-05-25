@@ -7,6 +7,7 @@ class LowContrastIconButton extends StatefulWidget {
   final WriterTheme theme;
   final double size;
   final bool flipX;
+  final bool isSelected;
 
   const LowContrastIconButton({
     super.key,
@@ -15,6 +16,7 @@ class LowContrastIconButton extends StatefulWidget {
     required this.theme,
     this.size = 18,
     this.flipX = false,
+    this.isSelected = false,
   });
 
   @override
@@ -31,7 +33,7 @@ class _LowContrastIconButtonState extends State<LowContrastIconButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
-        opacity: _isHovered ? 1.0 : 0.2,
+        opacity: (_isHovered || widget.isSelected) ? 1.0 : 0.2,
         child: IconButton(
           icon: widget.flipX 
             ? Transform.flip(flipX: true, child: Icon(widget.icon, size: widget.size))

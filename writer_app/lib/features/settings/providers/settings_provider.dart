@@ -50,6 +50,10 @@ class SettingsProvider extends ChangeNotifier {
   // Notes Dialog Settings
   bool _lastNotesFullscreenState = false;
 
+  // Google OAuth Settings
+  String? _googleClientId;
+  String? _googleClientSecret;
+
   // Project Settings
   String? _masterDirectoryPath;
   String? _currentProjectName;
@@ -72,6 +76,8 @@ class SettingsProvider extends ChangeNotifier {
     _batteryAlertThreshold = settings['battery_alert_threshold'] ?? 20;
     _showBatteryPercentage = (settings['show_battery_percentage'] ?? 1) == 1;
     _lastNotesFullscreenState = (settings['last_notes_fullscreen_state'] ?? 0) == 1;
+    _googleClientId = settings['google_client_id'];
+    _googleClientSecret = settings['google_client_secret'];
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
     
@@ -112,6 +118,8 @@ class SettingsProvider extends ChangeNotifier {
   int get batteryAlertThreshold => _batteryAlertThreshold;
   bool get showBatteryPercentage => _showBatteryPercentage;
   bool get lastNotesFullscreenState => _lastNotesFullscreenState;
+  String? get googleClientId => _googleClientId;
+  String? get googleClientSecret => _googleClientSecret;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -165,6 +173,14 @@ class SettingsProvider extends ChangeNotifier {
   void setLastNotesFullscreenState(bool isFullscreen) {
     _lastNotesFullscreenState = isFullscreen;
     _db.updateSetting('last_notes_fullscreen_state', isFullscreen);
+    notifyListeners();
+  }
+
+  Future<void> setGoogleCredentials(String? clientId, String? clientSecret) async {
+    _googleClientId = clientId;
+    _googleClientSecret = clientSecret;
+    await _db.updateSetting('google_client_id', clientId);
+    await _db.updateSetting('google_client_secret', clientSecret);
     notifyListeners();
   }
 

@@ -40,6 +40,19 @@ void main() {
     verify(() => mockService.login()).called(1);
   });
 
+  test('login with custom credentials passes them to service', () async {
+    when(() => mockService.login(
+      customClientId: any(named: 'customClientId'),
+      customClientSecret: any(named: 'customClientSecret'),
+    )).thenAnswer((_) async {});
+    when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
+
+    await syncProvider.login(clientId: 'cid', clientSecret: 'sec');
+
+    expect(syncProvider.isLoggedIn, true);
+    verify(() => mockService.login(customClientId: 'cid', customClientSecret: 'sec')).called(1);
+  });
+
   test('syncCurrentFile updates status to success on success', () async {
     when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
     // Re-init with logged in status

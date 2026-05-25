@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
@@ -22,13 +23,16 @@ class DesktopOAuthHelper {
   Future<Map<String, dynamic>?> authenticate() async {
     final completer = Completer<Map<String, dynamic>?>();
     final router = Router();
+    
+    HttpServer? server;
+    int actualPort = port;
 
     // The route Google will redirect back to
     router.get('/', (Request request) async {
       final code = request.url.queryParameters['code'];
       if (code != null) {
         // Exchange code for tokens
-        final tokens = await _exchangeCodeForTokens(code);
+        final tokens = await _exchangeCodeForTokens(code, actualPort);
         completer.complete(tokens);
         return Response.ok(
           '<h1>Pellucid Connected!</h1><p>You can close this tab and return to the app.</p>',
@@ -39,14 +43,22 @@ class DesktopOAuthHelper {
       return Response.notFound('No code found');
     });
 
-    final server = await io.serve(router.call, 'localhost', port);
+    try {
+      server = await io.serve(router.call, 'localhost', actualPort);
+    } catch (_) {
+      // Fallback to random free port
+      server = await io.serve(router.call, 'localhost', 0);
+      actualPort = server.port;
+    }
     
     // Construct the auth URL
     final authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?'
         'client_id=$clientId&'
-        'redirect_uri=http://localhost:$port&'
+        'redirect_uri=http://localhost:$actualPort&'
         'response_type=code&'
-        'scope=${scopes.join('%20')}';
+        'scope=${scopes.join('%20')}&'
+        'access_type=offline&'
+        'prompt=consent';
 
     if (await canLaunchUrl(Uri.parse(authUrl))) {
       await launchUrl(Uri.parse(authUrl));
@@ -65,7 +77,7 @@ class DesktopOAuthHelper {
     return result;
   }
 
-  Future<Map<String, dynamic>?> _exchangeCodeForTokens(String code) async {
+  Future<Map<String, dynamic>?> _exchangeCodeForTokens(String code, int actualPort) async {
     final response = await http.post(
       Uri.parse('https://oauth2.googleapis.com/token'),
       body: {
@@ -73,7 +85,7 @@ class DesktopOAuthHelper {
         'client_secret': clientSecret,
         'code': code,
         'grant_type': 'authorization_code',
-        'redirect_uri': 'http://localhost:$port',
+        'redirect_uri': 'http://localhost:$actualPort',
       },
     );
 

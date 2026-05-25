@@ -119,5 +119,17 @@ void main() {
       expect(settingsProvider.masterDirectoryPath, '/persisted/path');
       expect(settingsProvider.currentProjectName, 'Old Project');
     });
+
+    test('setGoogleCredentials should update state and database', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+
+      await settingsProvider.setGoogleCredentials('my-client-id', 'my-client-secret');
+
+      expect(settingsProvider.googleClientId, 'my-client-id');
+      expect(settingsProvider.googleClientSecret, 'my-client-secret');
+      verify(() => mockSettingsDatabase.updateSetting('google_client_id', 'my-client-id')).called(1);
+      verify(() => mockSettingsDatabase.updateSetting('google_client_secret', 'my-client-secret')).called(1);
+    });
   });
 }

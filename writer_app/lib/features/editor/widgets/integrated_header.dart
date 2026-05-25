@@ -84,15 +84,21 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
       ),
       child: Stack(
         children: [
+          // Background Drag Area: Handles dragging on any empty space of the header
+          Positioned.fill(
+            child: DragToMoveArea(
+              child: Container(
+                color: Colors.transparent,
+              ),
+            ),
+          ),
           if (widget.showWindowControls)
             WindowCaption(
               brightness: widget.theme.backgroundColor.computeLuminance() > 0.5 
                   ? Brightness.light 
                   : Brightness.dark,
               backgroundColor: Colors.transparent,
-            )
-          else
-            const DragToMoveArea(child: SizedBox.expand()),
+            ),
           
           // Action Button (Left)
           Positioned(

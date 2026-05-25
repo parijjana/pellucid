@@ -4,13 +4,13 @@ import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 
-class RevisionPreviewDialog extends StatefulWidget {
+class RevisionPreviewDialogWithBackup extends StatefulWidget {
   final String revisionId;
   final String projectName;
   final String fileName;
   final String displayTime;
 
-  const RevisionPreviewDialog({
+  const RevisionPreviewDialogWithBackup({
     super.key,
     required this.revisionId,
     required this.projectName,
@@ -19,10 +19,10 @@ class RevisionPreviewDialog extends StatefulWidget {
   });
 
   @override
-  State<RevisionPreviewDialog> createState() => _RevisionPreviewDialogState();
+  State<RevisionPreviewDialogWithBackup> createState() => _RevisionPreviewDialogWithBackupState();
 }
 
-class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
+class _RevisionPreviewDialogWithBackupState extends State<RevisionPreviewDialogWithBackup> {
   bool _isLoading = true;
   String _content = '';
   String? _error;
@@ -195,7 +195,7 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
         backgroundColor: theme.backgroundColor,
         title: Text('Restore Snapshot?', style: TextStyle(color: theme.foregroundColor)),
         content: Text(
-          'This will overwrite your current active manuscript.',
+          'This will overwrite your current active manuscript. A backup snapshot of your current state will be automatically created first.',
           style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.8)),
         ),
         actions: [
@@ -209,13 +209,21 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
               setState(() => _isLoading = true);
               
               try {
-                // Overwrite local and sync the restored content
+                // 1. Create a backup snapshot of current editor content first
+                await sync.syncCurrentFile(
+                  projectName: widget.projectName,
+                  fileName: widget.fileName,
+                  content: editor.content,
+                );
+                
+                // 2. Overwrite local and sync the restored content
                 editor.updateContent(
                   _content,
                   syncProvider: sync,
                   projectName: widget.projectName,
                 );
                 
+                // 3. Reload history so timeline lists the new backup & state
                 await sync.loadHistory(widget.projectName, widget.fileName);
                 
                 if (mounted) {

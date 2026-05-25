@@ -82,10 +82,10 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
       final baseColor = widget.theme.backgroundColor;
       final isDark = baseColor.computeLuminance() < 0.5;
       if (baseColor == Colors.black || (isDark && baseColor.red == 0 && baseColor.green == 0 && baseColor.blue == 0)) {
-        dragAreaColor = const Color(0xFF0A0A0A);
+        dragAreaColor = const Color(0xFF050505);
       } else {
         final hsl = HSLColor.fromColor(baseColor);
-        dragAreaColor = hsl.withLightness((hsl.lightness - 0.04).clamp(0.0, 1.0)).toColor();
+        dragAreaColor = hsl.withLightness((hsl.lightness - 0.02).clamp(0.0, 1.0)).toColor();
       }
     }
 

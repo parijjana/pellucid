@@ -30,7 +30,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 8, // Incremented for Google OAuth custom credentials
+      version: 9, // Incremented for Google OAuth custom credentials and sync interval
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -56,7 +56,8 @@ class SettingsDatabase {
         show_battery_percentage INTEGER,
         last_notes_fullscreen_state INTEGER,
         google_client_id TEXT,
-        google_client_secret TEXT
+        google_client_secret TEXT,
+        sync_interval_minutes INTEGER DEFAULT 30
       )
     ''');
 
@@ -83,6 +84,7 @@ class SettingsDatabase {
       'battery_alert_threshold': 20,
       'show_battery_percentage': 1,
       'last_notes_fullscreen_state': 0,
+      'sync_interval_minutes': 30,
     });
   }
 
@@ -117,6 +119,9 @@ class SettingsDatabase {
       await db.execute('ALTER TABLE settings ADD COLUMN google_client_id TEXT');
       await db.execute('ALTER TABLE settings ADD COLUMN google_client_secret TEXT');
     }
+    if (oldVersion < 9) {
+      await db.execute('ALTER TABLE settings ADD COLUMN sync_interval_minutes INTEGER DEFAULT 30');
+    }
   }
 
   // Settings Methods
@@ -140,6 +145,7 @@ class SettingsDatabase {
         'last_notes_fullscreen_state': 0,
         'google_client_id': null,
         'google_client_secret': null,
+        'sync_interval_minutes': 30,
       });
       final mapsRetry = await db.query('settings', where: 'id = ?', whereArgs: [1]);
       return mapsRetry.first;
@@ -170,6 +176,7 @@ class SettingsDatabase {
         'last_notes_fullscreen_state': 0,
         'google_client_id': null,
         'google_client_secret': null,
+        'sync_interval_minutes': 30,
       });
     }
     await db.update('settings', {key: dbValue}, where: 'id = ?', whereArgs: [1]);

@@ -79,6 +79,7 @@ void main() {
     when(() => mockSettings.lastNotesFullscreenState).thenReturn(false);
     when(() => mockSettings.setLastNotesFullscreenState(any())).thenAnswer((_) async {});
     when(() => mockSettings.refreshProjects()).thenAnswer((_) async {});
+    when(() => mockSettings.syncIntervalMinutes).thenReturn(30);
 
     when(() => mockSync.status).thenReturn(SyncStatus.idle);
     when(() => mockSync.isLoggedIn).thenReturn(false);

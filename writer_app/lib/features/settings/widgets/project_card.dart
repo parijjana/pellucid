@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../../editor/providers/theme_provider.dart';
+import '../../sidebar/widgets/snapshot_management_dialog.dart';
 import '../screens/stats_screen.dart';
 
 class ProjectCard extends StatelessWidget {
@@ -12,6 +13,7 @@ class ProjectCard extends StatelessWidget {
   final bool isActive;
   final WriterTheme theme;
   final VoidCallback onTap;
+  final VoidCallback onLaunch;
 
   const ProjectCard({
     super.key,
@@ -21,6 +23,7 @@ class ProjectCard extends StatelessWidget {
     required this.isActive,
     required this.theme,
     required this.onTap,
+    required this.onLaunch,
   });
 
   String _formatTime(Duration d) {
@@ -82,19 +85,40 @@ class ProjectCard extends StatelessWidget {
                     _statText(_formatTime(timeSpent), theme),
                   ],
                 ),
-                if (isActive)
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          settings: const RouteSettings(name: '/stats'),
-                          builder: (context) => const StatsScreen(),
-                        ),
-                      );
-                    },
-                    child: _HistoryButton(theme: theme),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: onLaunch,
+                      child: _LaunchButton(theme: theme),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => SnapshotManagementDialog(projectName: name),
+                        );
+                      },
+                      child: _SnapshotsButton(theme: theme),
+                    ),
+                    if (isActive) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              settings: const RouteSettings(name: '/stats'),
+                              builder: (context) => const StatsScreen(),
+                            ),
+                          );
+                        },
+                        child: _HistoryButton(theme: theme),
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
           ],
@@ -109,6 +133,27 @@ class ProjectCard extends StatelessWidget {
       style: TextStyle(
         color: theme.foregroundColor.withValues(alpha: 0.5),
         fontSize: 11,
+      ),
+    );
+  }
+}
+
+class _SnapshotsButton extends StatelessWidget {
+  final WriterTheme theme;
+  const _SnapshotsButton({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.foregroundColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.cloud_sync,
+        size: 14,
+        color: theme.foregroundColor.withValues(alpha: 0.4),
       ),
     );
   }
@@ -135,86 +180,23 @@ class _HistoryButton extends StatelessWidget {
   }
 }
 
-class NewProjectCard extends StatelessWidget {
+class _LaunchButton extends StatelessWidget {
   final WriterTheme theme;
-  final VoidCallback onTap;
-
-  const NewProjectCard({
-    super.key,
-    required this.theme,
-    required this.onTap,
-  });
+  const _LaunchButton({required this.theme});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: CustomPaint(
-        painter: DottedBorderPainter(
-          color: theme.foregroundColor.withValues(alpha: 0.2),
-          strokeWidth: 2,
-          gap: 4,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add, color: theme.foregroundColor.withValues(alpha: 0.3)),
-              const SizedBox(height: 8),
-              Text(
-                'NEW PROJECT',
-                style: TextStyle(
-                  color: theme.foregroundColor.withValues(alpha: 0.3),
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.foregroundColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.open_in_new,
+        size: 14,
+        color: theme.foregroundColor.withValues(alpha: 0.4),
       ),
     );
   }
-}
-
-class DottedBorderPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double gap;
-
-  DottedBorderPainter({
-    required this.color,
-    required this.strokeWidth,
-    required this.gap,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..addRRect(RRect.fromLTRBR(0, 0, size.width, size.height, const Radius.circular(8)));
-
-    final dashPath = Path();
-    double distance = 0.0;
-    for (final pathMetric in path.computeMetrics()) {
-      while (distance < pathMetric.length) {
-        dashPath.addPath(
-          pathMetric.extractPath(distance, distance + gap),
-          Offset.zero,
-        );
-        distance += gap * 2;
-      }
-      distance = 0.0;
-    }
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

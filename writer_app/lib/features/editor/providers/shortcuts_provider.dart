@@ -7,7 +7,6 @@ class ShortcutsProvider extends ChangeNotifier {
   // UI Panel States
   bool _isLeftSidebarOpen = false;
   bool _isRightSidebarOpen = false;
-  bool _isTimelineOpen = false;
   bool _isToolbarOpen = false;
   bool _isFullscreen = false;
 
@@ -16,7 +15,6 @@ class ShortcutsProvider extends ChangeNotifier {
   
   bool get isLeftSidebarOpen => _isLeftSidebarOpen;
   bool get isRightSidebarOpen => _isRightSidebarOpen;
-  bool get isTimelineOpen => _isTimelineOpen;
   bool get isToolbarOpen => _isToolbarOpen;
   bool get isFullscreen => _isFullscreen;
 
@@ -45,17 +43,6 @@ class ShortcutsProvider extends ChangeNotifier {
 
   void toggleRightSidebar() {
     _isRightSidebarOpen = !_isRightSidebarOpen;
-    if (_isRightSidebarOpen) {
-      _isTimelineOpen = false;
-    }
-    notifyListeners();
-  }
-
-  void toggleTimeline() {
-    _isTimelineOpen = !_isTimelineOpen;
-    if (_isTimelineOpen) {
-      _isRightSidebarOpen = false;
-    }
     notifyListeners();
   }
 

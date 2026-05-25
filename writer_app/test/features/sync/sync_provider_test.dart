@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/sync/services/google_drive_sync_service.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
@@ -94,5 +95,20 @@ void main() {
     );
 
     expect(syncProvider.status, SyncStatus.error);
+  });
+
+  test('loadHistory calls service and updates history list', () async {
+    when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
+    syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+    await Future.microtask(() {});
+
+    final mockRevisions = [drive.Revision(id: 'rev-1')];
+    when(() => mockService.getRevisions('MyProject', 'manuscript.md'))
+        .thenAnswer((_) async => mockRevisions);
+
+    await syncProvider.loadHistory('MyProject', 'manuscript.md');
+
+    expect(syncProvider.history, mockRevisions);
+    verify(() => mockService.getRevisions('MyProject', 'manuscript.md')).called(1);
   });
 }

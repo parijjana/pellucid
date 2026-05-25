@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/editor_provider.dart';
+import '../../editor/providers/storage_service.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 
 class RevisionPreviewDialog extends StatefulWidget {
@@ -189,13 +191,18 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
     EditorProvider editor,
     SyncProvider sync,
   ) {
+    final settings = context.read<SettingsProvider>();
+    final isCurrentProject = widget.projectName == settings.currentProjectName;
+
     showDialog(
       context: context,
       builder: (confirmContext) => AlertDialog(
         backgroundColor: theme.backgroundColor,
         title: Text('Restore Snapshot?', style: TextStyle(color: theme.foregroundColor)),
         content: Text(
-          'This will overwrite your current active manuscript.',
+          isCurrentProject
+              ? 'This will overwrite your current active manuscript.'
+              : 'This will overwrite the manuscript for project "${widget.projectName}".',
           style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.8)),
         ),
         actions: [
@@ -209,12 +216,21 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
               setState(() => _isLoading = true);
               
               try {
-                // Overwrite local and sync the restored content
-                editor.updateContent(
-                  _content,
-                  syncProvider: sync,
-                  projectName: widget.projectName,
-                );
+                if (isCurrentProject) {
+                  editor.updateContent(
+                    _content,
+                    syncProvider: sync,
+                    projectName: widget.projectName,
+                  );
+                } else if (settings.masterDirectoryPath != null) {
+                  final path = '${settings.masterDirectoryPath}/${widget.projectName}';
+                  await StorageService().saveDocument(path, _content);
+                  await sync.syncCurrentFile(
+                    projectName: widget.projectName,
+                    fileName: widget.fileName,
+                    content: _content,
+                  );
+                }
                 
                 await sync.loadHistory(widget.projectName, widget.fileName);
                 

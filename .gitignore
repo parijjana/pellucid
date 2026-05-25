@@ -49,3 +49,4 @@ agent_log/
 *.py
 *.html
 .gemini/
+.env

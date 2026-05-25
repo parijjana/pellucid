@@ -15,6 +15,7 @@ import '../../editor/widgets/integrated_header.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../providers/history_provider.dart';
 import '../widgets/project_card.dart';
+import '../widgets/new_project_card.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../../editor/widgets/shortcuts.dart';
@@ -238,6 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Text('Last synced: ${_formatDateTime(sync.lastSynced!)}',
                               style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.3), fontSize: 11, fontStyle: FontStyle.italic)),
                           ],
+                          _buildSyncIntervalSection(settings, theme),
                           _buildAdvancedCredentialsSection(settings, theme),
                           const SizedBox(height: 32),
                           _subHeader('Focus & Productivity', theme),
@@ -451,6 +453,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await settings.refreshProjects();
               }
             },
+            onLaunch: () async {
+              final editorProvider = context.read<EditorProvider>();
+              final syncProvider = context.read<SyncProvider>();
+              final notesProvider = context.read<NotesProvider>();
+              final historyProvider = context.read<HistoryProvider>();
+
+              if (!isActive) {
+                await historyProvider.saveStatsNow();
+                await editorProvider.flushSync(
+                  syncProvider: syncProvider,
+                  projectName: settings.currentProjectName,
+                );
+                await settings.setCurrentProject(project.name);
+                if (mounted) {
+                  final path = settings.currentProjectPath;
+                  await editorProvider.loadProject(path);
+                  await notesProvider.loadProject(path, projectName: project.name);
+                  await historyProvider.loadProjectStats(path);
+                  await settings.refreshProjects();
+                }
+              }
+              if (mounted) {
+                Navigator.pop(context);
+              }
+            },
           );
         },
       ),
@@ -613,6 +640,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             )
           else
             TextButton(onPressed: sync.logout, child: Text('DISCONNECT', style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2), fontSize: 10))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSyncIntervalSection(SettingsProvider settings, WriterTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Cloud Auto-Sync Interval',
+                style: TextStyle(color: theme.foregroundColor, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Background snapshot frequency during editing.',
+                style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.4), fontSize: 11),
+              ),
+            ],
+          ),
+          DropdownButton<int>(
+            value: settings.syncIntervalMinutes,
+            dropdownColor: theme.sidebarColor,
+            style: TextStyle(color: theme.foregroundColor, fontSize: 13),
+            underline: const SizedBox(),
+            onChanged: (int? value) {
+              if (value != null) {
+                settings.updateSyncInterval(value);
+              }
+            },
+            items: [1, 5, 15, 30, 60].map<DropdownMenuItem<int>>((int value) {
+              return DropdownMenuItem<int>(
+                value: value,
+                child: Text('$value min'),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );

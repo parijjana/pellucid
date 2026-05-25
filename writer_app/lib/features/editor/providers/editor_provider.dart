@@ -25,9 +25,9 @@ class EditorProvider extends ChangeNotifier {
   Timer? _syncThrottleTimer;
   bool _hasUnsyncedChanges = false;
 
-  // Configurable durations for TDD testing (default to 15 minutes)
-  Duration syncDebounceDuration = const Duration(minutes: 15);
-  Duration syncThrottleDuration = const Duration(minutes: 15);
+  // Configurable durations for TDD testing (default to 30 minutes)
+  Duration syncDebounceDuration = const Duration(minutes: 30);
+  Duration syncThrottleDuration = const Duration(minutes: 30);
 
   EditorProvider({StorageService? storageService, SettingsDatabase? settingsDatabase}) 
       : _storageService = storageService ?? StorageService(),
@@ -86,14 +86,14 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateContent(String newContent, {SyncProvider? syncProvider, String? projectName}) {
+  void updateContent(String newContent, {SyncProvider? syncProvider, String? projectName, Duration? syncInterval}) {
     if (_content == newContent) return;
     _content = newContent;
-    _autoSave(syncProvider: syncProvider, projectName: projectName);
+    _autoSave(syncProvider: syncProvider, projectName: projectName, syncInterval: syncInterval);
     notifyListeners();
   }
 
-  void _autoSave({SyncProvider? syncProvider, String? projectName}) {
+  void _autoSave({SyncProvider? syncProvider, String? projectName, Duration? syncInterval}) {
     if (_currentProjectPath == null) return;
 
     // 1. Local Auto-Save (2s debounce)
@@ -105,15 +105,17 @@ class EditorProvider extends ChangeNotifier {
     // 2. Cloud Sync (Rate limited)
     if (syncProvider != null && projectName != null) {
       _hasUnsyncedChanges = true;
+      final debounceDuration = syncInterval ?? syncDebounceDuration;
+      final throttleDuration = syncInterval ?? syncThrottleDuration;
 
       // Debounce Timer (fires after idle duration)
       _syncDebounceTimer?.cancel();
-      _syncDebounceTimer = Timer(syncDebounceDuration, () async {
+      _syncDebounceTimer = Timer(debounceDuration, () async {
         await _performSync(syncProvider, projectName);
       });
 
       // Throttle Timer (forces sync during continuous typing)
-      _syncThrottleTimer ??= Timer(syncThrottleDuration, () async {
+      _syncThrottleTimer ??= Timer(throttleDuration, () async {
         await _performSync(syncProvider, projectName);
       });
     }

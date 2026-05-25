@@ -46,43 +46,47 @@ class _AlignmentBarState extends State<AlignmentBar> {
               final currentTx = widget.horizontalPosition * maxTx;
 
               return Stack(
-                clipBehavior: Clip.hardEdge,
+                clipBehavior: Clip.none,
                 children: [
                   Positioned(
                     left: currentTx,
                     width: widget.pageWidth,
                     top: 15,
                     bottom: 15,
-                    child: GestureDetector(
-                      onHorizontalDragStart: (_) => setState(() => _isDragging = true),
-                      onHorizontalDragEnd: (_) => setState(() => _isDragging = false),
-                      onHorizontalDragUpdate: (details) {
-                        final delta = details.primaryDelta ?? 0;
-                        final newPos = (currentTx + delta) / maxTx;
-                        widget.onPositionChanged(newPos.clamp(0.0, 1.0));
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: widget.theme.foregroundColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned(
-                              left: -10, top: -5, bottom: -5,
-                              child: _buildHandle(true),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: widget.theme.foregroundColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onHorizontalDragStart: (_) => setState(() => _isDragging = true),
+                              onHorizontalDragEnd: (_) => setState(() => _isDragging = false),
+                              onHorizontalDragUpdate: (details) {
+                                final delta = details.primaryDelta ?? 0;
+                                final newPos = (currentTx + delta) / maxTx;
+                                widget.onPositionChanged(newPos.clamp(0.0, 1.0));
+                              },
+                              behavior: HitTestBehavior.opaque,
+                              child: const SizedBox.expand(),
                             ),
-                            Positioned(
-                              right: -10, top: -5, bottom: -5,
-                              child: _buildHandle(false),
-                            ),
-                            Align(
-                              alignment: Alignment.center,
-                              child: _buildCenterSnapButton(),
-                            ),
-                          ],
-                        ),
+                          ),
+                          Positioned(
+                            left: -10, top: -5, bottom: -5,
+                            child: _buildHandle(true),
+                          ),
+                          Positioned(
+                            right: -10, top: -5, bottom: -5,
+                            child: _buildHandle(false),
+                          ),
+                          Align(
+                            alignment: Alignment.center,
+                            child: _buildCenterSnapButton(),
+                          ),
+                        ],
                       ),
                     ),
                   ),

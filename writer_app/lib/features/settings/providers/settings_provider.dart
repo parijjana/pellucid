@@ -53,6 +53,7 @@ class SettingsProvider extends ChangeNotifier {
   // Google OAuth Settings
   String? _googleClientId;
   String? _googleClientSecret;
+  int _syncIntervalMinutes = 30;
 
   // Project Settings
   String? _masterDirectoryPath;
@@ -78,6 +79,7 @@ class SettingsProvider extends ChangeNotifier {
     _lastNotesFullscreenState = (settings['last_notes_fullscreen_state'] ?? 0) == 1;
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = settings['google_client_secret'];
+    _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
     
@@ -120,6 +122,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get lastNotesFullscreenState => _lastNotesFullscreenState;
   String? get googleClientId => _googleClientId;
   String? get googleClientSecret => _googleClientSecret;
+  int get syncIntervalMinutes => _syncIntervalMinutes;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -331,6 +334,12 @@ class SettingsProvider extends ChangeNotifier {
     } catch (e) {
       return false;
     }
+  }
+
+  Future<void> updateSyncInterval(int minutes) async {
+    _syncIntervalMinutes = minutes;
+    await _db.updateSetting('sync_interval_minutes', minutes);
+    notifyListeners();
   }
 
   @override

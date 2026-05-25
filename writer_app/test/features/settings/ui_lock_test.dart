@@ -46,6 +46,7 @@ void main() {
     when(() => mockSettings.targetSessionEnabled).thenReturn(false);
     when(() => mockSettings.batteryGuardEnabled).thenReturn(false);
     when(() => mockSettings.batteryAlertThreshold).thenReturn(20);
+    when(() => mockSettings.syncIntervalMinutes).thenReturn(30);
     
     when(() => mockSync.isLoggedIn).thenReturn(false);
     when(() => mockSync.lastSynced).thenReturn(null);

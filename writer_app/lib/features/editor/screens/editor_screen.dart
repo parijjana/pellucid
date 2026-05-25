@@ -8,7 +8,6 @@ import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/screens/notes_sidebar.dart';
-import '../../sidebar/screens/timeline_sidebar.dart';
 import '../widgets/editor_status_bar.dart';
 import '../widgets/markdown_controller.dart';
 import '../widgets/alignment_bar.dart';
@@ -39,8 +38,31 @@ class _EditorScreenState extends State<EditorScreen> {
   DateTime? _lastAltReleaseTime;
   OverlayEntry? _cheatsheetOverlayEntry;
   Timer? _cheatsheetTimer;
+  bool _isDeactivated = false;
+
+  @override
+  void deactivate() {
+    _isDeactivated = true;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    _isDeactivated = false;
+    super.activate();
+  }
 
   bool _handleGlobalKey(KeyEvent event) {
+    if (_isDeactivated || !mounted) return false;
+    try {
+      final route = ModalRoute.of(context);
+      if (route == null || !route.isCurrent) {
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
+
     if (event is KeyUpEvent) {
       if (event.logicalKey == LogicalKeyboardKey.altLeft || event.logicalKey == LogicalKeyboardKey.altRight) {
         final now = DateTime.now();
@@ -396,6 +418,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         val,
                                         syncProvider: sync,
                                         projectName: settings.currentProjectName,
+                                        syncInterval: Duration(minutes: settings.syncIntervalMinutes),
                                       );
                                       setState(() {});
                                     },
@@ -454,24 +477,6 @@ class _EditorScreenState extends State<EditorScreen> {
                               ),
                             ),
                           ),
-                          AnimatedPositioned(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                            right: uiState.isTimelineOpen ? 0 : -300,
-                            top: 0, bottom: 0, width: 300,
-                            child: ClipRect(
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: theme.sidebarColor.withValues(alpha: 0.8),
-                                    border: Border(left: BorderSide(color: theme.foregroundColor.withValues(alpha: 0.05))),
-                                  ),
-                                  child: const TimelineSidebar(),
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -496,7 +501,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
                   left: uiState.isLeftSidebarOpen ? 270 : 20,
-                  right: (uiState.isRightSidebarOpen || uiState.isTimelineOpen) ? 320 : 20,
+                  right: uiState.isRightSidebarOpen ? 320 : 20,
                   bottom: 60,
                   child: AlignmentBar(
                     theme: theme,
@@ -520,6 +525,7 @@ class _EditorScreenState extends State<EditorScreen> {
       _editorController.text,
       syncProvider: context.read<SyncProvider>(),
       projectName: settings.currentProjectName,
+      syncInterval: Duration(minutes: settings.syncIntervalMinutes),
     );
     setState(() {});
   }

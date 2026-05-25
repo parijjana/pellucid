@@ -35,6 +35,7 @@ void main() {
       expect(settingsProvider.batteryGuardEnabled, true);
       expect(settingsProvider.batteryAlertThreshold, 20);
       expect(settingsProvider.showBatteryPercentage, true);
+      expect(settingsProvider.syncIntervalMinutes, 30);
     });
 
     test('toggleClock should update state and database', () async {
@@ -101,6 +102,7 @@ void main() {
         'show_battery_percentage': 0,
         'master_directory_path': '/persisted/path',
         'current_project_name': 'Old Project',
+        'sync_interval_minutes': 15,
       });
       when(() => mockStorageService.initProject(any(), any(), initialContent: any(named: 'initialContent')))
           .thenAnswer((_) async {});
@@ -118,6 +120,7 @@ void main() {
       expect(settingsProvider.showBatteryPercentage, false);
       expect(settingsProvider.masterDirectoryPath, '/persisted/path');
       expect(settingsProvider.currentProjectName, 'Old Project');
+      expect(settingsProvider.syncIntervalMinutes, 15);
     });
 
     test('setGoogleCredentials should update state and database', () async {
@@ -130,6 +133,16 @@ void main() {
       expect(settingsProvider.googleClientSecret, 'my-client-secret');
       verify(() => mockSettingsDatabase.updateSetting('google_client_id', 'my-client-id')).called(1);
       verify(() => mockSettingsDatabase.updateSetting('google_client_secret', 'my-client-secret')).called(1);
+    });
+
+    test('updateSyncInterval should update state and database', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+
+      await settingsProvider.updateSyncInterval(60);
+
+      expect(settingsProvider.syncIntervalMinutes, 60);
+      verify(() => mockSettingsDatabase.updateSetting('sync_interval_minutes', 60)).called(1);
     });
   });
 }

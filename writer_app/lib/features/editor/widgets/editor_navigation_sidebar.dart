@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/editor_provider.dart';
 import '../../search/providers/search_provider.dart';
 
 class EditorNavigationSidebar extends StatelessWidget {
@@ -15,49 +16,33 @@ class EditorNavigationSidebar extends StatelessWidget {
     required this.onHeaderTap,
   });
 
-  List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query) {
-    if (query.isEmpty) {
-      return [TextSpan(text: text, style: baseStyle)];
-    }
-    
-    final List<InlineSpan> spans = [];
-    final escaped = RegExp.escape(query);
-    final regex = RegExp(escaped, caseSensitive: false);
-    
-    int lastEnd = 0;
-    final matches = regex.allMatches(text);
-    
-    for (final match in matches) {
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(
-          text: text.substring(lastEnd, match.start),
-          style: baseStyle,
-        ));
-      }
-      
-      spans.add(TextSpan(
-        text: text.substring(match.start, match.end),
-        style: baseStyle.copyWith(
-          backgroundColor: Colors.amber.withValues(alpha: 0.35),
-        ),
-      ));
-      lastEnd = match.end;
-    }
-    
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(lastEnd),
-        style: baseStyle,
-      ));
-    }
-    
-    return spans;
-  }
-
   @override
   Widget build(BuildContext context) {
     final searchProvider = context.watch<SearchProvider>();
     final searchQuery = searchProvider.query;
+    final editorContent = context.watch<EditorProvider>().content;
+
+    final List<bool> headerMatches = [];
+    if (searchQuery.isNotEmpty) {
+      final docLines = editorContent.split('\n');
+      for (int i = 0; i < headers.length; i++) {
+        final startLine = headers[i].line;
+        final endLine = (i < headers.length - 1) ? headers[i + 1].line - 1 : docLines.length - 1;
+        
+        bool hasMatch = false;
+        if (startLine < docLines.length) {
+          // Search in the body text of the chapter (excluding the header line itself)
+          final bodyStart = startLine + 1;
+          if (bodyStart <= endLine && bodyStart < docLines.length) {
+            final chapterText = docLines.sublist(bodyStart, endLine + 1).join('\n');
+            hasMatch = chapterText.toLowerCase().contains(searchQuery.toLowerCase());
+          }
+        }
+        headerMatches.add(hasMatch);
+      }
+    } else {
+      headerMatches.addAll(List.generate(headers.length, (_) => false));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,11 +74,12 @@ class EditorNavigationSidebar extends StatelessWidget {
                   itemCount: headers.length,
                   itemBuilder: (context, index) {
                     final h = headers[index];
+                    final isMatch = headerMatches[index];
                     return _sidebarItem(
                       h.title,
                       theme,
                       false,
-                      searchQuery,
+                      isMatch,
                       level: h.level,
                       onTap: () => onHeaderTap(h.line),
                     );
@@ -109,25 +95,36 @@ class EditorNavigationSidebar extends StatelessWidget {
     String label,
     WriterTheme theme,
     bool isActive,
-    String searchQuery, {
+    bool isMatch, {
     int level = 1,
     VoidCallback? onTap,
   }) {
     final baseStyle = TextStyle(
-      color: isActive ? theme.foregroundColor : theme.foregroundColor.withValues(alpha: 0.7),
+      color: isActive 
+          ? theme.foregroundColor 
+          : (isMatch ? theme.foregroundColor : theme.foregroundColor.withValues(alpha: 0.7)),
       fontSize: 13.0 - (level - 1) * 1.0,
-      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+      fontWeight: (isActive || isMatch) ? FontWeight.w600 : FontWeight.w400,
     );
+
+    Color getBgColor() {
+      if (isActive) {
+        return theme.foregroundColor.withValues(alpha: 0.06);
+      }
+      if (isMatch) {
+        return Colors.amber.withValues(alpha: 0.15);
+      }
+      return Colors.transparent;
+    }
 
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.only(left: 20.0 * level, right: 20, top: 12, bottom: 12),
-        color: isActive ? theme.foregroundColor.withValues(alpha: 0.03) : Colors.transparent,
-        child: RichText(
-          text: TextSpan(
-            children: _highlightText(label, baseStyle, searchQuery),
-          ),
+        color: getBgColor(),
+        child: Text(
+          label,
+          style: baseStyle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

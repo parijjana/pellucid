@@ -98,7 +98,7 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.keyA, alt: !isMac, meta: isMac, control: isMac): const OpenAttributionIntent(),
         SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac): const TogglePomodoroIntent(),
         SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac, shift: true): const ResetPomodoroIntent(),
-        SingleActivator(LogicalKeyboardKey.keyF, alt: !isMac, meta: isMac, control: isMac): const ToggleSearchIntent(),
+        SingleActivator(LogicalKeyboardKey.keyF, control: !isMac, meta: isMac): const ToggleSearchIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{

@@ -6,8 +6,56 @@ import '../providers/theme_provider.dart';
 
 class MarkdownEditingController extends TextEditingController {
   WriterTheme theme;
+  String _searchQuery = '';
 
   MarkdownEditingController({super.text, required this.theme});
+
+  String get searchQuery => _searchQuery;
+  set searchQuery(String val) {
+    if (_searchQuery != val) {
+      _searchQuery = val;
+      notifyListeners();
+    }
+  }
+
+  List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query) {
+    if (query.isEmpty) {
+      return [TextSpan(text: text, style: baseStyle)];
+    }
+    
+    final List<InlineSpan> spans = [];
+    final escaped = RegExp.escape(query);
+    final regex = RegExp(escaped, caseSensitive: false);
+    
+    int lastEnd = 0;
+    final matches = regex.allMatches(text);
+    
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, match.start),
+          style: baseStyle,
+        ));
+      }
+      
+      spans.add(TextSpan(
+        text: text.substring(match.start, match.end),
+        style: baseStyle.copyWith(
+          backgroundColor: Colors.amber.withValues(alpha: 0.35),
+        ),
+      ));
+      lastEnd = match.end;
+    }
+    
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: baseStyle,
+      ));
+    }
+    
+    return spans;
+  }
 
   @override
   TextSpan buildTextSpan({
@@ -57,13 +105,14 @@ class MarkdownEditingController extends TextEditingController {
       String content = line.substring(match.end);
       if (isBullet) content = '• $content';
 
-      children.add(TextSpan(
-        text: content,
-        style: TextStyle(
+      children.addAll(_highlightText(
+        content,
+        TextStyle(
           fontSize: fontSize,
           fontWeight: weight,
           color: theme.foregroundColor,
         ),
+        searchQuery,
       ));
     }
   }
@@ -78,29 +127,31 @@ class MarkdownEditingController extends TextEditingController {
     for (final match in matches) {
       // Add text BEFORE the match
       if (match.start > lastMatchEnd) {
-        children.add(TextSpan(text: line.substring(lastMatchEnd, match.start), style: baseStyle));
+        children.addAll(_highlightText(line.substring(lastMatchEnd, match.start), baseStyle, searchQuery));
       }
       
       final matchText = match.group(0)!;
       if (matchText.startsWith('**') && matchText.length >= 4) {
         // Bold: Hide tags
         children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        children.add(TextSpan(
-          text: matchText.substring(2, matchText.length - 2),
-          style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+        children.addAll(_highlightText(
+          matchText.substring(2, matchText.length - 2),
+          baseStyle.copyWith(fontWeight: FontWeight.bold),
+          searchQuery,
         ));
         children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
       } else if (matchText.startsWith('*') && matchText.length >= 2) {
         // Italic: Hide tags
         children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        children.add(TextSpan(
-          text: matchText.substring(1, matchText.length - 1),
-          style: baseStyle.copyWith(fontStyle: FontStyle.italic),
+        children.addAll(_highlightText(
+          matchText.substring(1, matchText.length - 1),
+          baseStyle.copyWith(fontStyle: FontStyle.italic),
+          searchQuery,
         ));
         children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
       } else {
         // Fallback for malformed matches
-        children.add(TextSpan(text: matchText, style: baseStyle));
+        children.addAll(_highlightText(matchText, baseStyle, searchQuery));
       }
       
       lastMatchEnd = match.end;
@@ -108,7 +159,7 @@ class MarkdownEditingController extends TextEditingController {
     
     // Add remaining text after last match
     if (lastMatchEnd < line.length) {
-      children.add(TextSpan(text: line.substring(lastMatchEnd), style: baseStyle));
+      children.addAll(_highlightText(line.substring(lastMatchEnd), baseStyle, searchQuery));
     }
   }
 

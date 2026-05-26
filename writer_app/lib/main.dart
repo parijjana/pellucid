@@ -18,6 +18,7 @@ import 'features/settings/screens/settings_screen.dart';
 import 'features/editor/widgets/glowing_border.dart';
 import 'features/sidebar/widgets/note_editor_dialog.dart';
 import 'features/editor/widgets/alarm_setter_dialog.dart';
+import 'features/search/providers/search_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,7 @@ void main() async {
   final historyProvider = HistoryProvider();
   final notesProvider = NotesProvider(); 
   final syncProvider = SyncProvider();
+  final searchProvider = SearchProvider();
 
   await themeProvider.loadSettings();
   await editorProvider.loadSettings();
@@ -65,6 +67,7 @@ void main() async {
         ChangeNotifierProvider.value(value: settingsProvider),
         ChangeNotifierProvider.value(value: historyProvider),
         ChangeNotifierProvider.value(value: syncProvider),
+        ChangeNotifierProvider.value(value: searchProvider),
         ChangeNotifierProvider(create: (_) => ShortcutsProvider()),
       ],
       child: const WriterApp(),
@@ -95,6 +98,7 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.keyA, alt: !isMac, meta: isMac, control: isMac): const OpenAttributionIntent(),
         SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac): const TogglePomodoroIntent(),
         SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac, shift: true): const ResetPomodoroIntent(),
+        SingleActivator(LogicalKeyboardKey.keyF, alt: !isMac, meta: isMac, control: isMac): const ToggleSearchIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -227,6 +231,10 @@ class WriterApp extends StatelessWidget {
             }
             return null;
           }),
+          ToggleSearchIntent: CallbackAction<ToggleSearchIntent>(onInvoke: (intent) {
+            navKey.currentContext?.read<SearchProvider>().toggleSearch();
+            return null;
+          }),
         },
         child: Focus(
           autofocus: true,
@@ -243,6 +251,7 @@ class WriterApp extends StatelessWidget {
                 LogicalKeyboardKey.keyS,
                 LogicalKeyboardKey.keyN,
                 LogicalKeyboardKey.keyP,
+                LogicalKeyboardKey.keyF,
               };
               if (bypassedKeys.contains(event.logicalKey)) {
                 return KeyEventResult.ignored;

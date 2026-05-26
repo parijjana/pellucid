@@ -23,6 +23,8 @@ import '../widgets/editor_paper_area.dart';
 import '../../settings/providers/history_provider.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import 'dart:io';
+import '../../search/providers/search_provider.dart';
+import '../../search/widgets/search_popup.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -307,8 +309,10 @@ class _EditorScreenState extends State<EditorScreen> {
     final editorProvider = context.watch<EditorProvider>();
     final settings = context.watch<SettingsProvider>();
     final uiState = context.watch<ShortcutsProvider>();
+    final searchProvider = context.watch<SearchProvider>();
     
     _editorController.theme = theme;
+    _editorController.searchQuery = searchProvider.query;
     if (_editorController.text != editorProvider.content) {
       _editorController.text = editorProvider.content;
     }
@@ -511,6 +515,16 @@ class _EditorScreenState extends State<EditorScreen> {
                     onPositionChanged: editorProvider.setHorizontalPosition,
                   ),
                 ),
+                if (searchProvider.isSearchOpen)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () {
+                        searchProvider.toggleSearch(isOpen: false);
+                      },
+                      child: const SearchPopup(),
+                    ),
+                  ),
               ],
             ),
         ),

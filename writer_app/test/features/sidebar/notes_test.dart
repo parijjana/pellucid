@@ -18,6 +18,7 @@ import 'package:pellucid/features/editor/providers/editor_provider.dart';
 import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
 import 'package:pellucid/features/sidebar/widgets/note_editor_attribution_list.dart';
 import 'package:provider/provider.dart';
+import 'package:pellucid/features/search/providers/search_provider.dart';
 
 class MockStorageService extends Mock implements StorageService {}
 class MockSettingsProvider extends Mock implements SettingsProvider {}
@@ -219,6 +220,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -263,6 +265,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -318,6 +321,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -368,6 +372,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -413,6 +418,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -451,6 +457,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
             ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
           ],
           child: const MaterialApp(
@@ -492,6 +499,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
             ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
           ],
           child: const MaterialApp(
@@ -580,6 +588,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -652,6 +661,7 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
             ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
             ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+            ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
             ChangeNotifierProvider<ShortcutsProvider>.value(value: shortcuts),
           ],
           child: const MaterialApp(

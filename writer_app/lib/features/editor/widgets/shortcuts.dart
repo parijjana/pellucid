@@ -12,6 +12,7 @@ class ToggleNotesIntent extends Intent { const ToggleNotesIntent(); }
 class ToggleToolbarIntent extends Intent { const ToggleToolbarIntent(); }
 class OpenSettingsIntent extends Intent { const OpenSettingsIntent(); }
 class ToggleFullscreenIntent extends Intent { const ToggleFullscreenIntent(); }
+class ToggleSearchIntent extends Intent { const ToggleSearchIntent(); }
 
 // Zoom
 class ZoomInIntent extends Intent { const ZoomInIntent(); }

@@ -10,6 +10,7 @@ import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/settings/providers/history_provider.dart';
 import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
 import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
+import 'package:pellucid/features/search/providers/search_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -73,6 +74,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
         ],
         child: const MaterialApp(home: EditorScreen()),

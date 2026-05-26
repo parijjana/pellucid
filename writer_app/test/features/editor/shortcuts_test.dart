@@ -16,6 +16,7 @@ import 'package:pellucid/features/editor/widgets/alarm_setter_dialog.dart';
 import 'package:pellucid/features/settings/screens/settings_screen.dart';
 import 'package:pellucid/main.dart';
 import 'package:provider/provider.dart';
+import 'package:pellucid/features/search/providers/search_provider.dart';
 
 class MockEditorProvider extends Mock implements EditorProvider {}
 class MockThemeProvider extends Mock implements ThemeProvider {}
@@ -104,6 +105,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),
@@ -185,6 +187,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),
@@ -227,6 +230,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),
@@ -301,6 +305,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),
@@ -346,6 +351,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),
@@ -413,6 +419,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),
@@ -469,6 +476,7 @@ void main() {
           ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
           ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
         ],
         child: const WriterApp(),

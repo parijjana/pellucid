@@ -9,6 +9,7 @@ import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../search/providers/search_provider.dart';
 
 class NoteMiniCard extends StatelessWidget {
   final NoteCard card;
@@ -23,6 +24,45 @@ class NoteMiniCard extends StatelessWidget {
     required this.onTap,
     this.isHighlighted = false,
   });
+
+  List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query) {
+    if (query.isEmpty) {
+      return [TextSpan(text: text, style: baseStyle)];
+    }
+    
+    final List<InlineSpan> spans = [];
+    final escaped = RegExp.escape(query);
+    final regex = RegExp(escaped, caseSensitive: false);
+    
+    int lastEnd = 0;
+    final matches = regex.allMatches(text);
+    
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, match.start),
+          style: baseStyle,
+        ));
+      }
+      
+      spans.add(TextSpan(
+        text: text.substring(match.start, match.end),
+        style: baseStyle.copyWith(
+          backgroundColor: Colors.amber.withValues(alpha: 0.35),
+        ),
+      ));
+      lastEnd = match.end;
+    }
+    
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: baseStyle,
+      ));
+    }
+    
+    return spans;
+  }
 
   Color _getCategoryColor() {
     switch (card.category) {
@@ -43,6 +83,9 @@ class NoteMiniCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final searchProvider = context.watch<SearchProvider>();
+    final searchQuery = searchProvider.query;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -64,15 +107,20 @@ class NoteMiniCard extends StatelessWidget {
               children: [
                 if (card.title.isNotEmpty)
                   Expanded(
-                    child: Text(
-                      card.title,
+                    child: RichText(
+                      text: TextSpan(
+                        children: _highlightText(
+                          card.title,
+                          TextStyle(
+                            color: theme.foregroundColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          searchQuery,
+                        ),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.foregroundColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
                     ),
                   ),
                 PopupMenuButton<String>(
@@ -104,14 +152,19 @@ class NoteMiniCard extends StatelessWidget {
               ],
             ),
             if (card.title.isNotEmpty) const SizedBox(height: 4),
-            Text(
-              card.isAttribution ? card.getAttributionMarkdown() : card.content,
+            RichText(
+              text: TextSpan(
+                children: _highlightText(
+                  card.isAttribution ? card.getAttributionMarkdown() : card.content,
+                  TextStyle(
+                    color: theme.foregroundColor.withValues(alpha: 0.8),
+                    fontSize: 11,
+                  ),
+                  searchQuery,
+                ),
+              ),
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.foregroundColor.withValues(alpha: 0.8),
-                fontSize: 11,
-              ),
             ),
           ],
         ),

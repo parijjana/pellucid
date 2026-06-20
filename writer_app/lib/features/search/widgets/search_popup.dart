@@ -21,20 +21,29 @@ class _SearchPopupState extends State<SearchPopup> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
+    final searchProvider = context.read<SearchProvider>();
+    _controller = TextEditingController(text: searchProvider.query);
     _focusNode = FocusNode();
     
-    // Request focus on next frame to ensure widget is mounted
+    // Request focus and run initial search update on next frame to ensure widget is mounted
+    // and to avoid triggering setState() or notifyListeners() during build phase.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
+        if (searchProvider.query.isNotEmpty) {
+          final content = context.read<EditorProvider>().content;
+          searchProvider.updateMatchOffsets(content);
+        }
       }
     });
-
-    final searchProvider = context.read<SearchProvider>();
-    _controller.text = searchProvider.query;
+    
     _controller.addListener(() {
-      searchProvider.setQuery(_controller.text);
+      final query = _controller.text;
+      searchProvider.setQuery(query);
+      if (mounted) {
+        final content = context.read<EditorProvider>().content;
+        searchProvider.updateMatchOffsets(content);
+      }
     });
   }
 
@@ -76,100 +85,120 @@ class _SearchPopupState extends State<SearchPopup> {
         }
         return KeyEventResult.ignored;
       },
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            const SizedBox(height: 80), // Centered near the top
-            GestureDetector(
-              onTap: () {}, // Intercept tap to prevent closing the popup when clicking inside the card
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    width: 500,
-                    height: 56,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: theme.sidebarColor.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: theme.foregroundColor.withValues(alpha: 0.1),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 30,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            width: 500,
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: theme.sidebarColor.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.foregroundColor.withValues(alpha: 0.1),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.search,
+                  size: 20,
+                  color: theme.foregroundColor.withValues(alpha: 0.3),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    onSubmitted: (value) {
+                      searchProvider.nextMatch();
+                      _focusNode.requestFocus();
+                    },
+                    style: TextStyle(
+                      color: theme.foregroundColor,
+                      fontSize: 14,
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search,
-                          size: 20,
-                          color: theme.foregroundColor.withValues(alpha: 0.3),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            style: TextStyle(
-                              color: theme.foregroundColor,
-                              fontSize: 14,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search manuscript, notes, and chapters...',
-                              hintStyle: TextStyle(
-                                color: theme.foregroundColor.withValues(alpha: 0.25),
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                        if (searchProvider.query.isNotEmpty) ...[
-                          Text(
-                            '$matchCount ${matchCount == 1 ? "match" : "matches"}',
-                            style: TextStyle(
-                              color: theme.foregroundColor.withValues(alpha: 0.3),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: Icon(
-                              Icons.close,
-                              size: 16,
-                              color: theme.foregroundColor.withValues(alpha: 0.4),
-                            ),
-                            onPressed: () {
-                              _controller.clear();
-                            },
-                          ),
-                        ] else
-                          IconButton(
-                            icon: Icon(
-                              Icons.close,
-                              size: 16,
-                              color: theme.foregroundColor.withValues(alpha: 0.4),
-                            ),
-                            onPressed: () {
-                              searchProvider.toggleSearch(isOpen: false);
-                            },
-                          ),
-                      ],
+                    decoration: InputDecoration(
+                      hintText: 'Search manuscript, notes, and chapters...',
+                      hintStyle: TextStyle(
+                        color: theme.foregroundColor.withValues(alpha: 0.25),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
                     ),
                   ),
                 ),
-              ),
+                if (searchProvider.query.isNotEmpty) ...[
+                  Text(
+                    '${searchProvider.matchOffsets.isEmpty ? 0 : searchProvider.currentMatchIndex + 1} of ${searchProvider.matchOffsets.length}',
+                    style: TextStyle(
+                      color: theme.foregroundColor.withValues(alpha: 0.4),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: Icon(
+                      Icons.keyboard_arrow_up,
+                      size: 18,
+                      color: theme.foregroundColor.withValues(alpha: 0.5),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      searchProvider.previousMatch();
+                    },
+                    tooltip: 'Previous Match',
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: theme.foregroundColor.withValues(alpha: 0.5),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      searchProvider.nextMatch();
+                    },
+                    tooltip: 'Next Match',
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: theme.foregroundColor.withValues(alpha: 0.4),
+                    ),
+                    onPressed: () {
+                      _controller.clear();
+                    },
+                  ),
+                ] else
+                  IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: theme.foregroundColor.withValues(alpha: 0.4),
+                    ),
+                    onPressed: () {
+                      searchProvider.toggleSearch(isOpen: false);
+                    },
+                  ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

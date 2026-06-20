@@ -1,6 +1,7 @@
 // @trace FEAT-20260516-115000-0003
 // Description: Status bar with metrics and tools (Decomposed Flat Style).
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/editor_provider.dart';
@@ -46,6 +47,23 @@ class EditorStatusBar extends StatefulWidget {
 class _EditorStatusBarState extends State<EditorStatusBar> {
   @override
   Widget build(BuildContext context) {
+    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    
+    if (isMobilePhone) {
+      return Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: widget.theme.backgroundColor,
+        ),
+        child: Center(
+          child: LowContrastText(
+            label: '${widget.wordCount} words',
+            theme: widget.theme,
+          ),
+        ),
+      );
+    }
+
     final editorProvider = context.watch<EditorProvider>();
     final settings = context.watch<SettingsProvider>();
     final sync = context.watch<SyncProvider>();

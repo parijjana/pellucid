@@ -2,10 +2,12 @@
 // Description: Provider for tracking writing statistics and session history (Persistent & Visual).
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'project_stats.dart';
 import 'settings_database.dart';
 import '../../editor/providers/storage_service.dart';
+import '../../sync/providers/sync_provider.dart';
 
 class DailyStats {
   final String date; // YYYY-MM-DD
@@ -42,6 +44,7 @@ class DailyStats {
 class HistoryProvider extends ChangeNotifier {
   final SettingsDatabase _db;
   final StorageService _storageService;
+  final SyncProvider? _syncProvider;
   
   List<DailyStats> _history = [];
   DailyStats? _todayStats;
@@ -55,9 +58,10 @@ class HistoryProvider extends ChangeNotifier {
   Timer? _metricsTimer;
   int _baseTodayWordCountDelta = 0;
 
-  HistoryProvider({SettingsDatabase? settingsDatabase, StorageService? storageService})
+  HistoryProvider({SettingsDatabase? settingsDatabase, StorageService? storageService, SyncProvider? syncProvider})
       : _db = settingsDatabase ?? SettingsDatabase.instance,
-        _storageService = storageService ?? StorageService() {
+        _storageService = storageService ?? StorageService(),
+        _syncProvider = syncProvider {
     _loadHistoryFromDB();
     _startMetricsTracker();
   }
@@ -96,6 +100,35 @@ class HistoryProvider extends ChangeNotifier {
       _currentProjectStats = ProjectStats();
     } else {
       _currentProjectStats = await _storageService.readProjectStats(projectPath);
+
+      if (_syncProvider != null && _syncProvider.isLoggedIn) {
+        try {
+          final normalizedPath = projectPath.replaceAll('\\', '/');
+          final projectName = normalizedPath.split('/').last;
+          final remoteContent = await _syncProvider.getLatestContent(
+            projectName: projectName,
+            fileName: 'stats',
+          );
+          if (remoteContent != null && remoteContent.trim().isNotEmpty) {
+            final remoteJson = jsonDecode(remoteContent);
+            final remoteStats = ProjectStats.fromJson(remoteJson);
+            if (remoteStats.totalTimeSpent.inSeconds > _currentProjectStats.totalTimeSpent.inSeconds ||
+                remoteStats.totalWordCount > _currentProjectStats.totalWordCount) {
+              _currentProjectStats = _currentProjectStats.copyWith(
+                totalWordCount: remoteStats.totalWordCount > _currentProjectStats.totalWordCount
+                    ? remoteStats.totalWordCount
+                    : _currentProjectStats.totalWordCount,
+                totalTimeSpent: remoteStats.totalTimeSpent.inSeconds > _currentProjectStats.totalTimeSpent.inSeconds
+                    ? remoteStats.totalTimeSpent
+                    : _currentProjectStats.totalTimeSpent,
+              );
+              await _storageService.saveProjectStats(projectPath, _currentProjectStats);
+            }
+          }
+        } catch (e) {
+          // Silent fallback on connection or parse error
+        }
+      }
     }
     notifyListeners();
   }
@@ -150,8 +183,18 @@ class HistoryProvider extends ChangeNotifier {
   void _autoSaveProjectStats() {
     if (_currentProjectPath == null) return;
     _statsDebouncer?.cancel();
-    _statsDebouncer = Timer(const Duration(seconds: 5), () {
-      _storageService.saveProjectStats(_currentProjectPath!, _currentProjectStats);
+    _statsDebouncer = Timer(const Duration(seconds: 5), () async {
+      await _storageService.saveProjectStats(_currentProjectPath!, _currentProjectStats);
+      if (_syncProvider != null && _syncProvider.isLoggedIn) {
+        try {
+          final normalizedPath = _currentProjectPath!.replaceAll('\\', '/');
+          final projectName = normalizedPath.split('/').last;
+          final statsJson = jsonEncode(_currentProjectStats.toJson());
+          await _syncProvider.syncStats(projectName: projectName, statsJson: statsJson);
+        } catch (e) {
+          // Silent fallback
+        }
+      }
     });
   }
 
@@ -179,6 +222,16 @@ class HistoryProvider extends ChangeNotifier {
     _dbDebouncer?.cancel();
     if (_currentProjectPath != null) {
       await _storageService.saveProjectStats(_currentProjectPath!, _currentProjectStats);
+      if (_syncProvider != null && _syncProvider.isLoggedIn) {
+        try {
+          final normalizedPath = _currentProjectPath!.replaceAll('\\', '/');
+          final projectName = normalizedPath.split('/').last;
+          final statsJson = jsonEncode(_currentProjectStats.toJson());
+          await _syncProvider.syncStats(projectName: projectName, statsJson: statsJson);
+        } catch (e) {
+          // Silent fallback
+        }
+      }
     }
     if (_todayStats != null) {
       await _db.upsertHistory(

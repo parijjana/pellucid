@@ -73,6 +73,22 @@ Double-tap the Alt key (left or right Alt) at any time to display a temporary ov
 ### Physical Page Alignment:
 - Alt + Left Arrow / Right Arrow: Adjust page width / Cmd + Opt + Left / Right on macOS
 - Alt + Shift + Left Arrow / Shift + Right Arrow: Shift page position horizontally / Cmd + Opt + Shift + Left / Right on macOS
+
+### Search and Match Navigation:
+- Ctrl + F: Toggle Search / Cmd + F on macOS
+- Enter: Navigate to the next match when typing a query
+- Up / Down arrow buttons (in search popup): Cycle through matches in the editor
+- Escape: Dismiss search panel and clear highlights
+
+## CHAPTER 4: SEARCH & NAVIGATIONAL HIGHLIGHTS
+
+Pellucid includes a real-time global search system that highlights matching terms across the editor, Table of Contents (TOC) sidebar, and Research Notes.
+
+Key Features:
+- Bottom Command Palette: Pressing Ctrl + F (Cmd + F on macOS) displays a glassmorphic search panel floating at the bottom of your screen.
+- Persistent Highlights: The search box and highlights remain active even when you interact with other panels (such as clicking on chapters in the TOC or browsing your notes).
+- Match Navigation: Step through matches using the up/down arrows in the search box or by pressing Enter in the search field. The editor will automatically scroll to center the active match with a distinct orange highlight.
+- Dismissal: Click the close button inside the search box or press Escape to close the panel and remove the highlights.
 ''';
 
   StorageService({FileSystem? fileSystem}) : _fileSystem = fileSystem ?? const LocalFileSystem();

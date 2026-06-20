@@ -28,14 +28,12 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
   
-  await windowManager.ensureInitialized();
-
   final editorProvider = EditorProvider();
   final themeProvider = ThemeProvider();
   final settingsProvider = SettingsProvider();
-  final historyProvider = HistoryProvider();
-  final notesProvider = NotesProvider(); 
   final syncProvider = SyncProvider();
+  final historyProvider = HistoryProvider(syncProvider: syncProvider);
+  final notesProvider = NotesProvider(); 
   final searchProvider = SearchProvider();
 
   await themeProvider.loadSettings();
@@ -45,18 +43,21 @@ void main() async {
   await notesProvider.loadProject(settingsProvider.currentProjectPath);
   await historyProvider.loadProjectStats(settingsProvider.currentProjectPath);
 
-  WindowOptions windowOptions = const WindowOptions(
-    size: Size(1200, 800),
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-  );
-  
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    await windowManager.ensureInitialized();
+    WindowOptions windowOptions = const WindowOptions(
+      size: Size(1200, 800),
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.hidden,
+    );
+    
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
 
   runApp(
     MultiProvider(
@@ -202,7 +203,9 @@ class WriterApp extends StatelessWidget {
           ToggleFullscreenIntent: CallbackAction<ToggleFullscreenIntent>(onInvoke: (intent) async {
             final provider = context.read<ShortcutsProvider>();
             final newValue = !provider.isFullscreen;
-            await windowManager.setFullScreen(newValue);
+            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+              await windowManager.setFullScreen(newValue);
+            }
             provider.setFullscreen(newValue);
             return null;
           }),
@@ -282,10 +285,12 @@ class WriterApp extends StatelessWidget {
             ),
             home: const EditorScreen(),
             builder: (context, child) {
+              final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
               return Consumer<SettingsProvider>(
                 builder: (context, settings, _) {
                   return GlowingBorder(
-                    isActive: settings.isAlarmTriggered,
+                    isActive: !isMobilePhone && settings.isAlarmTriggered,
+                    borderThickness: isMobilePhone ? 0.0 : 20.0,
                     color: Colors.red,
                     child: child ?? const SizedBox.shrink(),
                   );

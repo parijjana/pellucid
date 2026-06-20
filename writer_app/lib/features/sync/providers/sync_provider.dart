@@ -127,4 +127,39 @@ class SyncProvider with ChangeNotifier {
   Future<String> getVersionContent(String revisionId, String projectName, String fileName) async {
     return await _service.getRevisionContent(revisionId, projectName, fileName);
   }
+
+  Future<void> syncStats({
+    required String projectName,
+    required String statsJson,
+  }) async {
+    if (!_isLoggedIn) return;
+
+    try {
+      await _service.syncFile(
+        projectName: projectName,
+        fileName: 'stats',
+        content: statsJson,
+      );
+      await refreshLastSynced(projectName, 'stats');
+    } catch (e) {
+      if (kDebugMode) print('Failed to sync stats: $e');
+    }
+  }
+
+  Future<String?> getLatestContent({
+    required String projectName,
+    required String fileName,
+  }) async {
+    if (!_isLoggedIn) return null;
+    try {
+      final revisions = await _service.getRevisions(projectName, fileName);
+      if (revisions.isEmpty) return null;
+      final latestRevision = revisions.last;
+      if (latestRevision.id == null) return null;
+      return await _service.getRevisionContent(latestRevision.id!, projectName, fileName);
+    } catch (e) {
+      if (kDebugMode) print('Failed to get latest content: $e');
+      return null;
+    }
+  }
 }

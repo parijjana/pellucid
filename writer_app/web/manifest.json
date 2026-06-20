@@ -1,6 +1,6 @@
 {
-    "name": "writer_app",
-    "short_name": "writer_app",
+    "name": "Pellucid",
+    "short_name": "Pellucid",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

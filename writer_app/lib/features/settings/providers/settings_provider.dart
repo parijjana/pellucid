@@ -2,7 +2,9 @@
 // Description: Provider for application settings, including multi-project state and cached metrics.
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'settings_database.dart';
 import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
@@ -82,6 +84,12 @@ class SettingsProvider extends ChangeNotifier {
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
+
+    if ((Platform.isAndroid || Platform.isIOS) && _masterDirectoryPath == null) {
+      final docDir = await getApplicationDocumentsDirectory();
+      _masterDirectoryPath = docDir.path;
+      await _db.updateSetting('master_directory_path', _masterDirectoryPath);
+    }
     
     if (_masterDirectoryPath != null) {
       // Ensure User Manual always exists in the master directory

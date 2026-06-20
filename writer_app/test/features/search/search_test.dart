@@ -114,28 +114,61 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pump();
 
-      await tester.enterText(find.byType(TextField), 'wizard');
+      await tester.enterText(find.byType(TextField), 'fantasy');
       await tester.pump();
 
-      expect(searchProvider.query, 'wizard');
-      // "wizard" appears once in NoteCard content. Total: 1 match
-      expect(find.text('1 match'), findsOneWidget);
+      expect(searchProvider.query, 'fantasy');
+      // "fantasy" appears once in editor content. Total: 1 of 1 matches
+      expect(find.text('1 of 1'), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+    });
+
+    testWidgets('up and down arrow navigation updates match index', (WidgetTester tester) async {
+      when(() => mockEditor.content).thenReturn('test word test word test');
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'test');
+      await tester.pump();
+
+      expect(find.text('1 of 3'), findsOneWidget);
+
+      // Tap down arrow to go to next match
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+      await tester.pump();
+      expect(find.text('2 of 3'), findsOneWidget);
+
+      // Tap down arrow again
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+      await tester.pump();
+      expect(find.text('3 of 3'), findsOneWidget);
+
+      // Tap down arrow again (should wrap to first match)
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+      await tester.pump();
+      expect(find.text('1 of 3'), findsOneWidget);
+
+      // Tap up arrow to go to previous match (wrap to last match)
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_up));
+      await tester.pump();
+      expect(find.text('3 of 3'), findsOneWidget);
     });
 
     testWidgets('clears text on close/clear button tap', (WidgetTester tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pump();
 
-      await tester.enterText(find.byType(TextField), 'wizard');
+      await tester.enterText(find.byType(TextField), 'fantasy');
       await tester.pump();
-      expect(searchProvider.query, 'wizard');
+      expect(searchProvider.query, 'fantasy');
 
       // Click clear button
       await tester.tap(find.byIcon(Icons.close));
       await tester.pump();
 
       expect(searchProvider.query, isEmpty);
-      expect(find.text('wizard'), findsNothing);
+      expect(find.text('fantasy'), findsNothing);
     });
 
     testWidgets('closes search on ESC key press', (WidgetTester tester) async {

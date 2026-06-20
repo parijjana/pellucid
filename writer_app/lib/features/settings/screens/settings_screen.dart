@@ -161,6 +161,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final history = context.watch<HistoryProvider>();
 
     final bool isMac = Platform.isMacOS;
+    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePlatform = Platform.isAndroid || Platform.isIOS;
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
@@ -231,8 +233,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         if (_isSetupExpanded) ...[
                           const SizedBox(height: 24),
-                          _buildFolderPicker(settings, theme),
-                          const SizedBox(height: 32),
+                          if (!isMobilePlatform) ...[
+                            _buildFolderPicker(settings, theme),
+                            const SizedBox(height: 32),
+                          ],
                           _buildSyncTile(sync, theme, settings.masterDirectoryPath != null),
                           if (sync.lastSynced != null) ...[
                             const SizedBox(height: 8),
@@ -242,9 +246,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _buildSyncIntervalSection(settings, theme),
                           _buildAdvancedCredentialsSection(settings, theme),
                           const SizedBox(height: 32),
-                          _subHeader('Focus & Productivity', theme),
-                          _buildFocusToggles(settings, theme),
-                          const SizedBox(height: 32),
+                          if (!isMobilePlatform) ...[
+                            _subHeader('Focus & Productivity', theme),
+                            _buildFocusToggles(settings, theme),
+                            const SizedBox(height: 32),
+                          ],
                           _subHeader('Appearance', theme),
                           const SizedBox(height: 16),
                           _buildThemeGrid(context, theme),

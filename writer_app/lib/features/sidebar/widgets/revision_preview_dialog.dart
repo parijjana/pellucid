@@ -60,8 +60,25 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
   }
 
   int _calculateWordCount(String text) {
-    if (text.trim().isEmpty) return 0;
-    return text.trim().split(RegExp(r'\s+')).length;
+    int count = 0;
+    bool inWord = false;
+    final length = text.length;
+    for (int i = 0; i < length; i++) {
+      final codeUnit = text.codeUnitAt(i);
+      final isWhitespace = codeUnit == 32 || codeUnit == 10 || codeUnit == 13 || codeUnit == 9;
+      if (isWhitespace) {
+        if (inWord) {
+          count++;
+          inWord = false;
+        }
+      } else {
+        inWord = true;
+      }
+    }
+    if (inWord) {
+      count++;
+    }
+    return count;
   }
 
   @override

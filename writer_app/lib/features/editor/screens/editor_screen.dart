@@ -25,6 +25,9 @@ import '../../sidebar/providers/notes_provider.dart';
 import 'dart:io';
 import '../../search/providers/search_provider.dart';
 import '../../search/widgets/search_popup.dart';
+import '../widgets/sidebar_pulltab.dart';
+import '../widgets/mobile_persistent_toolbar.dart';
+import '../widgets/cheatsheet_overlay.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -41,6 +44,11 @@ class _EditorScreenState extends State<EditorScreen> {
   OverlayEntry? _cheatsheetOverlayEntry;
   Timer? _cheatsheetTimer;
   bool _isDeactivated = false;
+  late SearchProvider _searchProvider;
+  late EditorProvider _editorProvider;
+  int _currentWordCount = 0;
+  String _lastProcessedText = '';
+  double _initialScaleZoom = 1.0;
 
   @override
   void deactivate() {
@@ -97,14 +105,106 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   void _onEditorTextChanged() {
-    if (mounted) {
-      final count = _calculateWordCount(_editorController.text);
-      try {
-        final history = Provider.of<HistoryProvider>(context, listen: false);
-        history.updateWordCount(count);
-      } catch (_) {
-        // HistoryProvider not in tree
+    if (!mounted) return;
+    final currentText = _editorController.text;
+    if (currentText == _lastProcessedText) {
+      return;
+    }
+    _lastProcessedText = currentText;
+
+    final count = _calculateWordCount(currentText);
+    if (_currentWordCount != count) {
+      setState(() {
+        _currentWordCount = count;
+      });
+    }
+    try {
+      final history = Provider.of<HistoryProvider>(context, listen: false);
+      history.updateWordCount(count);
+    } catch (_) {
+      // HistoryProvider not in tree
+    }
+
+    if (_searchProvider.isSearchOpen && _searchProvider.query.isNotEmpty) {
+      _searchProvider.updateMatchOffsets(currentText);
+    }
+  }
+
+  void _onSearchChanged() {
+    if (!mounted) return;
+    final activeIndex = _searchProvider.currentMatchIndex;
+    
+    // Update active offset on the controller
+    int newOffset = -1;
+    if (activeIndex >= 0 && activeIndex < _searchProvider.matchOffsets.length) {
+      newOffset = _searchProvider.matchOffsets[activeIndex];
+    }
+    
+    if (_editorController.activeMatchOffset != newOffset) {
+      _editorController.activeMatchOffset = newOffset;
+      // Scroll the editor to the new match offset if editor does not have focus
+      if (newOffset != -1 && !_editorFocusNode.hasFocus) {
+        _jumpToCharacterOffset(newOffset);
       }
+    }
+  }
+
+  void _onEditorProviderChanged() {
+    if (!mounted) return;
+    final newContent = _editorProvider.content;
+    if (_editorController.text != newContent) {
+      // Temporarily remove listener to avoid triggering word count updates/setState during build
+      _editorController.removeListener(_onEditorTextChanged);
+      _editorController.text = newContent;
+      _editorController.addListener(_onEditorTextChanged);
+      _lastProcessedText = newContent;
+      
+      final count = _calculateWordCount(newContent);
+      if (_currentWordCount != count) {
+        setState(() {
+          _currentWordCount = count;
+        });
+      }
+    }
+  }
+
+  void _jumpToCharacterOffset(int charOffset) {
+    if (charOffset < 0 || charOffset >= _editorController.text.length) return;
+    
+    final text = _editorController.text;
+    final zoomLevel = context.read<EditorProvider>().zoomLevel;
+    final pageWidth = context.read<EditorProvider>().pageWidth;
+    final textWidth = pageWidth - 120.0;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 16.0 * zoomLevel,
+          height: 1.8,
+          fontFamily: 'Georgia',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout(maxWidth: textWidth);
+    final offset = textPainter.getOffsetForCaret(
+      TextPosition(offset: charOffset),
+      Rect.zero,
+    );
+
+    final double viewportHeight = _scrollController.hasClients 
+        ? _scrollController.position.viewportDimension 
+        : 600.0;
+    final targetScrollOffset = offset.dy - (viewportHeight / 3);
+
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        targetScrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -118,9 +218,17 @@ class _EditorScreenState extends State<EditorScreen> {
       text: editorProvider.content,
       theme: themeProvider.currentTheme,
     );
+    _currentWordCount = _calculateWordCount(editorProvider.content);
+    _lastProcessedText = editorProvider.content;
     _editorFocusNode.addListener(_onEditorFocusChange);
     _editorController.addListener(_onEditorTextChanged);
     HardwareKeyboard.instance.addHandler(_handleGlobalKey);
+
+    _editorProvider = context.read<EditorProvider>();
+    _editorProvider.addListener(_onEditorProviderChanged);
+
+    _searchProvider = context.read<SearchProvider>();
+    _searchProvider.addListener(_onSearchChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -134,6 +242,8 @@ class _EditorScreenState extends State<EditorScreen> {
     _editorFocusNode.removeListener(_onEditorFocusChange);
     _editorController.removeListener(_onEditorTextChanged);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
+    _editorProvider.removeListener(_onEditorProviderChanged);
+    _searchProvider.removeListener(_onSearchChanged);
     _editorController.dispose();
     _scrollController.dispose();
     _editorFocusNode.dispose();
@@ -155,55 +265,7 @@ class _EditorScreenState extends State<EditorScreen> {
           right: 20,
           child: Material(
             color: Colors.transparent,
-            child: Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: theme.sidebarColor.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: theme.foregroundColor.withValues(alpha: 0.1)),
-                      boxShadow: theme.sidebarShadows,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'KEYBOARD SHORTCUTS CHEATSHEET',
-                          style: TextStyle(
-                            color: theme.foregroundColor.withValues(alpha: 0.5),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 24,
-                          runSpacing: 12,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            _buildCheatsheetItem(theme, 'Alt + 1', 'Toggle ToC'),
-                            _buildCheatsheetItem(theme, 'Alt + 2', 'Toggle Notes'),
-                            _buildCheatsheetItem(theme, 'Alt + 3', 'Toggle Toolbar'),
-                            _buildCheatsheetItem(theme, 'Alt + 4', 'Toggle Settings'),
-                            _buildCheatsheetItem(theme, 'Alt + Enter', 'Toggle Fullscreen'),
-                            _buildCheatsheetItem(theme, 'Alt + A', 'Attributions'),
-                            _buildCheatsheetItem(theme, 'Alt + Shift + A', 'Set Alarm'),
-                            _buildCheatsheetItem(theme, 'Alt + C', 'Peek Clock / Dismiss Alarm'),
-                            _buildCheatsheetItem(theme, 'Alt + S', 'Peek Session'),
-                            _buildCheatsheetItem(theme, 'Alt + P', 'Toggle Pomodoro'),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            child: CheatsheetOverlayContent(theme: theme),
           ),
         );
       },
@@ -215,38 +277,6 @@ class _EditorScreenState extends State<EditorScreen> {
       _cheatsheetOverlayEntry?.remove();
       _cheatsheetOverlayEntry = null;
     });
-  }
-
-  Widget _buildCheatsheetItem(WriterTheme theme, String keys, String description) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: theme.foregroundColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            keys,
-            style: TextStyle(
-              color: theme.foregroundColor,
-              fontSize: 10,
-              fontFamily: 'Courier',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          description,
-          style: TextStyle(
-            color: theme.foregroundColor.withValues(alpha: 0.8),
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
   }
 
   void _jumpToHeader(int lineIndex) {
@@ -313,12 +343,11 @@ class _EditorScreenState extends State<EditorScreen> {
     
     _editorController.theme = theme;
     _editorController.searchQuery = searchProvider.query;
-    if (_editorController.text != editorProvider.content) {
-      _editorController.text = editorProvider.content;
-    }
+
 
     final headers = _parseHeaders(editorProvider.content);
     final bool isMac = Platform.isMacOS;
+    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
@@ -374,7 +403,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     IntegratedHeader(
                       theme: theme,
                       projectName: settings.currentProjectName ?? 'User Manual',
-                      showWindowControls: !uiState.isFullscreen,
+                      showWindowControls: !isMobilePhone && !uiState.isFullscreen,
                       onRename: (newName) async {
                         final success = await settings.renameProject(settings.currentProjectName!, newName);
                         if (success && mounted) {
@@ -384,13 +413,35 @@ class _EditorScreenState extends State<EditorScreen> {
                           await context.read<HistoryProvider>().loadProjectStats(path);
                         }
                       },
-                      actionButton: IconButton(
-                        icon: const Icon(Icons.settings, size: 20),
-                        onPressed: () {
+                      actionButton: isMobilePhone 
+                          ? const SizedBox.shrink() 
+                          : IconButton(
+                              icon: const Icon(Icons.settings, size: 20),
+                              onPressed: () {
+                                context.read<HistoryProvider>().saveStatsNow().then((_) {
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context, 
+                                      MaterialPageRoute(
+                                        settings: const RouteSettings(name: '/settings'),
+                                        builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                                      ),
+                                    );
+                                  }
+                                });
+                              },
+                              tooltip: 'Settings',
+                            ),
+                    ),
+                    if (isMobilePhone)
+                      MobilePersistentToolbar(
+                        theme: theme,
+                        onApplyFormat: _applyFormat,
+                        onSettingsTap: () {
                           context.read<HistoryProvider>().saveStatsNow().then((_) {
                             if (context.mounted) {
                               Navigator.push(
-                                context, 
+                                context,
                                 MaterialPageRoute(
                                   settings: const RouteSettings(name: '/settings'),
                                   builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
@@ -399,9 +450,7 @@ class _EditorScreenState extends State<EditorScreen> {
                             }
                           });
                         },
-                        tooltip: 'Settings',
                       ),
-                    ),
                     Expanded(
                       child: Stack(
                         children: [
@@ -409,25 +458,50 @@ class _EditorScreenState extends State<EditorScreen> {
                             child: NoiseOverlay(
                               child: Stack(
                                 children: [
-                                  EditorPaperArea(
-                                    theme: theme,
-                                    provider: editorProvider,
-                                    controller: _editorController,
-                                    scrollController: _scrollController,
-                                    focusNode: _editorFocusNode,
-                                    onChanged: (val) {
-                                      final settings = context.read<SettingsProvider>();
-                                      final sync = context.read<SyncProvider>();
-                                      context.read<EditorProvider>().updateContent(
-                                        val,
-                                        syncProvider: sync,
-                                        projectName: settings.currentProjectName,
-                                        syncInterval: Duration(minutes: settings.syncIntervalMinutes),
+                                  Builder(
+                                    builder: (context) {
+                                      Widget paperArea = EditorPaperArea(
+                                        theme: theme,
+                                        provider: editorProvider,
+                                        controller: _editorController,
+                                        scrollController: _scrollController,
+                                        focusNode: _editorFocusNode,
+                                        onChanged: (val) {
+                                          final settings = context.read<SettingsProvider>();
+                                          final sync = context.read<SyncProvider>();
+                                          context.read<EditorProvider>().updateContent(
+                                            val,
+                                            syncProvider: sync,
+                                            projectName: settings.currentProjectName,
+                                            syncInterval: Duration(minutes: settings.syncIntervalMinutes),
+                                          );
+                                          setState(() {});
+                                        },
                                       );
-                                      setState(() {});
+
+                                      if (isMobilePhone) {
+                                        paperArea = GestureDetector(
+                                          behavior: HitTestBehavior.translucent,
+                                          onTapDown: (_) {
+                                            final state = context.read<ShortcutsProvider>();
+                                            if (state.isLeftSidebarOpen || state.isRightSidebarOpen) {
+                                              if (state.isLeftSidebarOpen) {
+                                                state.toggleLeftSidebar();
+                                              }
+                                              if (state.isRightSidebarOpen) {
+                                                state.toggleRightSidebar();
+                                              }
+                                            }
+                                          },
+                                          onScaleStart: _onScaleStart,
+                                          onScaleUpdate: _onScaleUpdate,
+                                          child: paperArea,
+                                        );
+                                      }
+                                      return paperArea;
                                     },
                                   ),
-                                  if (uiState.isToolbarOpen)
+                                  if (!isMobilePhone && uiState.isToolbarOpen)
                                     Positioned(
                                       top: 0, left: 0, right: 0,
                                       child: Center(
@@ -486,7 +560,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     ),
                     EditorStatusBar(
                       theme: theme,
-                      wordCount: _calculateWordCount(editorProvider.content),
+                      wordCount: _currentWordCount,
                       isLeftSidebarOpen: uiState.isLeftSidebarOpen,
                       isRightSidebarOpen: uiState.isRightSidebarOpen,
                       isFullscreen: uiState.isFullscreen,
@@ -495,7 +569,9 @@ class _EditorScreenState extends State<EditorScreen> {
                       onToggleToolbar: uiState.toggleToolbar,
                       onToggleFullscreen: () async {
                         final newValue = !uiState.isFullscreen;
-                        await windowManager.setFullScreen(newValue);
+                        if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+                          await windowManager.setFullScreen(newValue);
+                        }
                         uiState.setFullscreen(newValue);
                       },
                     ),
@@ -506,7 +582,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   curve: Curves.easeInOut,
                   left: uiState.isLeftSidebarOpen ? 270 : 20,
                   right: uiState.isRightSidebarOpen ? 320 : 20,
-                  bottom: 60,
+                  bottom: searchProvider.isSearchOpen ? -100 : 60,
                   child: AlignmentBar(
                     theme: theme,
                     pageWidth: editorProvider.pageWidth,
@@ -516,15 +592,28 @@ class _EditorScreenState extends State<EditorScreen> {
                   ),
                 ),
                 if (searchProvider.isSearchOpen)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () {
-                        searchProvider.toggleSearch(isOpen: false);
-                      },
-                      child: const SearchPopup(),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 80,
+                    child: const Center(
+                      child: SearchPopup(),
                     ),
                   ),
+                if (isMobilePhone) ...[
+                  SidebarPulltab(
+                    theme: theme,
+                    direction: AxisDirection.left,
+                    isOpen: uiState.isLeftSidebarOpen,
+                    onTap: uiState.toggleLeftSidebar,
+                  ),
+                  SidebarPulltab(
+                    theme: theme,
+                    direction: AxisDirection.right,
+                    isOpen: uiState.isRightSidebarOpen,
+                    onTap: uiState.toggleRightSidebar,
+                  ),
+                ],
               ],
             ),
         ),
@@ -546,7 +635,34 @@ class _EditorScreenState extends State<EditorScreen> {
     
 
   int _calculateWordCount(String text) {
-    if (text.trim().isEmpty) return 0;
-    return text.trim().split(RegExp(r'\s+')).length;
+    int count = 0;
+    bool inWord = false;
+    final length = text.length;
+    for (int i = 0; i < length; i++) {
+      final codeUnit = text.codeUnitAt(i);
+      final isWhitespace = codeUnit == 32 || codeUnit == 10 || codeUnit == 13 || codeUnit == 9;
+      if (isWhitespace) {
+        if (inWord) {
+          count++;
+          inWord = false;
+        }
+      } else {
+        inWord = true;
+      }
+    }
+    if (inWord) {
+      count++;
+    }
+    return count;
+  }
+
+  void _onScaleStart(ScaleStartDetails details) {
+    _initialScaleZoom = context.read<EditorProvider>().zoomLevel;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount > 1 && details.scale != 1.0) {
+      context.read<EditorProvider>().setZoomLevel(_initialScaleZoom * details.scale);
+    }
   }
 }

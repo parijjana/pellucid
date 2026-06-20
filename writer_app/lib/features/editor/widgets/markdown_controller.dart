@@ -7,6 +7,7 @@ import '../providers/theme_provider.dart';
 class MarkdownEditingController extends TextEditingController {
   WriterTheme theme;
   String _searchQuery = '';
+  int _activeMatchOffset = -1;
 
   MarkdownEditingController({super.text, required this.theme});
 
@@ -18,7 +19,15 @@ class MarkdownEditingController extends TextEditingController {
     }
   }
 
-  List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query) {
+  int get activeMatchOffset => _activeMatchOffset;
+  set activeMatchOffset(int val) {
+    if (_activeMatchOffset != val) {
+      _activeMatchOffset = val;
+      notifyListeners();
+    }
+  }
+
+  List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query, int startOffset) {
     if (query.isEmpty) {
       return [TextSpan(text: text, style: baseStyle)];
     }
@@ -38,10 +47,16 @@ class MarkdownEditingController extends TextEditingController {
         ));
       }
       
+      final matchAbsoluteStart = startOffset + match.start;
+      final isCurrentActiveMatch = _activeMatchOffset == matchAbsoluteStart;
+
       spans.add(TextSpan(
         text: text.substring(match.start, match.end),
         style: baseStyle.copyWith(
-          backgroundColor: Colors.amber.withValues(alpha: 0.35),
+          backgroundColor: isCurrentActiveMatch
+              ? Colors.orange.withValues(alpha: 0.75)
+              : Colors.amber.withValues(alpha: 0.35),
+          fontWeight: isCurrentActiveMatch ? FontWeight.bold : baseStyle.fontWeight,
         ),
       ));
       lastEnd = match.end;
@@ -65,32 +80,35 @@ class MarkdownEditingController extends TextEditingController {
   }) {
     final List<InlineSpan> children = [];
     final lines = text.split('\n');
+    int currentOffset = 0;
     
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final isLastLine = i == lines.length - 1;
       
       if (line.startsWith('# ')) {
-        _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold);
+        _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold, currentOffset);
       } else if (line.startsWith('## ')) {
-        _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold);
+        _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold, currentOffset);
       } else if (line.startsWith('### ')) {
-        _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold);
+        _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, currentOffset);
       } else if (line.startsWith('- ')) {
-        _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, isBullet: true);
+        _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, currentOffset, isBullet: true);
       } else {
-        _addInlineStyledText(children, line, style ?? const TextStyle());
+        _addInlineStyledText(children, line, style ?? const TextStyle(), currentOffset);
       }
 
+      currentOffset += line.length;
       if (!isLastLine) {
         children.add(const TextSpan(text: '\n'));
+        currentOffset += 1;
       }
     }
 
     return TextSpan(style: style, children: children);
   }
 
-  void _addStyledBlock(List<InlineSpan> children, String line, String pattern, double fontSize, FontWeight weight, {bool isBullet = false}) {
+  void _addStyledBlock(List<InlineSpan> children, String line, String pattern, double fontSize, FontWeight weight, int lineOffset, {bool isBullet = false}) {
     final regex = RegExp(pattern);
     final match = regex.firstMatch(line);
     
@@ -105,6 +123,7 @@ class MarkdownEditingController extends TextEditingController {
       String content = line.substring(match.end);
       if (isBullet) content = '• $content';
 
+      int blockOffset = lineOffset + match.end;
       children.addAll(_highlightText(
         content,
         TextStyle(
@@ -113,11 +132,12 @@ class MarkdownEditingController extends TextEditingController {
           color: theme.foregroundColor,
         ),
         searchQuery,
+        blockOffset,
       ));
     }
   }
 
-  void _addInlineStyledText(List<InlineSpan> children, String line, TextStyle baseStyle) {
+  void _addInlineStyledText(List<InlineSpan> children, String line, TextStyle baseStyle, int lineOffset) {
     // Scan for Bold (**) or Italic (*)
     final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*)');
     int lastMatchEnd = 0;
@@ -127,7 +147,7 @@ class MarkdownEditingController extends TextEditingController {
     for (final match in matches) {
       // Add text BEFORE the match
       if (match.start > lastMatchEnd) {
-        children.addAll(_highlightText(line.substring(lastMatchEnd, match.start), baseStyle, searchQuery));
+        children.addAll(_highlightText(line.substring(lastMatchEnd, match.start), baseStyle, searchQuery, lineOffset + lastMatchEnd));
       }
       
       final matchText = match.group(0)!;
@@ -138,6 +158,7 @@ class MarkdownEditingController extends TextEditingController {
           matchText.substring(2, matchText.length - 2),
           baseStyle.copyWith(fontWeight: FontWeight.bold),
           searchQuery,
+          lineOffset + match.start + 2,
         ));
         children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
       } else if (matchText.startsWith('*') && matchText.length >= 2) {
@@ -147,11 +168,12 @@ class MarkdownEditingController extends TextEditingController {
           matchText.substring(1, matchText.length - 1),
           baseStyle.copyWith(fontStyle: FontStyle.italic),
           searchQuery,
+          lineOffset + match.start + 1,
         ));
         children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
       } else {
         // Fallback for malformed matches
-        children.addAll(_highlightText(matchText, baseStyle, searchQuery));
+        children.addAll(_highlightText(matchText, baseStyle, searchQuery, lineOffset + match.start));
       }
       
       lastMatchEnd = match.end;
@@ -159,7 +181,7 @@ class MarkdownEditingController extends TextEditingController {
     
     // Add remaining text after last match
     if (lastMatchEnd < line.length) {
-      children.addAll(_highlightText(line.substring(lastMatchEnd), baseStyle, searchQuery));
+      children.addAll(_highlightText(line.substring(lastMatchEnd), baseStyle, searchQuery, lineOffset + lastMatchEnd));
     }
   }
 

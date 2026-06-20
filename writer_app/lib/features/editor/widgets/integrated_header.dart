@@ -89,6 +89,9 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
       }
     }
 
+    final bool isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+
     return Container(
       height: 40,
       decoration: BoxDecoration(
@@ -97,14 +100,21 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
       child: Stack(
         children: [
           // Background Drag Area: Handles dragging on any empty space of the header
-          Positioned.fill(
-            child: DragToMoveArea(
+          if (isDesktop)
+            Positioned.fill(
+              child: DragToMoveArea(
+                child: Container(
+                  color: dragAreaColor,
+                ),
+              ),
+            )
+          else
+            Positioned.fill(
               child: Container(
-                color: dragAreaColor,
+                color: Colors.transparent,
               ),
             ),
-          ),
-          if (widget.showWindowControls)
+          if (isDesktop && widget.showWindowControls)
             WindowCaption(
               brightness: widget.theme.backgroundColor.computeLuminance() > 0.5 
                   ? Brightness.light 
@@ -113,20 +123,21 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
             ),
           
           // Action Button (Left)
-          Positioned(
-            left: leftPadding,
-            top: 0,
-            bottom: 0,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _isActionHovered = true),
-              onExit: (_) => setState(() => _isActionHovered = false),
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                opacity: _isActionHovered ? 1.0 : 0.2,
-                child: widget.actionButton,
+          if (!isMobilePhone)
+            Positioned(
+              left: leftPadding,
+              top: 0,
+              bottom: 0,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isActionHovered = true),
+                onExit: (_) => setState(() => _isActionHovered = false),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _isActionHovered ? 1.0 : 0.2,
+                  child: widget.actionButton,
+                ),
               ),
             ),
-          ),
 
           // Project Name (Center)
           if (widget.projectName != null)

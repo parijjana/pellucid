@@ -45,6 +45,8 @@ evolutionary-memory/
 agent_log/
 .librarian/
 *.md
+!/README.md
+!/writer_app/README.md
 *.db
 *.py
 *.html

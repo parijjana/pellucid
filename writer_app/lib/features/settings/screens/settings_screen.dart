@@ -2,10 +2,12 @@
 // Description: Unified Settings Dashboard (Setup, Projects, Statistics).
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:file_selector/file_selector.dart';
 import '../providers/settings_provider.dart';
@@ -16,6 +18,7 @@ import '../../sidebar/providers/notes_provider.dart';
 import '../providers/history_provider.dart';
 import '../widgets/project_card.dart';
 import '../widgets/new_project_card.dart';
+import '../widgets/daily_goal_indicator.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../../editor/widgets/shortcuts.dart';
@@ -160,9 +163,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final sync = context.watch<SyncProvider>();
     final history = context.watch<HistoryProvider>();
 
-    final bool isMac = Platform.isMacOS;
-    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
-    final bool isMobilePlatform = Platform.isAndroid || Platform.isIOS;
+    final bool isMac = !kIsWeb && Platform.isMacOS;
+    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePlatform = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
@@ -433,12 +436,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final wordCount = isActive ? history.currentProjectStats.totalWordCount : project.stats.totalWordCount;
           final timeSpent = isActive ? history.currentProjectStats.totalTimeSpent : project.stats.totalTimeSpent;
 
+          final wordGoal = isActive ? history.currentProjectStats.wordGoal : project.stats.wordGoal;
+
           return ProjectCard(
             name: project.name,
             wordCount: wordCount,
             timeSpent: timeSpent,
             isActive: isActive,
             theme: theme,
+            wordGoal: wordGoal,
+            onSetGoal: isActive ? () => _showSetGoalDialog(context, history, theme, wordGoal) : null,
             onTap: () async {
               final editorProvider = context.read<EditorProvider>();
               final syncProvider = context.read<SyncProvider>();
@@ -484,6 +491,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.pop(context);
               }
             },
+            onOpenFolder: () async {
+              final folderPath = '${settings.masterDirectoryPath}/${project.name}';
+              final uri = Uri.directory(folderPath);
+              try {
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not open folder: $folderPath')),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error opening folder: $e')),
+                  );
+                }
+              }
+            },
           );
         },
       ),
@@ -511,6 +539,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildStatRow('Words Written Today', '${history.todayStats?.wordCountDelta ?? 0}', theme),
           _buildStatRow('Cumulative Time Spent', _formatHours(history.currentProjectStats.totalTimeSpent), theme),
           _buildStatRow('Project Word Count', '${history.currentProjectStats.totalWordCount}', theme),
+          if (context.watch<SettingsProvider>().hasDailyWordGoal)
+            DailyGoalIndicator(
+              wordsToday: history.todayStats?.wordCountDelta ?? 0,
+              goal: context.watch<SettingsProvider>().dailyWordGoal,
+              theme: theme,
+            ),
         ],
       ),
     );
@@ -613,8 +647,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _formatDateTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
 
+  void _showDownloadNativeAppDialog(BuildContext context, WriterTheme theme) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.backgroundColor,
+        title: Text('Download Native App', style: TextStyle(color: theme.foregroundColor, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Cloud synchronization is only available in the native desktop version of Pellucid. '
+          'Download the native Windows app to enable Google Drive Cloud Sync and versioned backups.',
+          style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.7), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.6))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              // Open github releases or download page
+            },
+            child: const Text('Download for Windows', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- REUSED UI HELPERS ---
   Widget _buildSyncTile(SyncProvider sync, WriterTheme theme, bool isFolderSelected) {
+    if (kIsWeb) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.sidebarColor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.foregroundColor.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off, color: theme.foregroundColor.withValues(alpha: 0.15)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Cloud Sync Disabled',
+                    style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('Only available in the native desktop app.',
+                    style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.3), fontSize: 11)),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => _showDownloadNativeAppDialog(context, theme),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.withValues(alpha: 0.5), foregroundColor: Colors.white.withValues(alpha: 0.8), elevation: 0),
+              child: const Text('CONNECT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -652,7 +753,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSyncIntervalSection(SettingsProvider settings, WriterTheme theme) {
-    return Padding(
+    final widget = Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -691,6 +792,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+
+    if (kIsWeb) {
+      return Opacity(
+        opacity: 0.5,
+        child: AbsorbPointer(child: widget),
+      );
+    }
+    return widget;
   }
 
   Widget _buildFolderPicker(SettingsProvider settings, WriterTheme theme) {
@@ -755,6 +864,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _buildToggleRow(label: 'Display Clock', value: settings.clockEnabled, onChanged: settings.toggleClock, theme: theme),
         _buildToggleRow(label: 'Session Timer', value: settings.currentSessionEnabled, onChanged: settings.toggleCurrentSession, theme: theme),
         _buildToggleRow(label: 'Focus Timer', value: settings.focusTimerEnabled, onChanged: settings.toggleFocusTimer, theme: theme),
+        _buildToggleRow(label: 'Typewriter Scrolling', value: settings.typewriterEnabled, onChanged: settings.toggleTypewriter, theme: theme),
+        _buildToggleRow(label: 'Paragraph Focus', value: settings.paragraphFocusEnabled, onChanged: settings.toggleParagraphFocus, theme: theme),
+        _buildToggleRow(label: 'Codex Linking', value: settings.codexLinkingEnabled, onChanged: settings.toggleCodexLinking, theme: theme),
+        _buildToggleRow(label: 'TOC Word Counts', value: settings.tocWordCountsEnabled, onChanged: settings.toggleTocWordCounts, theme: theme),
+        _buildDailyGoalRow(settings, theme),
         _buildToggleRow(label: 'Battery Guard', value: settings.batteryGuardEnabled, onChanged: settings.toggleBatteryGuard, theme: theme),
         if (settings.batteryGuardEnabled) ...[
           Padding(
@@ -794,6 +908,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildDailyGoalRow(SettingsProvider settings, WriterTheme theme) {
+    const options = [0, 250, 500, 1000, 2000];
+    final current = options.contains(settings.dailyWordGoal) ? settings.dailyWordGoal : 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Daily Word Goal', style: TextStyle(color: theme.foregroundColor, fontSize: 13)),
+          DropdownButton<int>(
+            value: current,
+            dropdownColor: theme.sidebarColor,
+            style: TextStyle(color: theme.foregroundColor, fontSize: 13),
+            underline: const SizedBox(),
+            onChanged: (int? value) {
+              if (value != null) settings.setDailyWordGoal(value);
+            },
+            items: options.map<DropdownMenuItem<int>>((int value) {
+              return DropdownMenuItem<int>(
+                value: value,
+                child: Text(value == 0 ? 'Off' : '$value words'),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -842,6 +985,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: theme.sidebarColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
       child: Text(label, style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.3), fontSize: 13, fontStyle: FontStyle.italic)),
+    );
+  }
+
+  void _showSetGoalDialog(BuildContext context, HistoryProvider history, WriterTheme theme, int? currentGoal) {
+    final controller = TextEditingController(text: currentGoal?.toString() ?? '');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.sidebarColor,
+        title: Text('Project Word Goal', style: TextStyle(color: theme.foregroundColor)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          style: TextStyle(color: theme.foregroundColor),
+          decoration: InputDecoration(
+            hintText: 'Target words (blank to clear)',
+            hintStyle: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              final parsed = int.tryParse(controller.text.trim());
+              history.setProjectWordGoal(parsed);
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 

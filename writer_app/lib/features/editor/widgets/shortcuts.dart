@@ -5,6 +5,9 @@ class SetTitleIntent extends Intent { const SetTitleIntent(); }
 class SetHeaderIntent extends Intent { const SetHeaderIntent(); }
 class SetBodyIntent extends Intent { const SetBodyIntent(); }
 class SetBulletIntent extends Intent { const SetBulletIntent(); }
+class ToggleBoldIntent extends Intent { const ToggleBoldIntent(); }
+class ToggleItalicIntent extends Intent { const ToggleItalicIntent(); }
+class ToggleUnderlineIntent extends Intent { const ToggleUnderlineIntent(); }
 
 // UI Toggles
 class ToggleToCIntent extends Intent { const ToggleToCIntent(); }
@@ -13,6 +16,8 @@ class ToggleToolbarIntent extends Intent { const ToggleToolbarIntent(); }
 class OpenSettingsIntent extends Intent { const OpenSettingsIntent(); }
 class ToggleFullscreenIntent extends Intent { const ToggleFullscreenIntent(); }
 class ToggleSearchIntent extends Intent { const ToggleSearchIntent(); }
+class ToggleTypewriterIntent extends Intent { const ToggleTypewriterIntent(); }
+class ToggleParagraphFocusIntent extends Intent { const ToggleParagraphFocusIntent(); }
 
 // Zoom
 class ZoomInIntent extends Intent { const ZoomInIntent(); }
@@ -24,6 +29,7 @@ class SetAlarmIntent extends Intent { const SetAlarmIntent(); }
 class PeekSessionIntent extends Intent { const PeekSessionIntent(); }
 class TogglePomodoroIntent extends Intent { const TogglePomodoroIntent(); }
 class ResetPomodoroIntent extends Intent { const ResetPomodoroIntent(); }
+class ToggleSprintIntent extends Intent { const ToggleSprintIntent(); }
 
 // Notes Workflow
 class AddNoteIntent extends Intent { const AddNoteIntent(); }

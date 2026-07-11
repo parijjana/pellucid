@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/editor_provider.dart';
+import '../utils/toc_parser.dart';
 import '../../search/providers/search_provider.dart';
 
 class EditorNavigationSidebar extends StatelessWidget {
   final WriterTheme theme;
-  final List<({String title, int line, int level})> headers;
+  final List<TocHeader> headers;
   final void Function(int) onHeaderTap;
+  final bool showWordCounts;
 
   const EditorNavigationSidebar({
     super.key,
     required this.theme,
     required this.headers,
     required this.onHeaderTap,
+    this.showWordCounts = true,
   });
 
   @override
@@ -28,7 +31,7 @@ class EditorNavigationSidebar extends StatelessWidget {
       for (int i = 0; i < headers.length; i++) {
         final startLine = headers[i].line;
         final endLine = (i < headers.length - 1) ? headers[i + 1].line - 1 : docLines.length - 1;
-        
+
         bool hasMatch = false;
         if (startLine < docLines.length) {
           // Search in the body text of the chapter (excluding the header line itself)
@@ -81,6 +84,7 @@ class EditorNavigationSidebar extends StatelessWidget {
                       false,
                       isMatch,
                       level: h.level,
+                      wordCount: showWordCounts ? h.wordCount : null,
                       onTap: () => onHeaderTap(h.line),
                     );
                   },
@@ -97,11 +101,12 @@ class EditorNavigationSidebar extends StatelessWidget {
     bool isActive,
     bool isMatch, {
     int level = 1,
+    int? wordCount,
     VoidCallback? onTap,
   }) {
     final baseStyle = TextStyle(
-      color: isActive 
-          ? theme.foregroundColor 
+      color: isActive
+          ? theme.foregroundColor
           : (isMatch ? theme.foregroundColor : theme.foregroundColor.withValues(alpha: 0.7)),
       fontSize: 13.0 - (level - 1) * 1.0,
       fontWeight: (isActive || isMatch) ? FontWeight.w600 : FontWeight.w400,
@@ -122,11 +127,33 @@ class EditorNavigationSidebar extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.only(left: 20.0 * level, right: 20, top: 12, bottom: 12),
         color: getBgColor(),
-        child: Text(
-          label,
-          style: baseStyle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: baseStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (wordCount != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                '$wordCount',
+                // Ghost-faint: much lower alpha and a smaller font than the title
+                // so the count never competes with it. It shares the sidebar's
+                // existing hover/contrast behavior (the whole panel brightens on
+                // hover) and gains a little contrast when the chapter is a match.
+                style: TextStyle(
+                  color: theme.foregroundColor.withValues(alpha: isMatch ? 0.4 : 0.25),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w400,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

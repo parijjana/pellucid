@@ -1,10 +1,13 @@
 // @trace FEAT-20260517-115000-0004
 // Description: Card widgets for project selection and creation.
 
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../sidebar/widgets/snapshot_management_dialog.dart';
 import '../screens/stats_screen.dart';
+import 'project_goal_line.dart';
 
 class ProjectCard extends StatelessWidget {
   final String name;
@@ -14,6 +17,13 @@ class ProjectCard extends StatelessWidget {
   final WriterTheme theme;
   final VoidCallback onTap;
   final VoidCallback onLaunch;
+  final VoidCallback onOpenFolder;
+
+  /// Optional total-word target. Null/unset renders no progress indicator.
+  final int? wordGoal;
+
+  /// Optional callback to configure the word goal. Hidden when null.
+  final VoidCallback? onSetGoal;
 
   const ProjectCard({
     super.key,
@@ -24,7 +34,12 @@ class ProjectCard extends StatelessWidget {
     required this.theme,
     required this.onTap,
     required this.onLaunch,
+    required this.onOpenFolder,
+    this.wordGoal,
+    this.onSetGoal,
   });
+
+  bool get _hasGoal => wordGoal != null && wordGoal! > 0;
 
   String _formatTime(Duration d) {
     if (d.inHours < 1) {
@@ -40,6 +55,7 @@ class ProjectCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onDoubleTap: onLaunch,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -77,20 +93,48 @@ class ProjectCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _statText('$wordCount words', theme),
-                    const SizedBox(height: 4),
-                    _statText(_formatTime(timeSpent), theme),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _statText('$wordCount words', theme),
+                      const SizedBox(height: 4),
+                      _statText(_formatTime(timeSpent), theme),
+                      if (_hasGoal) ...[
+                        const SizedBox(height: 6),
+                        ProjectGoalLine(
+                          wordCount: wordCount,
+                          wordGoal: wordGoal!,
+                          theme: theme,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (onSetGoal != null) ...[
+                      Tooltip(
+                        message: 'Set Word Goal',
+                        child: GestureDetector(
+                          onTap: onSetGoal,
+                          child: _GoalButton(theme: theme),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     GestureDetector(
                       onTap: onLaunch,
                       child: _LaunchButton(theme: theme),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: _getFolderTooltip(),
+                      child: GestureDetector(
+                        onTap: onOpenFolder,
+                        child: _OpenFolderButton(theme: theme),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
@@ -133,6 +177,34 @@ class ProjectCard extends StatelessWidget {
       style: TextStyle(
         color: theme.foregroundColor.withValues(alpha: 0.5),
         fontSize: 11,
+      ),
+    );
+  }
+
+  String _getFolderTooltip() {
+    if (kIsWeb) return 'Open Folder';
+    if (Platform.isWindows) return 'Open in File Explorer';
+    if (Platform.isMacOS) return 'Open in Finder';
+    return 'Open Folder';
+  }
+}
+
+class _GoalButton extends StatelessWidget {
+  final WriterTheme theme;
+  const _GoalButton({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.foregroundColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.flag_outlined,
+        size: 14,
+        color: theme.foregroundColor.withValues(alpha: 0.4),
       ),
     );
   }
@@ -194,6 +266,27 @@ class _LaunchButton extends StatelessWidget {
       ),
       child: Icon(
         Icons.open_in_new,
+        size: 14,
+        color: theme.foregroundColor.withValues(alpha: 0.4),
+      ),
+    );
+  }
+}
+
+class _OpenFolderButton extends StatelessWidget {
+  final WriterTheme theme;
+  const _OpenFolderButton({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.foregroundColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.folder_open,
         size: 14,
         color: theme.foregroundColor.withValues(alpha: 0.4),
       ),

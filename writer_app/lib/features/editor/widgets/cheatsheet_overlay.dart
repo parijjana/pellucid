@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
@@ -13,7 +14,7 @@ class CheatsheetOverlayContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMac = Platform.isMacOS;
+    final bool isMac = !kIsWeb && Platform.isMacOS;
     return Center(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -49,6 +50,8 @@ class CheatsheetOverlayContent extends StatelessWidget {
                     _CheatsheetItem(theme: theme, keys: 'Alt + 2', description: 'Toggle Notes'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + 3', description: 'Toggle Toolbar'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + 4', description: 'Toggle Settings'),
+                    _CheatsheetItem(theme: theme, keys: 'Alt + 5', description: 'Typewriter Scrolling'),
+                    _CheatsheetItem(theme: theme, keys: 'Alt + 6', description: 'Paragraph Focus'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + Enter', description: 'Toggle Fullscreen'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + A', description: 'Attributions'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + Shift + A', description: 'Set Alarm'),
@@ -56,6 +59,7 @@ class CheatsheetOverlayContent extends StatelessWidget {
                     _CheatsheetItem(theme: theme, keys: 'Alt + S', description: 'Peek Session'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + P', description: 'Toggle Pomodoro'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + Shift + P', description: 'Reset Pomodoro'),
+                    _CheatsheetItem(theme: theme, keys: 'Alt + Shift + S', description: 'Toggle Sprint'),
                     _CheatsheetItem(theme: theme, keys: 'Alt + N', description: 'Add Note'),
                     _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + F' : 'Ctrl + F', description: 'Search'),
                   ],

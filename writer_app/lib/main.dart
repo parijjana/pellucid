@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -10,6 +11,7 @@ import 'features/sidebar/providers/notes_provider.dart';
 import 'features/sidebar/providers/note_card.dart';
 import 'features/settings/providers/settings_provider.dart';
 import 'features/settings/providers/history_provider.dart';
+import 'features/editor/providers/sprint_controller.dart';
 import 'features/sync/providers/sync_provider.dart';
 import 'package:flutter/services.dart';
 import 'features/editor/providers/shortcuts_provider.dart';
@@ -23,7 +25,7 @@ import 'features/search/providers/search_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  if (Platform.isWindows || Platform.isLinux) {
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
@@ -33,17 +35,20 @@ void main() async {
   final settingsProvider = SettingsProvider();
   final syncProvider = SyncProvider();
   final historyProvider = HistoryProvider(syncProvider: syncProvider);
-  final notesProvider = NotesProvider(); 
+  final notesProvider = NotesProvider();
   final searchProvider = SearchProvider();
+  final sprintController = SprintController();
 
-  await themeProvider.loadSettings();
-  await editorProvider.loadSettings();
-  await settingsProvider.loadSettings();
-  await editorProvider.loadProject(settingsProvider.currentProjectPath);
-  await notesProvider.loadProject(settingsProvider.currentProjectPath);
-  await historyProvider.loadProjectStats(settingsProvider.currentProjectPath);
+  if (!kIsWeb) {
+    await themeProvider.loadSettings();
+    await editorProvider.loadSettings();
+    await settingsProvider.loadSettings();
+    await editorProvider.loadProject(settingsProvider.currentProjectPath);
+    await notesProvider.loadProject(settingsProvider.currentProjectPath);
+    await historyProvider.loadProjectStats(settingsProvider.currentProjectPath);
+  }
 
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+  if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
     await windowManager.ensureInitialized();
     WindowOptions windowOptions = const WindowOptions(
       size: Size(1200, 800),
@@ -69,6 +74,7 @@ void main() async {
         ChangeNotifierProvider.value(value: historyProvider),
         ChangeNotifierProvider.value(value: syncProvider),
         ChangeNotifierProvider.value(value: searchProvider),
+        ChangeNotifierProvider.value(value: sprintController),
         ChangeNotifierProvider(create: (_) => ShortcutsProvider()),
       ],
       child: const WriterApp(),
@@ -81,7 +87,7 @@ class WriterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMac = Platform.isMacOS;
+    final bool isMac = !kIsWeb && Platform.isMacOS;
     final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
     return Shortcuts(
@@ -90,6 +96,8 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.digit2, alt: !isMac, meta: isMac, control: isMac): const ToggleNotesIntent(),
         SingleActivator(LogicalKeyboardKey.digit3, alt: !isMac, meta: isMac, control: isMac): const ToggleToolbarIntent(),
         SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.digit5, alt: !isMac, meta: isMac, control: isMac): const ToggleTypewriterIntent(),
+        SingleActivator(LogicalKeyboardKey.digit6, alt: !isMac, meta: isMac, control: isMac): const ToggleParagraphFocusIntent(),
         const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.enter, alt: !isMac, meta: isMac, control: isMac): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.keyC, alt: !isMac, meta: isMac, control: isMac): const PeekClockIntent(),
@@ -99,6 +107,7 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.keyA, alt: !isMac, meta: isMac, control: isMac): const OpenAttributionIntent(),
         SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac): const TogglePomodoroIntent(),
         SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac, shift: true): const ResetPomodoroIntent(),
+        SingleActivator(LogicalKeyboardKey.keyS, alt: !isMac, meta: isMac, control: isMac, shift: true): const ToggleSprintIntent(),
         SingleActivator(LogicalKeyboardKey.keyF, control: !isMac, meta: isMac): const ToggleSearchIntent(),
       },
       child: Actions(
@@ -138,6 +147,16 @@ class WriterApp extends StatelessWidget {
           }),
           ResetPomodoroIntent: CallbackAction<ResetPomodoroIntent>(onInvoke: (intent) {
             context.read<SettingsProvider>().resetPomodoro();
+            return null;
+          }),
+          ToggleSprintIntent: CallbackAction<ToggleSprintIntent>(onInvoke: (intent) {
+            final sprint = context.read<SprintController>();
+            if (sprint.isActive) {
+              sprint.stop();
+            } else {
+              final history = context.read<HistoryProvider>();
+              sprint.start(currentWords: () => history.todayStats?.wordCountDelta ?? 0);
+            }
             return null;
           }),
           AddNoteIntent: CallbackAction<AddNoteIntent>(onInvoke: (intent) {
@@ -203,7 +222,7 @@ class WriterApp extends StatelessWidget {
           ToggleFullscreenIntent: CallbackAction<ToggleFullscreenIntent>(onInvoke: (intent) async {
             final provider = context.read<ShortcutsProvider>();
             final newValue = !provider.isFullscreen;
-            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+            if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
               await windowManager.setFullScreen(newValue);
             }
             provider.setFullscreen(newValue);
@@ -238,6 +257,16 @@ class WriterApp extends StatelessWidget {
             navKey.currentContext?.read<SearchProvider>().toggleSearch();
             return null;
           }),
+          ToggleTypewriterIntent: CallbackAction<ToggleTypewriterIntent>(onInvoke: (intent) {
+            final settings = context.read<SettingsProvider>();
+            settings.toggleTypewriter(!settings.typewriterEnabled);
+            return null;
+          }),
+          ToggleParagraphFocusIntent: CallbackAction<ToggleParagraphFocusIntent>(onInvoke: (intent) {
+            final settings = context.read<SettingsProvider>();
+            settings.toggleParagraphFocus(!settings.paragraphFocusEnabled);
+            return null;
+          }),
         },
         child: Focus(
           autofocus: true,
@@ -248,6 +277,8 @@ class WriterApp extends StatelessWidget {
                 LogicalKeyboardKey.digit2,
                 LogicalKeyboardKey.digit3,
                 LogicalKeyboardKey.digit4,
+                LogicalKeyboardKey.digit5,
+                LogicalKeyboardKey.digit6,
                 LogicalKeyboardKey.enter,
                 LogicalKeyboardKey.keyC,
                 LogicalKeyboardKey.keyA,
@@ -285,7 +316,7 @@ class WriterApp extends StatelessWidget {
             ),
             home: const EditorScreen(),
             builder: (context, child) {
-              final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+              final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
               return Consumer<SettingsProvider>(
                 builder: (context, settings, _) {
                   return GlowingBorder(

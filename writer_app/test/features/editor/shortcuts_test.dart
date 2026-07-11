@@ -10,6 +10,7 @@ import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/settings/providers/history_provider.dart';
 import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
 import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
+import 'package:pellucid/features/editor/providers/sprint_controller.dart';
 import 'package:pellucid/features/sidebar/providers/note_card.dart';
 import 'package:pellucid/features/sidebar/widgets/note_editor_dialog.dart';
 import 'package:pellucid/features/editor/widgets/alarm_setter_dialog.dart';
@@ -81,6 +82,12 @@ void main() {
     when(() => mockSettings.setLastNotesFullscreenState(any())).thenAnswer((_) async {});
     when(() => mockSettings.refreshProjects()).thenAnswer((_) async {});
     when(() => mockSettings.syncIntervalMinutes).thenReturn(30);
+    when(() => mockSettings.typewriterEnabled).thenReturn(false);
+    when(() => mockSettings.paragraphFocusEnabled).thenReturn(false);
+    when(() => mockSettings.codexLinkingEnabled).thenReturn(false);
+    when(() => mockSettings.tocWordCountsEnabled).thenReturn(true);
+    when(() => mockSettings.dailyWordGoal).thenReturn(0);
+    when(() => mockSettings.hasDailyWordGoal).thenReturn(false);
 
     when(() => mockSync.status).thenReturn(SyncStatus.idle);
     when(() => mockSync.isLoggedIn).thenReturn(false);
@@ -107,6 +114,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),
@@ -177,6 +185,64 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
+  testWidgets('Alt+5 and Alt+6 toggle typewriter scrolling and paragraph focus', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const WriterApp(),
+      ),
+    );
+
+    // Focus the TextField directly via its focusNode to avoid off-screen tap issues
+    final TextField textField = tester.widget<TextField>(find.byType(TextField));
+    textField.focusNode!.requestFocus();
+    await tester.pumpAndSettle();
+
+    // 1. Toggle Typewriter Scrolling (Alt + 5): off -> on
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit5);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit5);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    verify(() => mockSettings.toggleTypewriter(true)).called(1);
+
+    // 2. Toggle Paragraph Focus (Alt + 6): off -> on
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit6);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit6);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    verify(() => mockSettings.toggleParagraphFocus(true)).called(1);
+
+    // 3. When already enabled, the shortcut toggles back off
+    when(() => mockSettings.typewriterEnabled).thenReturn(true);
+    when(() => mockSettings.paragraphFocusEnabled).thenReturn(true);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit5);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit5);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    verify(() => mockSettings.toggleTypewriter(false)).called(1);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit6);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit6);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    verify(() => mockSettings.toggleParagraphFocus(false)).called(1);
+  });
+
   testWidgets('Fullscreen toggle triggers correctly when F11 is pressed', (WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
@@ -189,6 +255,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),
@@ -232,6 +299,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),
@@ -307,6 +375,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),
@@ -353,6 +422,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),
@@ -421,6 +491,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),
@@ -478,6 +549,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const WriterApp(),
       ),

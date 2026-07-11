@@ -48,6 +48,27 @@ void main() {
       expect(historyProvider.currentProjectStats.totalWordCount, 200);
     });
 
+    test('setProjectWordGoal sets and clears the current project goal', () async {
+      historyProvider = HistoryProvider(
+        settingsDatabase: mockSettingsDatabase,
+        storageService: mockStorageService,
+      );
+      await historyProvider.loadProjectStats('/test/path');
+
+      historyProvider.setProjectWordGoal(5000);
+      expect(historyProvider.currentProjectStats.wordGoal, 5000);
+      expect(historyProvider.currentProjectStats.hasWordGoal, true);
+
+      // Goal survives a word-count update (copyWith preserves it)
+      historyProvider.updateWordCount(300);
+      expect(historyProvider.currentProjectStats.wordGoal, 5000);
+
+      // Null clears the goal
+      historyProvider.setProjectWordGoal(null);
+      expect(historyProvider.currentProjectStats.wordGoal, isNull);
+      expect(historyProvider.currentProjectStats.hasWordGoal, false);
+    });
+
     test('Focus tracking increments editor and notes times on tick', () {
       fakeAsync((async) {
         historyProvider = HistoryProvider(

@@ -32,6 +32,10 @@ void main() {
 
     when(() => mockStorageService.readDocument(any()))
         .thenAnswer((_) async => 'Mock project content');
+    when(() => mockStorageService.saveDocument(any(), any()))
+        .thenAnswer((_) async {});
+    when(() => mockStorageService.saveLocalSnapshot(any(), any()))
+        .thenAnswer((_) async {});
 
     when(() => mockSyncProvider.status).thenReturn(SyncStatus.success);
     when(() => mockSyncProvider.syncCurrentFile(
@@ -169,6 +173,44 @@ void main() {
         fileName: any(named: 'fileName'),
         content: any(named: 'content'),
       ));
+    });
+
+    group('Local Snapshot Safety Net', () {
+      test('takes a snapshot after autosave once the interval elapses, and suppresses within it', () async {
+        editorProvider.snapshotInterval = const Duration(hours: 1);
+
+        await editorProvider.loadProject('/test/project/path');
+        editorProvider.updateContent('Snapshot content 1');
+        await Future.delayed(const Duration(milliseconds: 2100));
+
+        verify(() => mockStorageService.saveLocalSnapshot('/test/project/path', 'Snapshot content 1')).called(1);
+
+        // Within the (long) interval: no additional snapshot should be taken.
+        editorProvider.updateContent('Snapshot content 2');
+        await Future.delayed(const Duration(milliseconds: 2100));
+        verifyNever(() => mockStorageService.saveLocalSnapshot('/test/project/path', 'Snapshot content 2'));
+
+        // Shrink the interval to zero: the next autosave should snapshot again.
+        editorProvider.snapshotInterval = Duration.zero;
+        editorProvider.updateContent('Snapshot content 3');
+        await Future.delayed(const Duration(milliseconds: 2100));
+        verify(() => mockStorageService.saveLocalSnapshot('/test/project/path', 'Snapshot content 3')).called(1);
+      });
+
+      test('loadProject snapshots the outgoing project content before switching', () async {
+        await editorProvider.loadProject('/project/a');
+        editorProvider.updateContent('Outgoing content');
+
+        await editorProvider.loadProject('/project/b');
+
+        verify(() => mockStorageService.saveLocalSnapshot('/project/a', 'Outgoing content')).called(1);
+        expect(editorProvider.content, 'Mock project content');
+      });
+
+      test('loadProject does not snapshot when there was no previous project', () async {
+        await editorProvider.loadProject('/project/a');
+        verifyNever(() => mockStorageService.saveLocalSnapshot(any(), any()));
+      });
     });
 
     group('syncAttributions', () {

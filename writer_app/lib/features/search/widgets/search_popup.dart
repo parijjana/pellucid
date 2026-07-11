@@ -6,9 +6,18 @@ import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../providers/search_provider.dart';
+import 'search_input_row.dart';
+import 'search_replace_row.dart';
 
+/// The Ctrl+F command palette: a single search row, optionally grown by a
+/// second replace row (Phase 1 Search & Replace). Actually applying a replace
+/// is owned by the host screen (`EditorScreen`, via [onReplaceOne] /
+/// [onReplaceAll]) so this widget stays a dumb shell over [SearchProvider].
 class SearchPopup extends StatefulWidget {
-  const SearchPopup({super.key});
+  final VoidCallback? onReplaceOne;
+  final VoidCallback? onReplaceAll;
+
+  const SearchPopup({super.key, this.onReplaceOne, this.onReplaceAll});
 
   @override
   State<SearchPopup> createState() => _SearchPopupState();
@@ -16,6 +25,7 @@ class SearchPopup extends StatefulWidget {
 
 class _SearchPopupState extends State<SearchPopup> {
   late TextEditingController _controller;
+  late TextEditingController _replaceController;
   late FocusNode _focusNode;
 
   @override
@@ -23,8 +33,9 @@ class _SearchPopupState extends State<SearchPopup> {
     super.initState();
     final searchProvider = context.read<SearchProvider>();
     _controller = TextEditingController(text: searchProvider.query);
+    _replaceController = TextEditingController(text: searchProvider.replaceQuery);
     _focusNode = FocusNode();
-    
+
     // Request focus and run initial search update on next frame to ensure widget is mounted
     // and to avoid triggering setState() or notifyListeners() during build phase.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -36,7 +47,7 @@ class _SearchPopupState extends State<SearchPopup> {
         }
       }
     });
-    
+
     _controller.addListener(() {
       final query = _controller.text;
       searchProvider.setQuery(query);
@@ -45,11 +56,16 @@ class _SearchPopupState extends State<SearchPopup> {
         searchProvider.updateMatchOffsets(content);
       }
     });
+
+    _replaceController.addListener(() {
+      searchProvider.setReplaceQuery(_replaceController.text);
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _replaceController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -91,7 +107,10 @@ class _SearchPopupState extends State<SearchPopup> {
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
             width: 500,
-            height: 56,
+            // Each row (search field / replace field) is a fixed ~48px tall
+            // (Material's minimum interactive height); the replace row adds
+            // itself plus an 8px gap on top of the base single-row height.
+            height: searchProvider.replaceMode ? 112 : 56,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: theme.sidebarColor.withValues(alpha: 0.85),
@@ -108,94 +127,30 @@ class _SearchPopupState extends State<SearchPopup> {
                 ),
               ],
             ),
-            child: Row(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.search,
-                  size: 20,
-                  color: theme.foregroundColor.withValues(alpha: 0.3),
+                SearchInputRow(
+                  theme: theme,
+                  searchProvider: searchProvider,
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  onSubmitted: () {
+                    searchProvider.nextMatch();
+                    _focusNode.requestFocus();
+                  },
+                  onToggleReplace: () => searchProvider.toggleReplaceMode(),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    onSubmitted: (value) {
-                      searchProvider.nextMatch();
-                      _focusNode.requestFocus();
-                    },
-                    style: TextStyle(
-                      color: theme.foregroundColor,
-                      fontSize: 14,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search manuscript, notes, and chapters...',
-                      hintStyle: TextStyle(
-                        color: theme.foregroundColor.withValues(alpha: 0.25),
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
+                if (searchProvider.replaceMode) ...[
+                  const SizedBox(height: 8),
+                  SearchReplaceRow(
+                    theme: theme,
+                    searchProvider: searchProvider,
+                    controller: _replaceController,
+                    onReplace: widget.onReplaceOne ?? () {},
+                    onReplaceAll: widget.onReplaceAll ?? () {},
                   ),
-                ),
-                if (searchProvider.query.isNotEmpty) ...[
-                  Text(
-                    '${searchProvider.matchOffsets.isEmpty ? 0 : searchProvider.currentMatchIndex + 1} of ${searchProvider.matchOffsets.length}',
-                    style: TextStyle(
-                      color: theme.foregroundColor.withValues(alpha: 0.4),
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: Icon(
-                      Icons.keyboard_arrow_up,
-                      size: 18,
-                      color: theme.foregroundColor.withValues(alpha: 0.5),
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () {
-                      searchProvider.previousMatch();
-                    },
-                    tooltip: 'Previous Match',
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 18,
-                      color: theme.foregroundColor.withValues(alpha: 0.5),
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () {
-                      searchProvider.nextMatch();
-                    },
-                    tooltip: 'Next Match',
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      size: 16,
-                      color: theme.foregroundColor.withValues(alpha: 0.4),
-                    ),
-                    onPressed: () {
-                      _controller.clear();
-                    },
-                  ),
-                ] else
-                  IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      size: 16,
-                      color: theme.foregroundColor.withValues(alpha: 0.4),
-                    ),
-                    onPressed: () {
-                      searchProvider.toggleSearch(isOpen: false);
-                    },
-                  ),
+                ],
               ],
             ),
           ),

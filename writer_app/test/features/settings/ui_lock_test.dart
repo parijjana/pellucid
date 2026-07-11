@@ -47,7 +47,13 @@ void main() {
     when(() => mockSettings.batteryGuardEnabled).thenReturn(false);
     when(() => mockSettings.batteryAlertThreshold).thenReturn(20);
     when(() => mockSettings.syncIntervalMinutes).thenReturn(30);
-    
+    when(() => mockSettings.typewriterEnabled).thenReturn(false);
+    when(() => mockSettings.paragraphFocusEnabled).thenReturn(false);
+    when(() => mockSettings.codexLinkingEnabled).thenReturn(false);
+    when(() => mockSettings.tocWordCountsEnabled).thenReturn(true);
+    when(() => mockSettings.dailyWordGoal).thenReturn(0);
+    when(() => mockSettings.hasDailyWordGoal).thenReturn(false);
+
     when(() => mockSync.isLoggedIn).thenReturn(false);
     when(() => mockSync.lastSynced).thenReturn(null);
     when(() => mockSync.status).thenReturn(SyncStatus.idle);

@@ -123,6 +123,84 @@ void main() {
       expect(settingsProvider.syncIntervalMinutes, 15);
     });
 
+    test('tocWordCountsEnabled defaults to true', () {
+      expect(settingsProvider.tocWordCountsEnabled, true);
+    });
+
+    test('toggleTocWordCounts should update state and database', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+
+      settingsProvider.toggleTocWordCounts(false);
+      expect(settingsProvider.tocWordCountsEnabled, false);
+      verify(() => mockSettingsDatabase.updateSetting('toc_word_counts_enabled', false)).called(1);
+
+      settingsProvider.toggleTocWordCounts(true);
+      expect(settingsProvider.tocWordCountsEnabled, true);
+      verify(() => mockSettingsDatabase.updateSetting('toc_word_counts_enabled', true)).called(1);
+    });
+
+    test('loadSettings reads toc_word_counts_enabled', () async {
+      when(() => mockSettingsDatabase.getSettings()).thenAnswer((_) async => {
+        'toc_word_counts_enabled': 0,
+      });
+      when(() => mockStorageService.initProject(any(), any(), initialContent: any(named: 'initialContent')))
+          .thenAnswer((_) async {});
+      when(() => mockStorageService.listProjects(any()))
+          .thenAnswer((_) async => ['User Manual']);
+      when(() => mockStorageService.readProjectStats(any()))
+          .thenAnswer((_) async => ProjectStats(totalWordCount: 0, totalTimeSpent: Duration.zero));
+
+      await settingsProvider.loadSettings();
+
+      expect(settingsProvider.tocWordCountsEnabled, false);
+    });
+
+    test('dailyWordGoal defaults to 0 (off)', () {
+      expect(settingsProvider.dailyWordGoal, 0);
+      expect(settingsProvider.hasDailyWordGoal, false);
+    });
+
+    test('setDailyWordGoal should update state and database', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+
+      settingsProvider.setDailyWordGoal(500);
+      expect(settingsProvider.dailyWordGoal, 500);
+      expect(settingsProvider.hasDailyWordGoal, true);
+      verify(() => mockSettingsDatabase.updateSetting('daily_word_goal', 500)).called(1);
+
+      settingsProvider.setDailyWordGoal(0);
+      expect(settingsProvider.dailyWordGoal, 0);
+      expect(settingsProvider.hasDailyWordGoal, false);
+      verify(() => mockSettingsDatabase.updateSetting('daily_word_goal', 0)).called(1);
+    });
+
+    test('setDailyWordGoal clamps negatives to 0', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+
+      settingsProvider.setDailyWordGoal(-100);
+      expect(settingsProvider.dailyWordGoal, 0);
+    });
+
+    test('loadSettings reads daily_word_goal', () async {
+      when(() => mockSettingsDatabase.getSettings()).thenAnswer((_) async => {
+        'daily_word_goal': 1000,
+      });
+      when(() => mockStorageService.initProject(any(), any(), initialContent: any(named: 'initialContent')))
+          .thenAnswer((_) async {});
+      when(() => mockStorageService.listProjects(any()))
+          .thenAnswer((_) async => ['User Manual']);
+      when(() => mockStorageService.readProjectStats(any()))
+          .thenAnswer((_) async => ProjectStats(totalWordCount: 0, totalTimeSpent: Duration.zero));
+
+      await settingsProvider.loadSettings();
+
+      expect(settingsProvider.dailyWordGoal, 1000);
+      expect(settingsProvider.hasDailyWordGoal, true);
+    });
+
     test('setGoogleCredentials should update state and database', () async {
       when(() => mockSettingsDatabase.updateSetting(any(), any()))
           .thenAnswer((_) async {});

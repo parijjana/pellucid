@@ -1,6 +1,5 @@
-// @trace FEAT-20260517-115000-0004
-// Description: A unified header that handles window dragging, project info, and project renaming.
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import '../providers/theme_provider.dart';
@@ -75,7 +74,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final double leftPadding = Platform.isMacOS ? 80.0 : 8.0;
+    final double leftPadding = (!kIsWeb && Platform.isMacOS) ? 80.0 : 8.0;
 
     Color dragAreaColor = Colors.transparent;
     if (widget.showWindowControls) {
@@ -89,8 +88,8 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
       }
     }
 
-    final bool isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
 
     return Container(
       height: 40,

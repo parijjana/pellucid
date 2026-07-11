@@ -5,7 +5,11 @@ import '../../editor/providers/editor_provider.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import 'local_snapshot_list.dart';
 import 'revision_preview_dialog.dart';
+import 'snapshot_tab.dart';
+import 'snapshot_tab_toggle.dart';
+import 'snapshot_text_utils.dart';
 
 class SnapshotManagementDialog extends StatefulWidget {
   final String projectName;
@@ -21,11 +25,16 @@ class SnapshotManagementDialog extends StatefulWidget {
 
 class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
   bool _isLoading = false;
+  SnapshotTab _tab = SnapshotTab.cloud;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final sync = context.read<SyncProvider>();
+      if (!sync.isLoggedIn) {
+        setState(() => _tab = SnapshotTab.local);
+      }
       _fetchHistory();
     });
   }
@@ -89,7 +98,7 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
                     ],
                   ),
                 ),
-                if (sync.isLoggedIn)
+                if (_tab == SnapshotTab.cloud && sync.isLoggedIn)
                   IconButton(
                     icon: Icon(Icons.refresh, color: theme.foregroundColor.withValues(alpha: 0.5), size: 20),
                     onPressed: _fetchHistory,
@@ -100,9 +109,23 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            SnapshotTabToggle(
+              activeTab: _tab,
+              theme: theme,
+              onChanged: (tab) => setState(() => _tab = tab),
+            ),
             const SizedBox(height: 16),
             Expanded(
-              child: _buildBody(sync, settings, theme),
+              child: _tab == SnapshotTab.cloud
+                  ? _buildCloudBody(sync, settings, theme)
+                  : LocalSnapshotList(
+                      projectPath: settings.masterDirectoryPath != null
+                          ? '${settings.masterDirectoryPath}/${widget.projectName}'
+                          : null,
+                      projectName: widget.projectName,
+                      theme: theme,
+                    ),
             ),
           ],
         ),
@@ -110,7 +133,7 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
     );
   }
 
-  Widget _buildBody(SyncProvider sync, SettingsProvider settings, WriterTheme theme) {
+  Widget _buildCloudBody(SyncProvider sync, SettingsProvider settings, WriterTheme theme) {
     if (!sync.isLoggedIn) {
       return Center(
         child: Column(
@@ -119,7 +142,7 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
             Icon(Icons.cloud_off, size: 40, color: theme.foregroundColor.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
             Text(
-              'Connect to Google Drive in settings to view manuscript snapshots.',
+              'Connect to Google Drive in settings to view cloud snapshots.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: theme.foregroundColor.withValues(alpha: 0.4),
@@ -179,7 +202,7 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
                     final rev = revisions[index];
                     final revIndex = revisions.length - index;
                     final displayTime = rev.modifiedTime != null
-                        ? _formatTime(rev.modifiedTime!.toLocal())
+                        ? formatSnapshotTime(rev.modifiedTime!.toLocal())
                         : 'Unknown Time';
 
                     return Card(
@@ -216,10 +239,6 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
         ),
       ],
     );
-  }
-
-  String _formatTime(DateTime dt) {
-    return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _createSnapshot(SyncProvider sync, SettingsProvider settings) async {

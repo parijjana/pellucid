@@ -144,9 +144,10 @@ class GoogleDriveSyncService {
       
       final existingFile = await _findFile(api, '$fileName.md', parentId: projectId);
       
+      final bytes = utf8.encode(content);
       final media = drive.Media(
-        Stream.value(utf8.encode(content)),
-        content.length,
+        Stream.value(bytes),
+        bytes.length,
       );
 
       if (existingFile != null) {
@@ -262,7 +263,8 @@ class GoogleDriveSyncService {
   }
 
   Future<drive.File?> _findFile(drive.DriveApi api, String name, {String? parentId, bool isFolder = false}) async {
-    String query = "name = '$name' and trashed = false";
+    final escapedName = name.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+    String query = "name = '$escapedName' and trashed = false";
     if (parentId != null) query += " and '$parentId' in parents";
     if (isFolder) query += " and mimeType = 'application/vnd.google-apps.folder'";
 

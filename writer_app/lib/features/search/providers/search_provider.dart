@@ -6,14 +6,35 @@ class SearchProvider extends ChangeNotifier {
   int _currentMatchIndex = -1;
   final List<int> _matchOffsets = [];
 
+  // Replace (Phase 1): a second, independent text field revealed by a ghost
+  // chevron toggle. Matching always mirrors search (case-insensitive
+  // substring) — there is no match-case/whole-word toggle in v1.
+  String _replaceQuery = '';
+  bool _replaceMode = false;
+
   String get query => _query;
   bool get isSearchOpen => _isSearchOpen;
   int get currentMatchIndex => _currentMatchIndex;
   List<int> get matchOffsets => _matchOffsets;
+  String get replaceQuery => _replaceQuery;
+  bool get replaceMode => _replaceMode;
 
   void setQuery(String q) {
     if (_query == q) return;
     _query = q;
+    notifyListeners();
+  }
+
+  void setReplaceQuery(String q) {
+    if (_replaceQuery == q) return;
+    _replaceQuery = q;
+    notifyListeners();
+  }
+
+  void toggleReplaceMode({bool? isOpen}) {
+    final nextState = isOpen ?? !_replaceMode;
+    if (_replaceMode == nextState) return;
+    _replaceMode = nextState;
     notifyListeners();
   }
 
@@ -62,6 +83,8 @@ class SearchProvider extends ChangeNotifier {
       _query = ''; // Clear search query when closing search
       _matchOffsets.clear();
       _currentMatchIndex = -1;
+      _replaceQuery = '';
+      _replaceMode = false;
     }
     notifyListeners();
   }

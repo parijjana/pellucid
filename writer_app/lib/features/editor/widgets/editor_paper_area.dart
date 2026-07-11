@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../providers/theme_provider.dart';
 import '../providers/editor_provider.dart';
+import '../providers/codex_index.dart';
+import '../../sidebar/providers/note_card.dart';
+import 'codex_mention_detector.dart';
 
 class EditorPaperArea extends StatelessWidget {
   final WriterTheme theme;
@@ -9,6 +13,10 @@ class EditorPaperArea extends StatelessWidget {
   final ScrollController scrollController;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
+  final bool codexEnabled;
+  final CodexIndex codexIndex;
+  final List<NoteCard> notes;
+  final void Function(String noteId) onOpenNote;
 
   const EditorPaperArea({
     super.key,
@@ -18,6 +26,10 @@ class EditorPaperArea extends StatelessWidget {
     required this.scrollController,
     required this.focusNode,
     required this.onChanged,
+    required this.codexEnabled,
+    required this.codexIndex,
+    required this.notes,
+    required this.onOpenNote,
   });
 
   @override
@@ -47,23 +59,48 @@ class EditorPaperArea extends StatelessWidget {
             ],
           ),
           padding: const EdgeInsets.all(60),
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            maxLines: null,
-            cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
-            style: TextStyle(
-              color: theme.foregroundColor,
-              fontSize: 16 * zoomLevel,
-              height: 1.8,
-              fontFamily: 'Georgia',
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.tab): () {
+                final text = controller.text;
+                final selection = controller.selection;
+                if (selection.isValid) {
+                  const indent = '    '; // four spaces
+                  final newText = text.replaceRange(selection.start, selection.end, indent);
+                  final newCursorPosition = selection.start + indent.length;
+                  controller.value = TextEditingValue(
+                    text: newText,
+                    selection: TextSelection.collapsed(offset: newCursorPosition),
+                  );
+                  onChanged(newText);
+                }
+              },
+            },
+            child: CodexMentionDetector(
+              enabled: codexEnabled,
+              theme: theme,
+              index: codexIndex,
+              notes: notes,
+              onActivate: onOpenNote,
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                maxLines: null,
+                cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
+                style: TextStyle(
+                  color: theme.foregroundColor,
+                  fontSize: 16 * zoomLevel,
+                  height: 1.8,
+                  fontFamily: 'Georgia',
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                ),
+                onChanged: onChanged,
+              ),
             ),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              enabledBorder: InputBorder.none,
-            ),
-            onChanged: onChanged,
           ),
         ),
       ),

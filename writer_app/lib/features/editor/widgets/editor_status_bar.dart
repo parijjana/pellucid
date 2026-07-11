@@ -2,10 +2,12 @@
 // Description: Status bar with metrics and tools (Decomposed Flat Style).
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/editor_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/sprint_controller.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../providers/shortcuts_provider.dart';
@@ -14,6 +16,7 @@ import 'sync_status_cloud.dart';
 import 'clock_widget.dart';
 import 'session_timer_widget.dart';
 import 'pomodoro_widget.dart';
+import 'sprint_widget.dart';
 import 'battery_widget.dart';
 
 class EditorStatusBar extends StatefulWidget {
@@ -47,7 +50,7 @@ class EditorStatusBar extends StatefulWidget {
 class _EditorStatusBarState extends State<EditorStatusBar> {
   @override
   Widget build(BuildContext context) {
-    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
     
     if (isMobilePhone) {
       return Container(
@@ -68,6 +71,7 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
     final settings = context.watch<SettingsProvider>();
     final sync = context.watch<SyncProvider>();
     final shortcuts = context.watch<ShortcutsProvider>();
+    final sprint = context.watch<SprintController>();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -122,6 +126,16 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (sprint.isActive || sprint.lastSprintWords != null) ...[
+                  SprintWidget(
+                    theme: widget.theme,
+                    isActive: sprint.isActive,
+                    remaining: sprint.remaining,
+                    lastWords: sprint.lastSprintWords,
+                    onDismiss: sprint.clearResult,
+                  ),
+                  const SizedBox(width: 16),
+                ],
                 if (settings.focusTimerEnabled) ...[
                   PomodoroWidget(
                     theme: widget.theme,

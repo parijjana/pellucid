@@ -3,8 +3,10 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file/memory.dart';
 import 'settings_database.dart';
 import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
@@ -52,6 +54,17 @@ class SettingsProvider extends ChangeNotifier {
   // Notes Dialog Settings
   bool _lastNotesFullscreenState = false;
 
+  // Editor Focus Settings
+  bool _typewriterEnabled = false;
+  bool _paragraphFocusEnabled = false;
+  bool _codexLinkingEnabled = false;
+
+  // TOC Settings
+  bool _tocWordCountsEnabled = true;
+
+  // Daily Writing Goal (words per day; 0 = off/unset)
+  int _dailyWordGoal = 0;
+
   // Google OAuth Settings
   String? _googleClientId;
   String? _googleClientSecret;
@@ -64,7 +77,7 @@ class SettingsProvider extends ChangeNotifier {
 
   SettingsProvider({SettingsDatabase? settingsDatabase, StorageService? storageService}) 
       : _db = settingsDatabase ?? SettingsDatabase.instance,
-        _storageService = storageService ?? StorageService() {
+        _storageService = storageService ?? (kIsWeb ? StorageService(fileSystem: MemoryFileSystem()) : StorageService()) {
     _startSessionTracker();
     _startAlarmChecker();
   }
@@ -79,13 +92,18 @@ class SettingsProvider extends ChangeNotifier {
     _batteryAlertThreshold = settings['battery_alert_threshold'] ?? 20;
     _showBatteryPercentage = (settings['show_battery_percentage'] ?? 1) == 1;
     _lastNotesFullscreenState = (settings['last_notes_fullscreen_state'] ?? 0) == 1;
+    _typewriterEnabled = (settings['typewriter_enabled'] ?? 0) == 1;
+    _paragraphFocusEnabled = (settings['paragraph_focus_enabled'] ?? 0) == 1;
+    _codexLinkingEnabled = (settings['codex_linking_enabled'] ?? 0) == 1;
+    _tocWordCountsEnabled = (settings['toc_word_counts_enabled'] ?? 1) == 1;
+    _dailyWordGoal = settings['daily_word_goal'] ?? 0;
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = settings['google_client_secret'];
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
 
-    if ((Platform.isAndroid || Platform.isIOS) && _masterDirectoryPath == null) {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS) && _masterDirectoryPath == null) {
       final docDir = await getApplicationDocumentsDirectory();
       _masterDirectoryPath = docDir.path;
       await _db.updateSetting('master_directory_path', _masterDirectoryPath);
@@ -128,6 +146,12 @@ class SettingsProvider extends ChangeNotifier {
   int get batteryAlertThreshold => _batteryAlertThreshold;
   bool get showBatteryPercentage => _showBatteryPercentage;
   bool get lastNotesFullscreenState => _lastNotesFullscreenState;
+  bool get typewriterEnabled => _typewriterEnabled;
+  bool get paragraphFocusEnabled => _paragraphFocusEnabled;
+  bool get codexLinkingEnabled => _codexLinkingEnabled;
+  bool get tocWordCountsEnabled => _tocWordCountsEnabled;
+  int get dailyWordGoal => _dailyWordGoal;
+  bool get hasDailyWordGoal => _dailyWordGoal > 0;
   String? get googleClientId => _googleClientId;
   String? get googleClientSecret => _googleClientSecret;
   int get syncIntervalMinutes => _syncIntervalMinutes;
@@ -178,6 +202,36 @@ class SettingsProvider extends ChangeNotifier {
   void toggleShowBatteryPercentage(bool enabled) {
     _showBatteryPercentage = enabled;
     _db.updateSetting('show_battery_percentage', enabled);
+    notifyListeners();
+  }
+
+  void toggleTypewriter(bool enabled) {
+    _typewriterEnabled = enabled;
+    _db.updateSetting('typewriter_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleParagraphFocus(bool enabled) {
+    _paragraphFocusEnabled = enabled;
+    _db.updateSetting('paragraph_focus_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleCodexLinking(bool enabled) {
+    _codexLinkingEnabled = enabled;
+    _db.updateSetting('codex_linking_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleTocWordCounts(bool enabled) {
+    _tocWordCountsEnabled = enabled;
+    _db.updateSetting('toc_word_counts_enabled', enabled);
+    notifyListeners();
+  }
+
+  void setDailyWordGoal(int goal) {
+    _dailyWordGoal = goal < 0 ? 0 : goal;
+    _db.updateSetting('daily_word_goal', _dailyWordGoal);
     notifyListeners();
   }
 

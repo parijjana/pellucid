@@ -217,6 +217,18 @@ class HistoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sets (or clears, when [goal] is null/non-positive) the current project's
+  /// optional word target. Rebuilds explicitly so null truly unsets the goal.
+  void setProjectWordGoal(int? goal) {
+    _currentProjectStats = ProjectStats(
+      totalWordCount: _currentProjectStats.totalWordCount,
+      totalTimeSpent: _currentProjectStats.totalTimeSpent,
+      wordGoal: (goal != null && goal > 0) ? goal : null,
+    );
+    _autoSaveProjectStats();
+    notifyListeners();
+  }
+
   Future<void> saveStatsNow() async {
     _statsDebouncer?.cancel();
     _dbDebouncer?.cancel();

@@ -10,6 +10,7 @@ import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/settings/providers/history_provider.dart';
 import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
 import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
+import 'package:pellucid/features/editor/providers/sprint_controller.dart';
 import 'package:pellucid/features/search/providers/search_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -53,6 +54,10 @@ void main() {
     when(() => mockSettings.isAlarmTriggered).thenReturn(false);
     when(() => mockSettings.batteryGuardEnabled).thenReturn(false);
     when(() => mockSettings.batteryAlertThreshold).thenReturn(20);
+    when(() => mockSettings.typewriterEnabled).thenReturn(false);
+    when(() => mockSettings.paragraphFocusEnabled).thenReturn(false);
+    when(() => mockSettings.codexLinkingEnabled).thenReturn(false);
+    when(() => mockSettings.tocWordCountsEnabled).thenReturn(true);
 
     when(() => mockSync.status).thenReturn(SyncStatus.idle);
     when(() => mockSync.isLoggedIn).thenReturn(false);
@@ -76,6 +81,7 @@ void main() {
           ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
           ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
           ChangeNotifierProvider<ShortcutsProvider>(create: (_) => ShortcutsProvider()),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
         ],
         child: const MaterialApp(home: EditorScreen()),
       ),

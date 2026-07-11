@@ -29,6 +29,10 @@ class EditorProvider extends ChangeNotifier {
   Duration syncDebounceDuration = const Duration(minutes: 30);
   Duration syncThrottleDuration = const Duration(minutes: 30);
 
+  // Local Snapshot Safety Net: rolling on-disk snapshots independent of cloud sync
+  DateTime? _lastSnapshotTime;
+  Duration snapshotInterval = const Duration(minutes: 10);
+
   EditorProvider({StorageService? storageService, SettingsDatabase? settingsDatabase}) 
       : _storageService = storageService ?? StorageService(),
         _db = settingsDatabase ?? SettingsDatabase.instance;
@@ -76,6 +80,11 @@ class EditorProvider extends ChangeNotifier {
     _syncThrottleTimer?.cancel();
     _syncThrottleTimer = null;
 
+    if (_currentProjectPath != null && _content.isNotEmpty) {
+      await _storageService.saveLocalSnapshot(_currentProjectPath!, _content);
+    }
+    _lastSnapshotTime = null;
+
     _currentProjectPath = projectPath;
     if (projectPath == null) {
       _content = StorageService.userManualContent;
@@ -100,6 +109,7 @@ class EditorProvider extends ChangeNotifier {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(seconds: 2), () async {
       await _storageService.saveDocument(_currentProjectPath!, _content);
+      _maybeTakeLocalSnapshot();
     });
 
     // 2. Cloud Sync (Rate limited)
@@ -119,6 +129,14 @@ class EditorProvider extends ChangeNotifier {
         await _performSync(syncProvider, projectName);
       });
     }
+  }
+
+  void _maybeTakeLocalSnapshot() {
+    if (_currentProjectPath == null || _content.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastSnapshotTime != null && now.difference(_lastSnapshotTime!) < snapshotInterval) return;
+    _lastSnapshotTime = now;
+    _storageService.saveLocalSnapshot(_currentProjectPath!, _content);
   }
 
   Future<void> _performSync(SyncProvider syncProvider, String projectName) async {

@@ -5,20 +5,30 @@ import '../../editor/providers/editor_provider.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import 'snapshot_text_utils.dart';
 
+/// Previews a single manuscript snapshot and offers a restore flow. Sourced from
+/// either a Google Drive revision (pass [revisionId]) or a local on-device
+/// snapshot file (pass [localFilePath]) — exactly one must be provided.
 class RevisionPreviewDialog extends StatefulWidget {
-  final String revisionId;
   final String projectName;
   final String fileName;
   final String displayTime;
+  final String? revisionId;
+  final String? localFilePath;
+  final StorageService? storageService;
 
   const RevisionPreviewDialog({
     super.key,
-    required this.revisionId,
     required this.projectName,
     required this.fileName,
     required this.displayTime,
-  });
+    this.revisionId,
+    this.localFilePath,
+    this.storageService,
+  }) : assert(revisionId != null || localFilePath != null);
+
+  bool get isLocal => localFilePath != null;
 
   @override
   State<RevisionPreviewDialog> createState() => _RevisionPreviewDialogState();
@@ -29,6 +39,8 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
   String _content = '';
   String? _error;
 
+  StorageService get _storage => widget.storageService ?? StorageService();
+
   @override
   void initState() {
     super.initState();
@@ -37,12 +49,17 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
 
   Future<void> _loadRevisionContent() async {
     try {
-      final sync = context.read<SyncProvider>();
-      final text = await sync.getVersionContent(
-        widget.revisionId,
-        widget.projectName,
-        widget.fileName,
-      );
+      final String text;
+      if (widget.isLocal) {
+        text = await _storage.readLocalSnapshot(widget.localFilePath!);
+      } else {
+        final sync = context.read<SyncProvider>();
+        text = await sync.getVersionContent(
+          widget.revisionId!,
+          widget.projectName,
+          widget.fileName,
+        );
+      }
       if (mounted) {
         setState(() {
           _content = text;
@@ -59,36 +76,14 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
     }
   }
 
-  int _calculateWordCount(String text) {
-    int count = 0;
-    bool inWord = false;
-    final length = text.length;
-    for (int i = 0; i < length; i++) {
-      final codeUnit = text.codeUnitAt(i);
-      final isWhitespace = codeUnit == 32 || codeUnit == 10 || codeUnit == 13 || codeUnit == 9;
-      if (isWhitespace) {
-        if (inWord) {
-          count++;
-          inWord = false;
-        }
-      } else {
-        inWord = true;
-      }
-    }
-    if (inWord) {
-      count++;
-    }
-    return count;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>().currentTheme;
     final editor = context.watch<EditorProvider>();
     final sync = context.watch<SyncProvider>();
 
-    final currentWordCount = _calculateWordCount(editor.content);
-    final revisionWordCount = _calculateWordCount(_content);
+    final currentWordCount = countSnapshotWords(editor.content);
+    final revisionWordCount = countSnapshotWords(_content);
     final wordDelta = revisionWordCount - currentWordCount;
 
     return Dialog(
@@ -241,16 +236,20 @@ class _RevisionPreviewDialogState extends State<RevisionPreviewDialog> {
                   );
                 } else if (settings.masterDirectoryPath != null) {
                   final path = '${settings.masterDirectoryPath}/${widget.projectName}';
-                  await StorageService().saveDocument(path, _content);
-                  await sync.syncCurrentFile(
-                    projectName: widget.projectName,
-                    fileName: widget.fileName,
-                    content: _content,
-                  );
+                  await _storage.saveDocument(path, _content);
+                  if (!widget.isLocal) {
+                    await sync.syncCurrentFile(
+                      projectName: widget.projectName,
+                      fileName: widget.fileName,
+                      content: _content,
+                    );
+                  }
                 }
-                
-                await sync.loadHistory(widget.projectName, widget.fileName);
-                
+
+                if (!widget.isLocal) {
+                  await sync.loadHistory(widget.projectName, widget.fileName);
+                }
+
                 if (mounted) {
                   Navigator.of(context).pop();
                 }

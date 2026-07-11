@@ -2,6 +2,7 @@
 // Description: SQLite database service for persisting application settings and history.
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,15 +11,45 @@ class SettingsDatabase {
   static final SettingsDatabase instance = SettingsDatabase._init();
   static Database? _database;
 
+  static final Map<String, dynamic> _webSettings = {
+    'id': 1,
+    'theme_name': 'Paper',
+    'clock_enabled': 0,
+    'current_session_enabled': 0,
+    'target_session_enabled': 0,
+    'focus_timer_enabled': 0,
+    'page_width': 800.0,
+    'horizontal_position': 0.5,
+    'zoom_level': 1.0,
+    'battery_guard_enabled': 1,
+    'battery_alert_threshold': 20,
+    'show_battery_percentage': 1,
+    'last_notes_fullscreen_state': 0,
+    'google_client_id': null,
+    'google_client_secret': null,
+    'sync_interval_minutes': 30,
+    'master_directory_path': 'scratchpad',
+    'current_project_name': 'Scratchpad',
+    'typewriter_enabled': 0,
+    'paragraph_focus_enabled': 0,
+    'codex_linking_enabled': 0,
+    'toc_word_counts_enabled': 1,
+    'daily_word_goal': 0,
+  };
+
+  static final List<Map<String, dynamic>> _webHistory = [];
+
   SettingsDatabase._init();
 
   Future<Database> get database async {
+    if (kIsWeb) throw UnsupportedError("SettingsDatabase does not support SQLite on Web. Use mock fallback.");
     if (_database != null) return _database!;
     _database = await _initDB('settings.db');
     return _database!;
   }
 
   Future<Database> _initDB(String filePath) async {
+    if (kIsWeb) throw UnsupportedError("SettingsDatabase does not support SQLite on Web. Use mock fallback.");
     String path;
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       final supportDir = await getApplicationSupportDirectory();
@@ -30,7 +61,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 9, // Incremented for Google OAuth custom credentials and sync interval
+      version: 13, // Incremented for daily word goal setting
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -57,7 +88,12 @@ class SettingsDatabase {
         last_notes_fullscreen_state INTEGER,
         google_client_id TEXT,
         google_client_secret TEXT,
-        sync_interval_minutes INTEGER DEFAULT 30
+        sync_interval_minutes INTEGER DEFAULT 30,
+        typewriter_enabled INTEGER DEFAULT 0,
+        paragraph_focus_enabled INTEGER DEFAULT 0,
+        codex_linking_enabled INTEGER DEFAULT 0,
+        toc_word_counts_enabled INTEGER DEFAULT 1,
+        daily_word_goal INTEGER DEFAULT 0
       )
     ''');
 
@@ -85,6 +121,11 @@ class SettingsDatabase {
       'show_battery_percentage': 1,
       'last_notes_fullscreen_state': 0,
       'sync_interval_minutes': 30,
+      'typewriter_enabled': 0,
+      'paragraph_focus_enabled': 0,
+      'codex_linking_enabled': 0,
+      'toc_word_counts_enabled': 1,
+      'daily_word_goal': 0,
     });
   }
 
@@ -122,10 +163,26 @@ class SettingsDatabase {
     if (oldVersion < 9) {
       await db.execute('ALTER TABLE settings ADD COLUMN sync_interval_minutes INTEGER DEFAULT 30');
     }
+    if (oldVersion < 10) {
+      await db.execute('ALTER TABLE settings ADD COLUMN typewriter_enabled INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE settings ADD COLUMN paragraph_focus_enabled INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 11) {
+      await db.execute('ALTER TABLE settings ADD COLUMN codex_linking_enabled INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 12) {
+      await db.execute('ALTER TABLE settings ADD COLUMN toc_word_counts_enabled INTEGER DEFAULT 1');
+    }
+    if (oldVersion < 13) {
+      await db.execute('ALTER TABLE settings ADD COLUMN daily_word_goal INTEGER DEFAULT 0');
+    }
   }
 
   // Settings Methods
   Future<Map<String, dynamic>> getSettings() async {
+    if (kIsWeb) {
+      return _webSettings;
+    }
     final db = await instance.database;
     final maps = await db.query('settings', where: 'id = ?', whereArgs: [1]);
     if (maps.isEmpty) {
@@ -146,6 +203,11 @@ class SettingsDatabase {
         'google_client_id': null,
         'google_client_secret': null,
         'sync_interval_minutes': 30,
+        'typewriter_enabled': 0,
+        'paragraph_focus_enabled': 0,
+        'codex_linking_enabled': 0,
+        'toc_word_counts_enabled': 1,
+        'daily_word_goal': 0,
       });
       final mapsRetry = await db.query('settings', where: 'id = ?', whereArgs: [1]);
       return mapsRetry.first;
@@ -154,6 +216,12 @@ class SettingsDatabase {
   }
 
   Future<void> updateSetting(String key, dynamic value) async {
+    if (kIsWeb) {
+      dynamic dbValue = value;
+      if (value is bool) dbValue = value ? 1 : 0;
+      _webSettings[key] = dbValue;
+      return;
+    }
     final db = await instance.database;
     dynamic dbValue = value;
     if (value is bool) dbValue = value ? 1 : 0;
@@ -177,6 +245,11 @@ class SettingsDatabase {
         'google_client_id': null,
         'google_client_secret': null,
         'sync_interval_minutes': 30,
+        'typewriter_enabled': 0,
+        'paragraph_focus_enabled': 0,
+        'codex_linking_enabled': 0,
+        'toc_word_counts_enabled': 1,
+        'daily_word_goal': 0,
       });
     }
     await db.update('settings', {key: dbValue}, where: 'id = ?', whereArgs: [1]);
@@ -184,11 +257,24 @@ class SettingsDatabase {
 
   // History Methods
   Future<List<Map<String, dynamic>>> getHistory() async {
+    if (kIsWeb) {
+      return _webHistory;
+    }
     final db = await instance.database;
     return await db.query('history', orderBy: 'date DESC', limit: 30);
   }
 
   Future<void> upsertHistory(String date, int editorSec, int notesSec, int words) async {
+    if (kIsWeb) {
+      _webHistory.removeWhere((item) => item['date'] == date);
+      _webHistory.add({
+        'date': date,
+        'editor_seconds': editorSec,
+        'notes_seconds': notesSec,
+        'word_count_delta': words,
+      });
+      return;
+    }
     final db = await instance.database;
     await db.insert(
       'history',

@@ -22,12 +22,17 @@ import '../widgets/editor_navigation_sidebar.dart';
 import '../widgets/editor_paper_area.dart';
 import '../../settings/providers/history_provider.dart';
 import '../../sidebar/providers/notes_provider.dart';
+import '../../sidebar/widgets/note_editor_dialog.dart';
+import '../providers/codex_index.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import '../../search/providers/search_provider.dart';
 import '../../search/widgets/search_popup.dart';
 import '../widgets/sidebar_pulltab.dart';
 import '../widgets/mobile_persistent_toolbar.dart';
 import '../widgets/cheatsheet_overlay.dart';
+import '../widgets/typewriter_scroll.dart';
+import '../utils/toc_parser.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -48,7 +53,12 @@ class _EditorScreenState extends State<EditorScreen> {
   late EditorProvider _editorProvider;
   int _currentWordCount = 0;
   String _lastProcessedText = '';
+  // Cached TOC headers + per-chapter rolled-up word counts, recomputed only when
+  // the editor text changes (never inside build()).
+  List<TocHeader> _tocHeaders = const [];
   double _initialScaleZoom = 1.0;
+  int _typewriterCaretLine = -1;
+  String _typewriterText = '';
 
   @override
   void deactivate() {
@@ -113,9 +123,11 @@ class _EditorScreenState extends State<EditorScreen> {
     _lastProcessedText = currentText;
 
     final count = _calculateWordCount(currentText);
-    if (_currentWordCount != count) {
+    final headers = parseTocHeaders(currentText);
+    if (_currentWordCount != count || !_sameHeaders(headers, _tocHeaders)) {
       setState(() {
         _currentWordCount = count;
+        _tocHeaders = headers;
       });
     }
     try {
@@ -158,14 +170,70 @@ class _EditorScreenState extends State<EditorScreen> {
       _editorController.text = newContent;
       _editorController.addListener(_onEditorTextChanged);
       _lastProcessedText = newContent;
-      
+
       final count = _calculateWordCount(newContent);
-      if (_currentWordCount != count) {
+      final headers = parseTocHeaders(newContent);
+      if (_currentWordCount != count || !_sameHeaders(headers, _tocHeaders)) {
         setState(() {
           _currentWordCount = count;
+          _tocHeaders = headers;
         });
       }
     }
+  }
+
+  bool _sameHeaders(List<TocHeader> a, List<TocHeader> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  void _onTypewriterUpdate() {
+    // Reacts only to controller (text/selection) changes while the editor is
+    // focused — never to scroll events, so manual scrolling is not fought.
+    // Search navigation scrolls while the editor is unfocused, so the two
+    // mechanisms cannot conflict.
+    if (!mounted || _isDeactivated) return;
+    if (!_editorFocusNode.hasFocus) return;
+    bool enabled;
+    try {
+      enabled = context.read<SettingsProvider>().typewriterEnabled;
+    } catch (_) {
+      return;
+    }
+    if (!enabled) return;
+
+    final selection = _editorController.selection;
+    if (!selection.isValid || !_scrollController.hasClients) return;
+
+    final text = _editorController.text;
+    final caret = selection.extentOffset;
+    int caretLine = 0;
+    final limit = caret < text.length ? caret : text.length;
+    for (int i = 0; i < limit; i++) {
+      if (text.codeUnitAt(i) == 10) caretLine++;
+    }
+    final bool textChanged = text != _typewriterText;
+    if (caretLine == _typewriterCaretLine && !textChanged) return;
+    _typewriterCaretLine = caretLine;
+    _typewriterText = text;
+
+    final target = typewriterTargetOffset(
+      text: text,
+      caretOffset: caret,
+      zoomLevel: _editorProvider.zoomLevel,
+      pageWidth: _editorProvider.pageWidth,
+      viewportHeight: _scrollController.position.viewportDimension,
+    ).clamp(0.0, _scrollController.position.maxScrollExtent);
+
+    if ((target - _scrollController.offset).abs() < 1.0) return;
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
+    );
   }
 
   void _jumpToCharacterOffset(int charOffset) {
@@ -219,9 +287,11 @@ class _EditorScreenState extends State<EditorScreen> {
       theme: themeProvider.currentTheme,
     );
     _currentWordCount = _calculateWordCount(editorProvider.content);
+    _tocHeaders = parseTocHeaders(editorProvider.content);
     _lastProcessedText = editorProvider.content;
     _editorFocusNode.addListener(_onEditorFocusChange);
     _editorController.addListener(_onEditorTextChanged);
+    _editorController.addListener(_onTypewriterUpdate);
     HardwareKeyboard.instance.addHandler(_handleGlobalKey);
 
     _editorProvider = context.read<EditorProvider>();
@@ -241,6 +311,7 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _editorFocusNode.removeListener(_onEditorFocusChange);
     _editorController.removeListener(_onEditorTextChanged);
+    _editorController.removeListener(_onTypewriterUpdate);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _editorProvider.removeListener(_onEditorProviderChanged);
     _searchProvider.removeListener(_onSearchChanged);
@@ -318,21 +389,6 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  List<({String title, int line, int level})> _parseHeaders(String text) {
-    final List<({String title, int line, int level})> headers = [];
-    final lines = text.split('\n');
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
-      if (line.startsWith('#')) {
-        final match = RegExp(r'^(#+)\s+(.*)$').firstMatch(line);
-        if (match != null) {
-          headers.add((title: match.group(2)!, line: i, level: match.group(1)!.length));
-        }
-      }
-    }
-    return headers;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>().currentTheme;
@@ -340,14 +396,21 @@ class _EditorScreenState extends State<EditorScreen> {
     final settings = context.watch<SettingsProvider>();
     final uiState = context.watch<ShortcutsProvider>();
     final searchProvider = context.watch<SearchProvider>();
-    
+    final notesProvider = context.watch<NotesProvider>();
+
     _editorController.theme = theme;
     _editorController.searchQuery = searchProvider.query;
+    _editorController.paragraphFocusEnabled = settings.paragraphFocusEnabled;
+    _editorController.codexLinkingEnabled = settings.codexLinkingEnabled;
+    _editorController.codexTitles = [
+      for (final c in notesProvider.cards)
+        if (!c.isAttribution) CodexTitle(id: c.id, title: c.title),
+    ];
 
 
-    final headers = _parseHeaders(editorProvider.content);
-    final bool isMac = Platform.isMacOS;
-    final bool isMobilePhone = (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final headers = _tocHeaders;
+    final bool isMac = !kIsWeb && Platform.isMacOS;
+    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
@@ -356,6 +419,9 @@ class _EditorScreenState extends State<EditorScreen> {
         SingleActivator(LogicalKeyboardKey.keyH, alt: !isMac, meta: isMac, control: isMac): const SetHeaderIntent(),
         SingleActivator(LogicalKeyboardKey.keyG, alt: !isMac, meta: isMac, control: isMac): const SetBodyIntent(),
         SingleActivator(LogicalKeyboardKey.keyL, alt: !isMac, meta: isMac, control: isMac): const SetBulletIntent(),
+        SingleActivator(LogicalKeyboardKey.keyB, control: !isMac, meta: isMac): const ToggleBoldIntent(),
+        SingleActivator(LogicalKeyboardKey.keyI, control: !isMac, meta: isMac): const ToggleItalicIntent(),
+        SingleActivator(LogicalKeyboardKey.keyU, control: !isMac, meta: isMac): const ToggleUnderlineIntent(),
 
         // Alignment
         SingleActivator(LogicalKeyboardKey.arrowRight, alt: !isMac, meta: isMac, control: isMac): const IncreaseWidthIntent(),
@@ -387,6 +453,9 @@ class _EditorScreenState extends State<EditorScreen> {
           SetHeaderIntent: CallbackAction<SetHeaderIntent>(onInvoke: (_) => _applyFormat('## ')),
           SetBodyIntent: CallbackAction<SetBodyIntent>(onInvoke: (_) => _applyFormat('body')),
           SetBulletIntent: CallbackAction<SetBulletIntent>(onInvoke: (_) => _applyFormat('- ')),
+          ToggleBoldIntent: CallbackAction<ToggleBoldIntent>(onInvoke: (_) => _applyFormat('**')),
+          ToggleItalicIntent: CallbackAction<ToggleItalicIntent>(onInvoke: (_) => _applyFormat('*')),
+          ToggleUnderlineIntent: CallbackAction<ToggleUnderlineIntent>(onInvoke: (_) => _applyFormat('<u>')),
           ZoomInIntent: CallbackAction<ZoomInIntent>(onInvoke: (_) => editorProvider.zoomIn()),
           ZoomOutIntent: CallbackAction<ZoomOutIntent>(onInvoke: (_) => editorProvider.zoomOut()),
           IncreaseWidthIntent: CallbackAction<IncreaseWidthIntent>(onInvoke: (_) => editorProvider.setPageWidth(editorProvider.pageWidth + 50)),
@@ -466,6 +535,10 @@ class _EditorScreenState extends State<EditorScreen> {
                                         controller: _editorController,
                                         scrollController: _scrollController,
                                         focusNode: _editorFocusNode,
+                                        codexEnabled: settings.codexLinkingEnabled && !isMobilePhone,
+                                        codexIndex: _editorController.codexIndex,
+                                        notes: notesProvider.cards,
+                                        onOpenNote: _openNote,
                                         onChanged: (val) {
                                           final settings = context.read<SettingsProvider>();
                                           final sync = context.read<SyncProvider>();
@@ -532,6 +605,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                      theme: theme,
                                      headers: headers,
                                      onHeaderTap: _jumpToHeader,
+                                     showWordCounts: settings.tocWordCountsEnabled,
                                    ),
                                 ),
                               ),
@@ -569,7 +643,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       onToggleToolbar: uiState.toggleToolbar,
                       onToggleFullscreen: () async {
                         final newValue = !uiState.isFullscreen;
-                        if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+                        if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
                           await windowManager.setFullScreen(newValue);
                         }
                         uiState.setFullscreen(newValue);
@@ -596,8 +670,11 @@ class _EditorScreenState extends State<EditorScreen> {
                     left: 0,
                     right: 0,
                     bottom: 80,
-                    child: const Center(
-                      child: SearchPopup(),
+                    child: Center(
+                      child: SearchPopup(
+                        onReplaceOne: _applyReplaceOne,
+                        onReplaceAll: _applyReplaceAll,
+                      ),
                     ),
                   ),
                 if (isMobilePhone) ...[
@@ -621,6 +698,13 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  void _openNote(String noteId) {
+    showDialog(
+      context: context,
+      builder: (_) => NoteEditorDialog(noteId: noteId),
+    );
+  }
+
   void _applyFormat(String format) {
     _editorController.toggleFormat(format);
     final settings = context.read<SettingsProvider>();
@@ -632,7 +716,52 @@ class _EditorScreenState extends State<EditorScreen> {
     );
     setState(() {});
   }
-    
+
+  // Search & Replace (Phase 1). Follows the exact `_applyFormat` pattern above:
+  // mutate the controller's `value` first, then push the resulting text
+  // through `EditorProvider.updateContent`. Because the controller and the
+  // provider already agree on the text by the time `updateContent` notifies,
+  // `_onEditorProviderChanged` no-ops instead of reassigning
+  // `_editorController.text` — which is what keeps the native undo stack
+  // (and thus a single Ctrl+Z) intact for both Replace-one and Replace-All.
+  void _applyReplaceOne() {
+    final query = _searchProvider.query;
+    final offsets = _searchProvider.matchOffsets;
+    final idx = _searchProvider.currentMatchIndex;
+    if (query.isEmpty || idx < 0 || idx >= offsets.length) return;
+
+    final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
+    final result = _editorController.replaceMatches(
+      pattern,
+      _searchProvider.replaceQuery,
+      matchStart: offsets[idx],
+    );
+    if (result.count == 0) return;
+    _commitReplace();
+  }
+
+  void _applyReplaceAll() {
+    final query = _searchProvider.query;
+    if (query.isEmpty) return;
+
+    final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
+    final result = _editorController.replaceMatches(pattern, _searchProvider.replaceQuery);
+    if (result.count == 0) return;
+    _commitReplace();
+  }
+
+  void _commitReplace() {
+    final settings = context.read<SettingsProvider>();
+    context.read<EditorProvider>().updateContent(
+      _editorController.text,
+      syncProvider: context.read<SyncProvider>(),
+      projectName: settings.currentProjectName,
+      syncInterval: Duration(minutes: settings.syncIntervalMinutes),
+    );
+    setState(() {});
+    _searchProvider.updateMatchOffsets(_editorController.text);
+  }
+
 
   int _calculateWordCount(String text) {
     int count = 0;

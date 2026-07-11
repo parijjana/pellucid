@@ -74,6 +74,7 @@ void main() {
     when(() => mockSettings.paragraphFocusEnabled).thenReturn(false);
     when(() => mockSettings.codexLinkingEnabled).thenReturn(false);
     when(() => mockSettings.tocWordCountsEnabled).thenReturn(true);
+    when(() => mockSettings.spellCheckEnabled).thenReturn(true);
 
     when(() => mockHistory.history).thenReturn([]);
     when(() => mockHistory.currentProjectStats).thenReturn(ProjectStats());

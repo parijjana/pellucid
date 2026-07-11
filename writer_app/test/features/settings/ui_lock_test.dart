@@ -13,7 +13,10 @@ import 'package:provider/provider.dart';
 
 class MockEditorProvider extends Mock implements EditorProvider {}
 class MockThemeProvider extends Mock implements ThemeProvider {}
-class MockSettingsProvider extends Mock implements SettingsProvider {}
+class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  bool get spellCheckEnabled => true;
+}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockHistoryProvider extends Mock implements HistoryProvider {}
 class MockNotesProvider extends Mock implements NotesProvider {}

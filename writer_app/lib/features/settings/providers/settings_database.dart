@@ -35,6 +35,7 @@ class SettingsDatabase {
     'codex_linking_enabled': 0,
     'toc_word_counts_enabled': 1,
     'daily_word_goal': 0,
+    'spell_check_enabled': 1,
   };
 
   static final List<Map<String, dynamic>> _webHistory = [];
@@ -61,7 +62,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 13, // Incremented for daily word goal setting
+      version: 14, // Incremented for spell check setting
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -93,7 +94,8 @@ class SettingsDatabase {
         paragraph_focus_enabled INTEGER DEFAULT 0,
         codex_linking_enabled INTEGER DEFAULT 0,
         toc_word_counts_enabled INTEGER DEFAULT 1,
-        daily_word_goal INTEGER DEFAULT 0
+        daily_word_goal INTEGER DEFAULT 0,
+        spell_check_enabled INTEGER DEFAULT 1
       )
     ''');
 
@@ -126,6 +128,7 @@ class SettingsDatabase {
       'codex_linking_enabled': 0,
       'toc_word_counts_enabled': 1,
       'daily_word_goal': 0,
+      'spell_check_enabled': 1,
     });
   }
 
@@ -175,6 +178,9 @@ class SettingsDatabase {
     }
     if (oldVersion < 13) {
       await db.execute('ALTER TABLE settings ADD COLUMN daily_word_goal INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 14) {
+      await db.execute('ALTER TABLE settings ADD COLUMN spell_check_enabled INTEGER DEFAULT 1');
     }
   }
 

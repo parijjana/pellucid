@@ -8,7 +8,10 @@ import 'package:pellucid/features/editor/widgets/alarm_setter_dialog.dart';
 import 'package:provider/provider.dart';
 
 class MockThemeProvider extends Mock implements ThemeProvider {}
-class MockSettingsProvider extends Mock implements SettingsProvider {}
+class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  bool get spellCheckEnabled => true;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

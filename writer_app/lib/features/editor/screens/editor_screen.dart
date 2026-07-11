@@ -527,6 +527,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         codexIndex: _editorController.codexIndex,
                                         notes: notesProvider.cards,
                                         onOpenNote: _openNote,
+                                        spellCheckEnabled: settings.spellCheckEnabled == true,
                                         onChanged: (val) {
                                           final settings = context.read<SettingsProvider>();
                                           final sync = context.read<SyncProvider>();

@@ -65,6 +65,9 @@ class SettingsProvider extends ChangeNotifier {
   // Daily Writing Goal (words per day; 0 = off/unset)
   int _dailyWordGoal = 0;
 
+  // Spell Check Setting
+  bool _spellCheckEnabled = true;
+
   // Google OAuth Settings
   String? _googleClientId;
   String? _googleClientSecret;
@@ -97,6 +100,7 @@ class SettingsProvider extends ChangeNotifier {
     _codexLinkingEnabled = (settings['codex_linking_enabled'] ?? 0) == 1;
     _tocWordCountsEnabled = (settings['toc_word_counts_enabled'] ?? 1) == 1;
     _dailyWordGoal = settings['daily_word_goal'] ?? 0;
+    _spellCheckEnabled = (settings['spell_check_enabled'] ?? 1) == 1;
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = settings['google_client_secret'];
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
@@ -155,6 +159,7 @@ class SettingsProvider extends ChangeNotifier {
   String? get googleClientId => _googleClientId;
   String? get googleClientSecret => _googleClientSecret;
   int get syncIntervalMinutes => _syncIntervalMinutes;
+  bool get spellCheckEnabled => _spellCheckEnabled;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -214,6 +219,12 @@ class SettingsProvider extends ChangeNotifier {
   void toggleParagraphFocus(bool enabled) {
     _paragraphFocusEnabled = enabled;
     _db.updateSetting('paragraph_focus_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleSpellCheck(bool enabled) {
+    _spellCheckEnabled = enabled;
+    _db.updateSetting('spell_check_enabled', enabled);
     notifyListeners();
   }
 

@@ -16,7 +16,10 @@ class MockEditorProvider extends Mock implements EditorProvider {}
 class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockNotesProvider extends Mock implements NotesProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
-class MockSettingsProvider extends Mock implements SettingsProvider {}
+class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  bool get spellCheckEnabled => true;
+}
 
 void main() {
   group('SearchProvider Unit Tests', () {

@@ -27,6 +27,10 @@ class SettingsMenuBarState {
   final String? googleClientId;
   final String? googleClientSecret;
   final bool typewriterEnabled;
+  final bool spellCheckEnabled;
+  final bool paragraphFocusEnabled;
+  final bool codexLinkingEnabled;
+  final bool tocWordCountsEnabled;
 
   SettingsMenuBarState({
     required this.currentProjectName,
@@ -39,6 +43,10 @@ class SettingsMenuBarState {
     required this.googleClientId,
     required this.googleClientSecret,
     required this.typewriterEnabled,
+    required this.spellCheckEnabled,
+    required this.paragraphFocusEnabled,
+    required this.codexLinkingEnabled,
+    required this.tocWordCountsEnabled,
   });
 
   @override
@@ -54,7 +62,11 @@ class SettingsMenuBarState {
         other.batteryGuardEnabled == batteryGuardEnabled &&
         other.googleClientId == googleClientId &&
         other.googleClientSecret == googleClientSecret &&
-        other.typewriterEnabled == typewriterEnabled;
+        other.typewriterEnabled == typewriterEnabled &&
+        other.spellCheckEnabled == spellCheckEnabled &&
+        other.paragraphFocusEnabled == paragraphFocusEnabled &&
+        other.codexLinkingEnabled == codexLinkingEnabled &&
+        other.tocWordCountsEnabled == tocWordCountsEnabled;
   }
 
   @override
@@ -69,6 +81,10 @@ class SettingsMenuBarState {
         googleClientId,
         googleClientSecret,
         typewriterEnabled,
+        spellCheckEnabled,
+        paragraphFocusEnabled,
+        codexLinkingEnabled,
+        tocWordCountsEnabled,
       );
 
   bool _listEquals(List<String> a, List<String> b) {
@@ -169,6 +185,10 @@ class MacMenuBarWrapper extends StatelessWidget {
         googleClientId: settings.googleClientId,
         googleClientSecret: settings.googleClientSecret,
         typewriterEnabled: settings.typewriterEnabled,
+        spellCheckEnabled: settings.spellCheckEnabled == true,
+        paragraphFocusEnabled: settings.paragraphFocusEnabled == true,
+        codexLinkingEnabled: settings.codexLinkingEnabled == true,
+        tocWordCountsEnabled: settings.tocWordCountsEnabled == true,
       ),
       builder: (context, settingsState, _) {
         final settings = context.read<SettingsProvider>();
@@ -289,6 +309,11 @@ class MacMenuBarWrapper extends StatelessWidget {
                       Actions.maybeInvoke(contextNode, const ToggleSearchIntent());
                     }
                   },
+                ),
+                const PlatformMenuItemGroup(members: []),
+                PlatformMenuItem(
+                  label: settingsState.spellCheckEnabled ? '✓ Check Spelling While Typing' : '   Check Spelling While Typing',
+                  onSelected: () => settings.toggleSpellCheck(!settingsState.spellCheckEnabled),
                 ),
               ],
             ),
@@ -420,6 +445,15 @@ class MacMenuBarWrapper extends StatelessWidget {
                   shortcut: const SingleActivator(LogicalKeyboardKey.digit5, alt: true, meta: true),
                   onSelected: () => settings.toggleTypewriter(!settingsState.typewriterEnabled),
                 ),
+                PlatformMenuItem(
+                  label: settingsState.paragraphFocusEnabled ? '✓ Paragraph Focus Mode' : '   Paragraph Focus Mode',
+                  shortcut: const SingleActivator(LogicalKeyboardKey.digit6, alt: true, meta: true),
+                  onSelected: () => settings.toggleParagraphFocus(!settingsState.paragraphFocusEnabled),
+                ),
+                PlatformMenuItem(
+                  label: settingsState.tocWordCountsEnabled ? '✓ Show Word Counts in Table of Contents' : '   Show Word Counts in Table of Contents',
+                  onSelected: () => settings.toggleTocWordCounts(!settingsState.tocWordCountsEnabled),
+                ),
                 const PlatformMenuItemGroup(members: []),
                 PlatformMenuItem(
                   label: 'Toggle Full Screen',
@@ -459,6 +493,10 @@ class MacMenuBarWrapper extends StatelessWidget {
                 PlatformMenuItem(
                   label: 'Show Writing Statistics...',
                   onSelected: () => _showStatsOverlay(_getBestContext(context)),
+                ),
+                PlatformMenuItem(
+                  label: settingsState.codexLinkingEnabled ? '✓ Codex Linking' : '   Codex Linking',
+                  onSelected: () => settings.toggleCodexLinking(!settingsState.codexLinkingEnabled),
                 ),
                 const PlatformMenuItemGroup(members: []),
                 PlatformMenu(

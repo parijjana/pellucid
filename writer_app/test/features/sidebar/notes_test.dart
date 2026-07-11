@@ -21,7 +21,10 @@ import 'package:provider/provider.dart';
 import 'package:pellucid/features/search/providers/search_provider.dart';
 
 class MockStorageService extends Mock implements StorageService {}
-class MockSettingsProvider extends Mock implements SettingsProvider {}
+class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  bool get spellCheckEnabled => true;
+}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockEditorProvider extends Mock implements EditorProvider {}

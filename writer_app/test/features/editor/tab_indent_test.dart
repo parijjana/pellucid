@@ -37,6 +37,7 @@ void main() {
               codexIndex: CodexIndex(),
               notes: const [],
               onOpenNote: (_) {},
+              spellCheckEnabled: true,
               onChanged: (val) {
                 changedText = val;
               },

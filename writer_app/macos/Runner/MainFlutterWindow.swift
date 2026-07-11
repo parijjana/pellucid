@@ -34,6 +34,56 @@ class MainFlutterWindow: NSWindow {
       }
     }
 
+    let spellChannel = FlutterMethodChannel(
+      name: "com.overengineeredhobbies.pellucid/spellcheck",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    spellChannel.setMethodCallHandler { (call, result) in
+      if call.method == "checkSpelling" {
+        guard let args = call.arguments as? [String: Any],
+              let text = args["text"] as? String else {
+          result([])
+          return
+        }
+        let language = args["language"] as? String ?? "en"
+        
+        let spellChecker = NSSpellChecker.shared
+        var results: [[String: Any]] = []
+        let nsStringText = text as NSString
+        let textLength = nsStringText.length
+        
+        var searchOffset = 0
+        while searchOffset < textLength {
+          let misspelledRange = spellChecker.checkSpelling(
+            of: text,
+            startingAt: searchOffset,
+            language: language,
+            wrap: false,
+            inSpellDocumentWithTag: 0,
+            wordCount: nil
+          )
+          
+          if misspelledRange.location == NSNotFound || misspelledRange.length == 0 || misspelledRange.location < searchOffset {
+            break
+          }
+          
+          let suggestions = spellChecker.guesses(forWordRange: misspelledRange, in: text, language: language, inSpellDocumentWithTag: 0) ?? []
+          
+          var resultItem: [String: Any] = [:]
+          resultItem["start"] = misspelledRange.location
+          resultItem["end"] = misspelledRange.location + misspelledRange.length
+          resultItem["suggestions"] = suggestions
+          results.append(resultItem)
+          
+          searchOffset = misspelledRange.location + misspelledRange.length
+        }
+        
+        result(results)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
     super.awakeFromNib()
   }
 

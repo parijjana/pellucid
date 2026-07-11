@@ -18,7 +18,10 @@ import 'package:pellucid/features/sidebar/widgets/snapshot_tab_toggle.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 
 class MockStorageService extends Mock implements StorageService {}
-class MockSettingsProvider extends Mock implements SettingsProvider {}
+class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  bool get spellCheckEnabled => true;
+}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockSettingsDatabase extends Mock implements SettingsDatabase {}

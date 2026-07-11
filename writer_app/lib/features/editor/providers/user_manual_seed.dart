@@ -28,7 +28,7 @@ How to Connect:
 
 Pellucid is designed to be operated entirely from your keyboard, letting you write and navigate without touching your mouse.
 
-Double-tap the Alt key (left or right Alt) at any time to display a temporary overlay showing the shortcuts helper.
+Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (left or right Option) on macOS, at any time to display a temporary overlay showing the shortcuts helper.
 
 ### Global Interface Toggles:
 - Alt + 1: Toggle Table of Contents (Left Sidebar) / Cmd + Opt + 1 on macOS

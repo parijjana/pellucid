@@ -215,39 +215,41 @@ void main() {
     final TextField textField = tester.widget<TextField>(find.byType(TextField));
     textField.focusNode!.requestFocus();
     await tester.pumpAndSettle();
+    final bool isMac = Platform.isMacOS;
+
+    Future<void> triggerShortcut(LogicalKeyboardKey digitKey) async {
+      if (isMac) {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+        await tester.sendKeyDownEvent(digitKey);
+        await tester.sendKeyUpEvent(digitKey);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      } else {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyDownEvent(digitKey);
+        await tester.sendKeyUpEvent(digitKey);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      }
+      await tester.pumpAndSettle();
+    }
 
     // 1. Toggle Typewriter Scrolling (Alt + 5): off -> on
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit5);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit5);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await triggerShortcut(LogicalKeyboardKey.digit5);
     verify(() => mockSettings.toggleTypewriter(true)).called(1);
 
     // 2. Toggle Paragraph Focus (Alt + 6): off -> on
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit6);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit6);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await triggerShortcut(LogicalKeyboardKey.digit6);
     verify(() => mockSettings.toggleParagraphFocus(true)).called(1);
 
     // 3. When already enabled, the shortcut toggles back off
     when(() => mockSettings.typewriterEnabled).thenReturn(true);
     when(() => mockSettings.paragraphFocusEnabled).thenReturn(true);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit5);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit5);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await triggerShortcut(LogicalKeyboardKey.digit5);
     verify(() => mockSettings.toggleTypewriter(false)).called(1);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit6);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit6);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await triggerShortcut(LogicalKeyboardKey.digit6);
     verify(() => mockSettings.toggleParagraphFocus(false)).called(1);
   });
 

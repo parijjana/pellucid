@@ -137,10 +137,12 @@ void main() {
     // Select the word 'world' in 'Hello world' (index 6 to 11)
     controller.selection = const TextSelection(baseOffset: 6, extentOffset: 11);
 
+    final modifierKey = Platform.isMacOS ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
+
     // Simulate Ctrl+B (Bold)
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyDownEvent(modifierKey);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyUpEvent(modifierKey);
     await tester.pump();
 
     // Verify 'world' wrapped in '**'
@@ -148,9 +150,9 @@ void main() {
 
     // Simulate Ctrl+I (Italic)
     controller.selection = const TextSelection(baseOffset: 8, extentOffset: 13); // select 'world'
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyDownEvent(modifierKey);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyI);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyUpEvent(modifierKey);
     await tester.pump();
 
     // Verify wrapped in '*'
@@ -158,9 +160,9 @@ void main() {
 
     // Simulate Ctrl+U (Underline)
     controller.selection = const TextSelection(baseOffset: 9, extentOffset: 14); // select 'world'
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyDownEvent(modifierKey);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyU);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyUpEvent(modifierKey);
     await tester.pump();
 
     // Verify wrapped in '<u>...</u>'

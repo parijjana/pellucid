@@ -46,21 +46,21 @@ class CheatsheetOverlayContent extends StatelessWidget {
                   runSpacing: 12,
                   alignment: WrapAlignment.center,
                   children: [
-                    _CheatsheetItem(theme: theme, keys: 'Alt + 1', description: 'Toggle ToC'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + 2', description: 'Toggle Notes'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + 3', description: 'Toggle Toolbar'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + 4', description: 'Toggle Settings'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + 5', description: 'Typewriter Scrolling'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + 6', description: 'Paragraph Focus'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + Enter', description: 'Toggle Fullscreen'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + A', description: 'Attributions'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + Shift + A', description: 'Set Alarm'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + C', description: 'Peek Clock / Dismiss Alarm'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + S', description: 'Peek Session'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + P', description: 'Toggle Pomodoro'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + Shift + P', description: 'Reset Pomodoro'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + Shift + S', description: 'Toggle Sprint'),
-                    _CheatsheetItem(theme: theme, keys: 'Alt + N', description: 'Add Note'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 1', isMac), description: 'Toggle ToC'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 2', isMac), description: 'Toggle Notes'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 3', isMac), description: 'Toggle Toolbar'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 4', isMac), description: 'Toggle Settings'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 5', isMac), description: 'Typewriter Scrolling'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 6', isMac), description: 'Paragraph Focus'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + Enter', isMac), description: 'Toggle Fullscreen'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + A', isMac), description: 'Attributions'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + Shift + A', isMac), description: 'Set Alarm'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + C', isMac), description: 'Peek Clock / Dismiss Alarm'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + S', isMac), description: 'Peek Session'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + P', isMac), description: 'Toggle Pomodoro'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + Shift + P', isMac), description: 'Reset Pomodoro'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + Shift + S', isMac), description: 'Toggle Sprint'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + N', isMac), description: 'Add Note'),
                     _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + F' : 'Ctrl + F', description: 'Search'),
                   ],
                 ),
@@ -70,6 +70,13 @@ class CheatsheetOverlayContent extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getKeys(String winKeys, bool isMac) {
+    if (!isMac) return winKeys;
+    return winKeys
+        .replaceAll('Alt + Shift +', 'Cmd + Opt + Shift +')
+        .replaceAll('Alt +', 'Cmd + Opt +');
   }
 }
 

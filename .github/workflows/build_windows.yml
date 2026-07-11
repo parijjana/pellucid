@@ -32,6 +32,11 @@ jobs:
           cd writer_app
           flutter pub get
 
+      - name: Pre-build Validation
+        run: |
+          cd writer_app
+          dart tool/pre_build_check.dart
+
       - name: Run Tests
         run: |
           cd writer_app

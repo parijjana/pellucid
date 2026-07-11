@@ -21,6 +21,7 @@ import 'features/editor/widgets/glowing_border.dart';
 import 'features/sidebar/widgets/note_editor_dialog.dart';
 import 'features/editor/widgets/alarm_setter_dialog.dart';
 import 'features/search/providers/search_provider.dart';
+import 'features/editor/widgets/mac_menu_bar_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,32 +83,33 @@ void main() async {
   );
 }
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class WriterApp extends StatelessWidget {
   const WriterApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     final bool isMac = !kIsWeb && Platform.isMacOS;
-    final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.digit1, alt: !isMac, meta: isMac, control: isMac): const ToggleToCIntent(),
-        SingleActivator(LogicalKeyboardKey.digit2, alt: !isMac, meta: isMac, control: isMac): const ToggleNotesIntent(),
-        SingleActivator(LogicalKeyboardKey.digit3, alt: !isMac, meta: isMac, control: isMac): const ToggleToolbarIntent(),
+        SingleActivator(LogicalKeyboardKey.digit1, alt: true, meta: isMac): const ToggleToCIntent(),
+        SingleActivator(LogicalKeyboardKey.digit2, alt: true, meta: isMac): const ToggleNotesIntent(),
+        SingleActivator(LogicalKeyboardKey.digit3, alt: true, meta: isMac): const ToggleToolbarIntent(),
         SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
-        SingleActivator(LogicalKeyboardKey.digit5, alt: !isMac, meta: isMac, control: isMac): const ToggleTypewriterIntent(),
-        SingleActivator(LogicalKeyboardKey.digit6, alt: !isMac, meta: isMac, control: isMac): const ToggleParagraphFocusIntent(),
+        SingleActivator(LogicalKeyboardKey.digit5, alt: true, meta: isMac): const ToggleTypewriterIntent(),
+        SingleActivator(LogicalKeyboardKey.digit6, alt: true, meta: isMac): const ToggleParagraphFocusIntent(),
         const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
-        SingleActivator(LogicalKeyboardKey.enter, alt: !isMac, meta: isMac, control: isMac): const ToggleFullscreenIntent(),
-        SingleActivator(LogicalKeyboardKey.keyC, alt: !isMac, meta: isMac, control: isMac): const PeekClockIntent(),
-        SingleActivator(LogicalKeyboardKey.keyA, alt: !isMac, meta: isMac, control: isMac, shift: true): const SetAlarmIntent(),
-        SingleActivator(LogicalKeyboardKey.keyS, alt: !isMac, meta: isMac, control: isMac): const PeekSessionIntent(),
-        SingleActivator(LogicalKeyboardKey.keyN, alt: !isMac, meta: isMac, control: isMac): const AddNoteIntent(),
-        SingleActivator(LogicalKeyboardKey.keyA, alt: !isMac, meta: isMac, control: isMac): const OpenAttributionIntent(),
-        SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac): const TogglePomodoroIntent(),
-        SingleActivator(LogicalKeyboardKey.keyP, alt: !isMac, meta: isMac, control: isMac, shift: true): const ResetPomodoroIntent(),
-        SingleActivator(LogicalKeyboardKey.keyS, alt: !isMac, meta: isMac, control: isMac, shift: true): const ToggleSprintIntent(),
+        SingleActivator(LogicalKeyboardKey.enter, alt: true, meta: isMac): const ToggleFullscreenIntent(),
+        SingleActivator(LogicalKeyboardKey.keyC, alt: true, meta: isMac): const PeekClockIntent(),
+        SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: isMac, shift: true): const SetAlarmIntent(),
+        SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: isMac): const PeekSessionIntent(),
+        SingleActivator(LogicalKeyboardKey.keyN, alt: true, meta: isMac): const AddNoteIntent(),
+        SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: isMac): const OpenAttributionIntent(),
+        SingleActivator(LogicalKeyboardKey.keyP, alt: true, meta: isMac): const TogglePomodoroIntent(),
+        SingleActivator(LogicalKeyboardKey.keyP, alt: true, meta: isMac, shift: true): const ResetPomodoroIntent(),
+        SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: isMac, shift: true): const ToggleSprintIntent(),
         SingleActivator(LogicalKeyboardKey.keyF, control: !isMac, meta: isMac): const ToggleSearchIntent(),
       },
       child: Actions(
@@ -160,7 +162,7 @@ class WriterApp extends StatelessWidget {
             return null;
           }),
           AddNoteIntent: CallbackAction<AddNoteIntent>(onInvoke: (intent) {
-            final ctx = navKey.currentContext;
+            final ctx = navigatorKey.currentContext;
             if (ctx != null) {
               final notesProvider = ctx.read<NotesProvider>();
               final sync = ctx.read<SyncProvider>();
@@ -174,7 +176,7 @@ class WriterApp extends StatelessWidget {
             return null;
           }),
           OpenAttributionIntent: CallbackAction<OpenAttributionIntent>(onInvoke: (intent) {
-            final ctx = navKey.currentContext;
+            final ctx = navigatorKey.currentContext;
             if (ctx != null) {
               final notesProvider = ctx.read<NotesProvider>();
               final attributionCard = notesProvider.cards.cast<NoteCard?>().firstWhere(
@@ -210,7 +212,7 @@ class WriterApp extends StatelessWidget {
             return null;
           }),
           SetAlarmIntent: CallbackAction<SetAlarmIntent>(onInvoke: (intent) {
-            final ctx = navKey.currentContext;
+            final ctx = navigatorKey.currentContext;
             if (ctx != null) {
               showDialog(
                 context: ctx,
@@ -229,7 +231,16 @@ class WriterApp extends StatelessWidget {
             return null;
           }),
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (intent) {
-            final state = navKey.currentState;
+            if (Platform.isMacOS) {
+              final ctx = navigatorKey.currentContext;
+              if (ctx != null) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Settings are located in the top macOS System Menu Bar.'))
+                );
+              }
+              return null;
+            }
+            final state = navigatorKey.currentState;
             if (state == null) return null;
 
             bool isSettingsOpen = false;
@@ -254,7 +265,7 @@ class WriterApp extends StatelessWidget {
             return null;
           }),
           ToggleSearchIntent: CallbackAction<ToggleSearchIntent>(onInvoke: (intent) {
-            navKey.currentContext?.read<SearchProvider>().toggleSearch();
+            navigatorKey.currentContext?.read<SearchProvider>().toggleSearch();
             return null;
           }),
           ToggleTypewriterIntent: CallbackAction<ToggleTypewriterIntent>(onInvoke: (intent) {
@@ -296,38 +307,40 @@ class WriterApp extends StatelessWidget {
             }
             return KeyEventResult.ignored;
           },
-          child: MaterialApp(
-            navigatorKey: navKey,
-            title: 'Pellucid',
-            debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueGrey,
-                brightness: Brightness.light,
+          child: MacMenuBarWrapper(
+            child: MaterialApp(
+              navigatorKey: navigatorKey,
+              title: 'Pellucid',
+              debugShowCheckedModeBanner: false,
+              theme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.blueGrey,
+                  brightness: Brightness.light,
+                ),
               ),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueGrey,
-                brightness: Brightness.dark,
+              darkTheme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.blueGrey,
+                  brightness: Brightness.dark,
+                ),
               ),
+              home: const EditorScreen(),
+              builder: (context, child) {
+                final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+                return Consumer<SettingsProvider>(
+                  builder: (context, settings, _) {
+                    return GlowingBorder(
+                      isActive: !isMobilePhone && settings.isAlarmTriggered,
+                      borderThickness: isMobilePhone ? 0.0 : 20.0,
+                      color: Colors.red,
+                      child: child ?? const SizedBox.shrink(),
+                    );
+                  },
+                );
+              },
             ),
-            home: const EditorScreen(),
-            builder: (context, child) {
-              final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
-              return Consumer<SettingsProvider>(
-                builder: (context, settings, _) {
-                  return GlowingBorder(
-                    isActive: !isMobilePhone && settings.isAlarmTriggered,
-                    borderThickness: isMobilePhone ? 0.0 : 20.0,
-                    color: Colors.red,
-                    child: child ?? const SizedBox.shrink(),
-                  );
-                },
-              );
-            },
           ),
         ),
       ),

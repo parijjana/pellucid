@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,6 +103,37 @@ void main() {
     when(() => mockNotes.categories).thenReturn(['general', 'people', 'places', 'events']);
   });
 
+  Future<void> pressShortcut(
+    WidgetTester tester,
+    LogicalKeyboardKey key, {
+    bool shift = false,
+    bool isSettings = false, // Kept signature compatibility
+  }) async {
+    final bool isMac = Platform.isMacOS;
+    final List<LogicalKeyboardKey> modifiers = [];
+
+    // All standard and settings shortcuts in Pellucid are unified:
+    // Alt/Opt + Key on Windows/Linux, and Cmd + Opt + Key on macOS
+    modifiers.add(LogicalKeyboardKey.altLeft);
+    if (isMac) {
+      modifiers.add(LogicalKeyboardKey.metaLeft);
+    }
+
+    if (shift) {
+      modifiers.add(LogicalKeyboardKey.shiftLeft);
+    }
+
+    for (final mod in modifiers) {
+      await tester.sendKeyDownEvent(mod);
+    }
+    await tester.sendKeyDownEvent(key);
+    await tester.sendKeyUpEvent(key);
+    for (final mod in modifiers.reversed) {
+      await tester.sendKeyUpEvent(mod);
+    }
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('Keyboard shortcuts trigger actions correctly when Alt + key is pressed', (WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
@@ -131,54 +163,30 @@ void main() {
     textField.focusNode!.requestFocus();
     await tester.pumpAndSettle();
 
-    // 1. Toggle Left Sidebar (Alt + 1)
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // 1. Toggle Left Sidebar
+    await pressShortcut(tester, LogicalKeyboardKey.digit1);
     expect(realShortcuts.isLeftSidebarOpen, isTrue);
 
-    // 2. Toggle Right Sidebar (Alt + 2)
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit2);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit2);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // 2. Toggle Right Sidebar
+    await pressShortcut(tester, LogicalKeyboardKey.digit2);
     expect(realShortcuts.isRightSidebarOpen, isTrue);
 
-    // 3. Toggle Floating Toolbar (Alt + 3)
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit3);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit3);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // 3. Toggle Floating Toolbar
+    await pressShortcut(tester, LogicalKeyboardKey.digit3);
     expect(realShortcuts.isToolbarOpen, isTrue);
 
-    // 4. Toggle Fullscreen (Alt + Enter)
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // 4. Toggle Fullscreen
+    await pressShortcut(tester, LogicalKeyboardKey.enter);
     expect(realShortcuts.isFullscreen, isTrue);
 
-    // 5. Peek Clock (Alt + C)
+    // 5. Peek Clock
     expect(realShortcuts.isClockPeeked, isFalse);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyC);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyC);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await pressShortcut(tester, LogicalKeyboardKey.keyC);
     expect(realShortcuts.isClockPeeked, isTrue);
 
-    // 6. Peek Session (Alt + S)
+    // 6. Peek Session
     expect(realShortcuts.isSessionPeeked, isFalse);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await pressShortcut(tester, LogicalKeyboardKey.keyS);
     expect(realShortcuts.isSessionPeeked, isTrue);
 
     // Let the 2-second peek timers complete so we do not have pending timers on teardown
@@ -310,15 +318,8 @@ void main() {
     textField.focusNode!.requestFocus();
     await tester.pumpAndSettle();
 
-    // Test Alt + Shift + A (SetAlarmIntent)
-    // Press Alt + Shift + A
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // Test SetAlarmIntent
+    await pressShortcut(tester, LogicalKeyboardKey.keyA, shift: true);
 
     // Verify that AlarmSetterDialog is opened
     expect(find.byType(AlarmSetterDialog), findsOneWidget);
@@ -328,22 +329,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AlarmSetterDialog), findsNothing);
 
-    // Test Alt + A (OpenAttributionIntent)
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // Test OpenAttributionIntent
+    await pressShortcut(tester, LogicalKeyboardKey.keyA);
 
     // Verify that NoteEditorDialog is opened
     expect(find.byType(NoteEditorDialog), findsOneWidget);
 
-    // Close the note dialog using Alt + A
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // Close the note dialog
+    await pressShortcut(tester, LogicalKeyboardKey.keyA);
     expect(find.byType(NoteEditorDialog), findsNothing);
 
     // Test Double-tap Alt
@@ -388,23 +381,19 @@ void main() {
 
     expect(find.byType(SettingsScreen), findsNothing);
 
-    // Press Alt + 4 to open settings
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // Open settings
+    await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
 
-    expect(find.byType(SettingsScreen), findsOneWidget);
+    if (Platform.isMacOS) {
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
+    } else {
+      expect(find.byType(SettingsScreen), findsOneWidget);
 
-    // Press Alt + 4 again to close settings
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
-
-    expect(find.byType(SettingsScreen), findsNothing);
+      // Close settings
+      await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
+      expect(find.byType(SettingsScreen), findsNothing);
+    }
   });
 
   testWidgets('Settings screen shortcut toggles settings screen open and closed even when search text field has focus', (WidgetTester tester) async {
@@ -435,37 +424,34 @@ void main() {
 
     expect(find.byType(SettingsScreen), findsNothing);
 
-    // Press Alt + 4 to open settings
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // Open settings
+    await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
 
-    expect(find.byType(SettingsScreen), findsOneWidget);
+    if (Platform.isMacOS) {
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
+    } else {
+      expect(find.byType(SettingsScreen), findsOneWidget);
 
-    // Find the search TextField on the settings screen and focus it
-    final searchFinder = find.descendant(
-      of: find.byType(SettingsScreen),
-      matching: find.byType(TextField),
-    ).first;
-    await tester.ensureVisible(searchFinder);
-    await tester.tap(searchFinder);
-    await tester.pumpAndSettle();
+      // Find the search TextField on the settings screen and focus it
+      final searchFinder = find.descendant(
+        of: find.byType(SettingsScreen),
+        matching: find.byType(TextField),
+      ).first;
+      await tester.ensureVisible(searchFinder);
+      await tester.tap(searchFinder);
+      await tester.pumpAndSettle();
 
-    // Verify search text field has focus
-    final FocusNode focusNode = Focus.of(tester.element(searchFinder));
-    expect(focusNode.hasFocus, isTrue);
+      // Verify search text field has focus
+      final FocusNode focusNode = Focus.of(tester.element(searchFinder));
+      expect(focusNode.hasFocus, isTrue);
 
-    // Press Alt + 4 again to close settings
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit4);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+      // Close settings
+      await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
 
-    // Verify SettingsScreen is popped
-    expect(find.byType(SettingsScreen), findsNothing);
+      // Verify SettingsScreen is popped
+      expect(find.byType(SettingsScreen), findsNothing);
+    }
   });
 
   testWidgets('NoteEditorDialog Alt+A shortcut toggles note editor dialog closed even when a text field has focus', (WidgetTester tester) async {
@@ -504,13 +490,8 @@ void main() {
 
     expect(find.byType(NoteEditorDialog), findsNothing);
 
-    // Press Alt + A to open attributions
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
-
+    // Open attributions
+    await pressShortcut(tester, LogicalKeyboardKey.keyA);
     expect(find.byType(NoteEditorDialog), findsOneWidget);
 
     // Find the title TextField on the dialog and focus it
@@ -526,12 +507,8 @@ void main() {
     final FocusNode focusNode = Focus.of(tester.element(titleFinder));
     expect(focusNode.hasFocus, isTrue);
 
-    // Press Alt + A again to close dialog
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    // Close dialog
+    await pressShortcut(tester, LogicalKeyboardKey.keyA);
 
     // Verify NoteEditorDialog is popped
     expect(find.byType(NoteEditorDialog), findsNothing);
@@ -558,12 +535,54 @@ void main() {
     // Verify no text field has focus initially, but the root Focus node is focused
     expect(realShortcuts.isLeftSidebarOpen, isFalse);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
-    await tester.pumpAndSettle();
+    await pressShortcut(tester, LogicalKeyboardKey.digit1);
 
     expect(realShortcuts.isLeftSidebarOpen, isTrue);
+  });
+
+  testWidgets('Settings button and Back button align at the exact same screen coordinates', (WidgetTester tester) async {
+    // This test is only applicable on non-macOS platforms where SettingsScreen is used.
+    // On macOS, the SettingsScreen is entirely replaced by the native macOS Menu Bar.
+    if (Platform.isMacOS) return;
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const WriterApp(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // 1. Locate the Settings button on the editor status bar and record its coordinates
+    final settingsButtonFinder = find.byIcon(Icons.settings);
+    expect(settingsButtonFinder, findsOneWidget);
+    final Offset settingsPosition = tester.getCenter(settingsButtonFinder);
+
+    // 2. Click the settings button to open the settings screen
+    await tester.tap(settingsButtonFinder);
+    await tester.pumpAndSettle();
+
+    // 3. Locate the Back button on the settings screen and record its coordinates
+    final backButtonFinder = find.byIcon(Icons.arrow_back);
+    expect(backButtonFinder, findsOneWidget);
+    final Offset backPosition = tester.getCenter(backButtonFinder);
+
+    // 4. Assert that the coordinates are exactly the same
+    expect(
+      backPosition,
+      equals(settingsPosition),
+      reason: 'COORDINATE LOCK FAILED: Settings button in Editor and Back button in Settings screen must align at the exact same coordinates to allow instant toggling without mouse movement.',
+    );
   });
 }

@@ -25,6 +25,7 @@ import '../../editor/widgets/shortcuts.dart';
 import '../../../features_config.dart';
 import '../widgets/custom_theme_designer.dart';
 import 'stats_screen.dart';
+import '../../editor/widgets/low_contrast_widgets.dart';
 
 enum ProjectSort { date, name }
 
@@ -196,6 +197,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
           child: Scaffold(
             backgroundColor: theme.backgroundColor,
+            bottomNavigationBar: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              height: 48,
+              decoration: BoxDecoration(
+                color: theme.backgroundColor,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // COORDINATE LOCK: Matches the layout offset of the menu button in EditorStatusBar
+                    // so that the Back button is placed at the exact same screen coordinates as the Settings button.
+                    IgnorePointer(
+                      child: Visibility(
+                        visible: false,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: LowContrastIconButton(
+                          icon: Icons.menu,
+                          onPressed: () {},
+                          theme: theme,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    LowContrastIconButton(
+                      icon: Icons.arrow_back,
+                      onPressed: () => Navigator.pop(context),
+                      theme: theme,
+                    ),
+                  ],
+                ),
+              ),
+            ),
             body: Column(
               children: [
                 IntegratedHeader(
@@ -214,11 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       await history.loadProjectStats(path);
                     }
                   },
-                  actionButton: IconButton(
-                    icon: Icon(Icons.arrow_back, size: 20, color: theme.foregroundColor.withValues(alpha: 0.4)),
-                    onPressed: () => Navigator.pop(context),
-                    tooltip: 'Back',
-                  ),
+                  actionButton: const SizedBox.shrink(),
                 ),
                 
                 Expanded(

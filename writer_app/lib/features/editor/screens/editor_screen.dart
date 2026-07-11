@@ -415,19 +415,19 @@ class _EditorScreenState extends State<EditorScreen> {
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         // Formatting (Still local to editor for context)
-        SingleActivator(LogicalKeyboardKey.keyT, alt: !isMac, meta: isMac, control: isMac): const SetTitleIntent(),
-        SingleActivator(LogicalKeyboardKey.keyH, alt: !isMac, meta: isMac, control: isMac): const SetHeaderIntent(),
-        SingleActivator(LogicalKeyboardKey.keyG, alt: !isMac, meta: isMac, control: isMac): const SetBodyIntent(),
-        SingleActivator(LogicalKeyboardKey.keyL, alt: !isMac, meta: isMac, control: isMac): const SetBulletIntent(),
+        SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: isMac): const SetTitleIntent(),
+        SingleActivator(LogicalKeyboardKey.keyH, alt: true, meta: isMac): const SetHeaderIntent(),
+        SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: isMac): const SetBodyIntent(),
+        SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: isMac): const SetBulletIntent(),
         SingleActivator(LogicalKeyboardKey.keyB, control: !isMac, meta: isMac): const ToggleBoldIntent(),
         SingleActivator(LogicalKeyboardKey.keyI, control: !isMac, meta: isMac): const ToggleItalicIntent(),
         SingleActivator(LogicalKeyboardKey.keyU, control: !isMac, meta: isMac): const ToggleUnderlineIntent(),
 
         // Alignment
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: !isMac, meta: isMac, control: isMac): const IncreaseWidthIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: !isMac, meta: isMac, control: isMac): const DecreaseWidthIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: !isMac, meta: isMac, control: isMac, shift: true): const ShiftPaperRightIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: !isMac, meta: isMac, control: isMac, shift: true): const ShiftPaperLeftIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: isMac): const IncreaseWidthIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: isMac): const DecreaseWidthIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: isMac, shift: true): const ShiftPaperRightIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: isMac, shift: true): const ShiftPaperLeftIntent(),
 
         // Zoom (Ctrl/Cmd)
         SingleActivator(LogicalKeyboardKey.equal, control: !isMac, meta: isMac): const ZoomInIntent(),
@@ -436,6 +436,12 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Actions(
         actions: <Type, Action<Intent>>{
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (_) {
+            if (Platform.isMacOS) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Settings are located in the top macOS System Menu Bar.'))
+              );
+              return null;
+            }
             context.read<HistoryProvider>().saveStatsNow().then((_) {
               if (context.mounted) {
                 Navigator.push(
@@ -482,25 +488,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           await context.read<HistoryProvider>().loadProjectStats(path);
                         }
                       },
-                      actionButton: isMobilePhone 
-                          ? const SizedBox.shrink() 
-                          : IconButton(
-                              icon: const Icon(Icons.settings, size: 20),
-                              onPressed: () {
-                                context.read<HistoryProvider>().saveStatsNow().then((_) {
-                                  if (context.mounted) {
-                                    Navigator.push(
-                                      context, 
-                                      MaterialPageRoute(
-                                        settings: const RouteSettings(name: '/settings'),
-                                        builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                                      ),
-                                    );
-                                  }
-                                });
-                              },
-                              tooltip: 'Settings',
-                            ),
+                      actionButton: const SizedBox.shrink(),
                     ),
                     if (isMobilePhone)
                       MobilePersistentToolbar(
@@ -647,6 +635,19 @@ class _EditorScreenState extends State<EditorScreen> {
                           await windowManager.setFullScreen(newValue);
                         }
                         uiState.setFullscreen(newValue);
+                      },
+                      onOpenSettings: () {
+                        context.read<HistoryProvider>().saveStatsNow().then((_) {
+                          if (context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: '/settings'),
+                                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                              ),
+                            );
+                          }
+                        });
                       },
                     ),
                   ],

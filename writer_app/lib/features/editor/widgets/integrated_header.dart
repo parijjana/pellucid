@@ -77,16 +77,6 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
     final double leftPadding = (!kIsWeb && Platform.isMacOS) ? 80.0 : 8.0;
 
     Color dragAreaColor = Colors.transparent;
-    if (widget.showWindowControls) {
-      final baseColor = widget.theme.backgroundColor;
-      final isDark = baseColor.computeLuminance() < 0.5;
-      if (baseColor == Colors.black || (isDark && baseColor.red == 0 && baseColor.green == 0 && baseColor.blue == 0)) {
-        dragAreaColor = const Color(0xFF050505);
-      } else {
-        final hsl = HSLColor.fromColor(baseColor);
-        dragAreaColor = hsl.withLightness((hsl.lightness - 0.02).clamp(0.0, 1.0)).toColor();
-      }
-    }
 
     final bool isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
     final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
@@ -113,7 +103,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
                 color: Colors.transparent,
               ),
             ),
-          if (isDesktop && widget.showWindowControls)
+          if (isDesktop && widget.showWindowControls && !Platform.isMacOS)
             WindowCaption(
               brightness: widget.theme.backgroundColor.computeLuminance() > 0.5 
                   ? Brightness.light 

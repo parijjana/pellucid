@@ -94,16 +94,20 @@ Key Features:
   StorageService({FileSystem? fileSystem}) : _fileSystem = fileSystem ?? const LocalFileSystem();
 
   Future<List<String>> listProjects(String masterPath) async {
-    final dir = _fileSystem.directory(masterPath);
-    if (!await dir.exists()) return [];
-    
-    final List<String> projects = [];
-    await for (final entity in dir.list()) {
-      if (entity is Directory) {
-        projects.add(_fileSystem.path.basename(entity.path));
+    try {
+      final dir = _fileSystem.directory(masterPath);
+      if (!await dir.exists()) return [];
+      
+      final List<String> projects = [];
+      await for (final entity in dir.list()) {
+        if (entity is Directory) {
+          projects.add(_fileSystem.path.basename(entity.path));
+        }
       }
+      return projects;
+    } catch (e) {
+      return [];
     }
-    return projects;
   }
 
   Future<void> initProject(String masterPath, String projectName, {String initialContent = ''}) async {

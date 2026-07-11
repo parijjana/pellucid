@@ -30,7 +30,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 9, // Incremented for Google OAuth custom credentials and sync interval
+      version: 10, // Incremented for typewriter scrolling
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -57,7 +57,8 @@ class SettingsDatabase {
         last_notes_fullscreen_state INTEGER,
         google_client_id TEXT,
         google_client_secret TEXT,
-        sync_interval_minutes INTEGER DEFAULT 30
+        sync_interval_minutes INTEGER DEFAULT 30,
+        typewriter_scrolling INTEGER DEFAULT 0
       )
     ''');
 
@@ -85,6 +86,7 @@ class SettingsDatabase {
       'show_battery_percentage': 1,
       'last_notes_fullscreen_state': 0,
       'sync_interval_minutes': 30,
+      'typewriter_scrolling': 0,
     });
   }
 
@@ -122,6 +124,9 @@ class SettingsDatabase {
     if (oldVersion < 9) {
       await db.execute('ALTER TABLE settings ADD COLUMN sync_interval_minutes INTEGER DEFAULT 30');
     }
+    if (oldVersion < 10) {
+      await db.execute('ALTER TABLE settings ADD COLUMN typewriter_scrolling INTEGER DEFAULT 0');
+    }
   }
 
   // Settings Methods
@@ -146,6 +151,7 @@ class SettingsDatabase {
         'google_client_id': null,
         'google_client_secret': null,
         'sync_interval_minutes': 30,
+        'typewriter_scrolling': 0,
       });
       final mapsRetry = await db.query('settings', where: 'id = ?', whereArgs: [1]);
       return mapsRetry.first;
@@ -177,6 +183,7 @@ class SettingsDatabase {
         'google_client_id': null,
         'google_client_secret': null,
         'sync_interval_minutes': 30,
+        'typewriter_scrolling': 0,
       });
     }
     await db.update('settings', {key: dbValue}, where: 'id = ?', whereArgs: [1]);

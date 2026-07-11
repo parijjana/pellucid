@@ -46,6 +46,7 @@ agent_log/
 .librarian/
 *.md
 !/README.md
+!/USER_MANUAL.md
 !/writer_app/README.md
 *.db
 *.py

@@ -57,6 +57,9 @@ class SettingsProvider extends ChangeNotifier {
   String? _googleClientSecret;
   int _syncIntervalMinutes = 30;
 
+  // Typewriter Scrolling
+  bool _typewriterScrolling = false;
+
   // Project Settings
   String? _masterDirectoryPath;
   String? _currentProjectName;
@@ -82,6 +85,7 @@ class SettingsProvider extends ChangeNotifier {
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = settings['google_client_secret'];
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
+    _typewriterScrolling = (settings['typewriter_scrolling'] ?? 0) == 1;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
 
@@ -131,6 +135,7 @@ class SettingsProvider extends ChangeNotifier {
   String? get googleClientId => _googleClientId;
   String? get googleClientSecret => _googleClientSecret;
   int get syncIntervalMinutes => _syncIntervalMinutes;
+  bool get typewriterScrolling => _typewriterScrolling;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -178,6 +183,12 @@ class SettingsProvider extends ChangeNotifier {
   void toggleShowBatteryPercentage(bool enabled) {
     _showBatteryPercentage = enabled;
     _db.updateSetting('show_battery_percentage', enabled);
+    notifyListeners();
+  }
+
+  void toggleTypewriterScrolling(bool enabled) {
+    _typewriterScrolling = enabled;
+    _db.updateSetting('typewriter_scrolling', enabled);
     notifyListeners();
   }
 

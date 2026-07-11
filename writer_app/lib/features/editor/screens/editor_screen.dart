@@ -130,6 +130,54 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
+  void _onTypewriterScroll() {
+    if (!mounted) return;
+    final settings = context.read<SettingsProvider>();
+    if (settings.typewriterScrolling != true) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final controller = _editorController;
+      final selection = controller.selection;
+      if (selection.isValid && selection.isCollapsed) {
+        final charOffset = selection.baseOffset;
+        final text = controller.text;
+
+        final zoomLevel = context.read<EditorProvider>().zoomLevel;
+        final pageWidth = context.read<EditorProvider>().pageWidth;
+        final textWidth = pageWidth - 120.0;
+
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: TextStyle(
+              fontSize: 16.0 * zoomLevel,
+              height: 1.8,
+              fontFamily: 'Georgia',
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+
+        textPainter.layout(maxWidth: textWidth);
+        final caretOffset = textPainter.getOffsetForCaret(
+          TextPosition(offset: charOffset),
+          Rect.zero,
+        );
+
+        if (_scrollController.hasClients) {
+          final double viewportHeight = _scrollController.position.viewportDimension;
+          final double absoluteCaretY = 160.0 + caretOffset.dy;
+          final double targetScrollOffset = absoluteCaretY - (viewportHeight / 2);
+
+          _scrollController.jumpTo(
+            targetScrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+          );
+        }
+      }
+    });
+  }
+
   void _onSearchChanged() {
     if (!mounted) return;
     final activeIndex = _searchProvider.currentMatchIndex;
@@ -222,6 +270,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _lastProcessedText = editorProvider.content;
     _editorFocusNode.addListener(_onEditorFocusChange);
     _editorController.addListener(_onEditorTextChanged);
+    _editorController.addListener(_onTypewriterScroll);
     HardwareKeyboard.instance.addHandler(_handleGlobalKey);
 
     _editorProvider = context.read<EditorProvider>();
@@ -241,6 +290,7 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _editorFocusNode.removeListener(_onEditorFocusChange);
     _editorController.removeListener(_onEditorTextChanged);
+    _editorController.removeListener(_onTypewriterScroll);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _editorProvider.removeListener(_onEditorProviderChanged);
     _searchProvider.removeListener(_onSearchChanged);
@@ -352,16 +402,16 @@ class _EditorScreenState extends State<EditorScreen> {
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         // Formatting (Still local to editor for context)
-        SingleActivator(LogicalKeyboardKey.keyT, alt: !isMac, meta: isMac, control: isMac): const SetTitleIntent(),
-        SingleActivator(LogicalKeyboardKey.keyH, alt: !isMac, meta: isMac, control: isMac): const SetHeaderIntent(),
-        SingleActivator(LogicalKeyboardKey.keyG, alt: !isMac, meta: isMac, control: isMac): const SetBodyIntent(),
-        SingleActivator(LogicalKeyboardKey.keyL, alt: !isMac, meta: isMac, control: isMac): const SetBulletIntent(),
+        SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: isMac): const SetTitleIntent(),
+        SingleActivator(LogicalKeyboardKey.keyH, alt: true, meta: isMac): const SetHeaderIntent(),
+        SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: isMac): const SetBodyIntent(),
+        SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: isMac): const SetBulletIntent(),
 
         // Alignment
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: !isMac, meta: isMac, control: isMac): const IncreaseWidthIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: !isMac, meta: isMac, control: isMac): const DecreaseWidthIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: !isMac, meta: isMac, control: isMac, shift: true): const ShiftPaperRightIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: !isMac, meta: isMac, control: isMac, shift: true): const ShiftPaperLeftIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: isMac): const IncreaseWidthIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: isMac): const DecreaseWidthIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: isMac, shift: true): const ShiftPaperRightIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: isMac, shift: true): const ShiftPaperLeftIntent(),
 
         // Zoom (Ctrl/Cmd)
         SingleActivator(LogicalKeyboardKey.equal, control: !isMac, meta: isMac): const ZoomInIntent(),
@@ -370,6 +420,12 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Actions(
         actions: <Type, Action<Intent>>{
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (_) {
+            if (Platform.isMacOS) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Settings are located in the top macOS System Menu Bar.'))
+              );
+              return null;
+            }
             context.read<HistoryProvider>().saveStatsNow().then((_) {
               if (context.mounted) {
                 Navigator.push(
@@ -413,25 +469,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           await context.read<HistoryProvider>().loadProjectStats(path);
                         }
                       },
-                      actionButton: isMobilePhone 
-                          ? const SizedBox.shrink() 
-                          : IconButton(
-                              icon: const Icon(Icons.settings, size: 20),
-                              onPressed: () {
-                                context.read<HistoryProvider>().saveStatsNow().then((_) {
-                                  if (context.mounted) {
-                                    Navigator.push(
-                                      context, 
-                                      MaterialPageRoute(
-                                        settings: const RouteSettings(name: '/settings'),
-                                        builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                                      ),
-                                    );
-                                  }
-                                });
-                              },
-                              tooltip: 'Settings',
-                            ),
+                      actionButton: const SizedBox.shrink(),
                     ),
                     if (isMobilePhone)
                       MobilePersistentToolbar(
@@ -573,6 +611,19 @@ class _EditorScreenState extends State<EditorScreen> {
                           await windowManager.setFullScreen(newValue);
                         }
                         uiState.setFullscreen(newValue);
+                      },
+                      onOpenSettings: () {
+                        context.read<HistoryProvider>().saveStatsNow().then((_) {
+                          if (context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: '/settings'),
+                                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                              ),
+                            );
+                          }
+                        });
                       },
                     ),
                   ],

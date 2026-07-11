@@ -60,9 +60,9 @@ class DesktopOAuthHelper {
         'access_type=offline&'
         'prompt=consent';
 
-    if (await canLaunchUrl(Uri.parse(authUrl))) {
-      await launchUrl(Uri.parse(authUrl));
-    } else {
+    try {
+      await launchUrl(Uri.parse(authUrl), mode: LaunchMode.externalApplication);
+    } catch (_) {
       server.close();
       return null;
     }

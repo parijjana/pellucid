@@ -26,6 +26,7 @@ class EditorStatusBar extends StatefulWidget {
   final VoidCallback onToggleRight;
   final VoidCallback onToggleToolbar;
   final VoidCallback onToggleFullscreen;
+  final VoidCallback onOpenSettings;
 
   const EditorStatusBar({
     super.key,
@@ -38,6 +39,7 @@ class EditorStatusBar extends StatefulWidget {
     required this.onToggleRight,
     required this.onToggleToolbar,
     required this.onToggleFullscreen,
+    required this.onOpenSettings,
   });
 
   @override
@@ -86,6 +88,12 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
                 LowContrastIconButton(
                   icon: widget.isLeftSidebarOpen ? Icons.menu_open : Icons.menu,
                   onPressed: widget.onToggleLeft,
+                  theme: widget.theme,
+                ),
+                const SizedBox(width: 12),
+                LowContrastIconButton(
+                  icon: Icons.settings,
+                  onPressed: widget.onOpenSettings,
                   theme: widget.theme,
                 ),
                 const SizedBox(width: 12),

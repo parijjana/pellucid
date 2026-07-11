@@ -47,6 +47,7 @@ agent_log/
 *.md
 !/README.md
 !/USER_MANUAL.md
+!/SHORTCUT_DESIGN.md
 !/writer_app/README.md
 *.db
 *.py

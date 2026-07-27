@@ -4,6 +4,30 @@ Pellucid is a local-first Markdown writing app for longform fiction. It keeps th
 
 The interface uses **Whisper UI**: controls stay visually quiet until they are hovered, focused, or summoned by keyboard shortcut. The goal is a writing surface that feels calm without removing power tools.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/editor.png" alt="Manuscript editor with hidden formatting markers" /></td>
+    <td width="50%"><img src="docs/screenshots/table-of-contents.png" alt="Table of contents generated from Markdown headings" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/research-notes.png" alt="Research notes panel with categories and links" /></td>
+    <td width="50%"><img src="docs/screenshots/snapshots.png" alt="Manuscript snapshots with local and cloud history" /></td>
+  </tr>
+</table>
+
+<sub>Pellucid on macOS — the Whisper UI keeps controls quiet until you need them.</sub>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/screenshots/mobile-editor.png" alt="Manuscript editor on mobile" width="270" /></td>
+    <td width="50%" align="center"><img src="docs/screenshots/mobile-research-notes.png" alt="Research notes on mobile" width="270" /></td>
+  </tr>
+</table>
+
+<sub>Android and iOS builds adapt the same manuscript-first layout.</sub>
+
 ## Features
 
 - Markdown manuscript editor with hidden formatting markers for headings, bullets, bold, italic, and underline.

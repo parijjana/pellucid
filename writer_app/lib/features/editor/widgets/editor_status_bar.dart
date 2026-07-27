@@ -18,6 +18,7 @@ import 'session_timer_widget.dart';
 import 'pomodoro_widget.dart';
 import 'sprint_widget.dart';
 import 'battery_widget.dart';
+import '../screenshot_mode.dart';
 
 class EditorStatusBar extends StatefulWidget {
   final WriterTheme theme;
@@ -52,7 +53,9 @@ class EditorStatusBar extends StatefulWidget {
 class _EditorStatusBarState extends State<EditorStatusBar> {
   @override
   Widget build(BuildContext context) {
-    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = kScreenshotCaptureMode
+        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
+        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
     
     if (isMobilePhone) {
       return Container(

@@ -33,6 +33,7 @@ import '../widgets/mobile_persistent_toolbar.dart';
 import '../widgets/cheatsheet_overlay.dart';
 import '../widgets/typewriter_scroll.dart';
 import '../utils/toc_parser.dart';
+import '../screenshot_mode.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -410,7 +411,9 @@ class _EditorScreenState extends State<EditorScreen> {
 
     final headers = _tocHeaders;
     final bool isMac = !kIsWeb && Platform.isMacOS;
-    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = kScreenshotCaptureMode
+        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
+        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{

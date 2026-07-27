@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
+import '../screenshot_mode.dart';
 
 class LowContrastIconButton extends StatefulWidget {
   final IconData icon;
@@ -33,7 +34,7 @@ class _LowContrastIconButtonState extends State<LowContrastIconButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
-        opacity: (_isHovered || widget.isSelected) ? 1.0 : 0.2,
+        opacity: (_isHovered || widget.isSelected || kScreenshotCaptureMode) ? 1.0 : 0.2,
         child: IconButton(
           icon: widget.flipX 
             ? Transform.flip(flipX: true, child: Icon(widget.icon, size: widget.size))
@@ -72,7 +73,7 @@ class _LowContrastTextState extends State<LowContrastText> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
-        opacity: _isHovered ? 1.0 : 0.25,
+        opacity: (_isHovered || kScreenshotCaptureMode) ? 1.0 : 0.25,
         child: Text(
           widget.label,
           style: TextStyle(

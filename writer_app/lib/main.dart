@@ -22,6 +22,7 @@ import 'features/sidebar/widgets/note_editor_dialog.dart';
 import 'features/editor/widgets/alarm_setter_dialog.dart';
 import 'features/search/providers/search_provider.dart';
 import 'features/editor/widgets/mac_menu_bar_wrapper.dart';
+import 'features/editor/screenshot_mode.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -328,7 +329,9 @@ class WriterApp extends StatelessWidget {
               ),
               home: const EditorScreen(),
               builder: (context, child) {
-                final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+                final bool isMobilePhone = kScreenshotCaptureMode
+                    ? kScreenshotLayout == ScreenshotLayout.mobilePhone
+                    : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
                 return Consumer<SettingsProvider>(
                   builder: (context, settings, _) {
                     return GlowingBorder(

@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../screenshot_mode.dart';
 
 class SessionTimerWidget extends StatefulWidget {
   final WriterTheme theme;
@@ -42,7 +43,7 @@ class _SessionTimerWidgetState extends State<SessionTimerWidget> {
       child: GestureDetector(
         onTap: () => _pickTargetTime(context, settings),
         child: AnimatedOpacity(
-          opacity: _isHovered || widget.isPeeked ? 1.0 : 0.3,
+          opacity: _isHovered || widget.isPeeked || kScreenshotCaptureMode ? 1.0 : 0.3,
           duration: const Duration(milliseconds: 200),
           child: Padding(
             padding: const EdgeInsets.only(top: 2),

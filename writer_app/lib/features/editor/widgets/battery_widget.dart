@@ -4,6 +4,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../screenshot_mode.dart';
 
 class BatteryWidget extends StatefulWidget {
   final WriterTheme theme;
@@ -77,7 +78,7 @@ class _BatteryWidgetState extends State<BatteryWidget> {
     final isBelowThreshold = _batteryLevel <= settings.batteryAlertThreshold;
     final isRedAlert = isBelowThreshold && !isCharging && settings.batteryGuardEnabled;
 
-    final double opacity = _isHovered || isRedAlert ? 1.0 : 0.2;
+    final double opacity = _isHovered || isRedAlert || kScreenshotCaptureMode ? 1.0 : 0.2;
     final Color color = isRedAlert ? Colors.red : widget.theme.foregroundColor;
     final Color bg = widget.theme.backgroundColor;
 

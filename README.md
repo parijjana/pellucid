@@ -62,23 +62,24 @@ Local autosave and local snapshots work without Google Drive.
 
 ## Keyboard Basics
 
-- `Alt + 1`: Toggle table of contents.
-- `Alt + 2`: Toggle research notes.
-- `Alt + 3`: Toggle formatting toolbar.
-- `Alt + 4`: Toggle settings.
-- `Alt + 5`: Toggle typewriter scrolling.
-- `Alt + 6`: Toggle paragraph focus.
-- `Alt + Enter` or `F11`: Toggle fullscreen.
-- `Ctrl + F`: Search.
-- `Alt + N`: Add a note.
-- `Alt + A`: Open attributions.
-- `Alt + Shift + S`: Toggle writing sprint.
+Shortcuts below are for macOS, the primary platform.
 
-On macOS, the app uses `Cmd + Opt` for the Alt-based shortcuts.
+- `Cmd + Opt + 1`: Toggle table of contents.
+- `Cmd + Opt + 2`: Toggle research notes.
+- `Cmd + Opt + 3`: Toggle formatting toolbar.
+- `Cmd + Opt + 5`: Toggle typewriter scrolling.
+- `Cmd + Opt + 6`: Toggle paragraph focus.
+- `Cmd + Opt + Enter`: Toggle fullscreen.
+- `Cmd + F`: Search.
+- `Cmd + Opt + N`: Add a note.
+- `Cmd + Opt + A`: Open attributions.
+- `Cmd + Opt + Shift + S`: Toggle writing sprint.
+
+On macOS, open settings from the system menu bar. On Windows and Linux, use `Alt` in place of `Cmd + Opt`, `Ctrl + F` for search, `Alt + 4` to open settings, and `F11` for fullscreen.
 
 ## Build Targets
 
-The Flutter project includes Windows, macOS, Linux, Android, iOS, and web targets. Windows is the primary desktop distribution target at the moment.
+macOS is the primary distribution target — the Mac build is essentially release-ready and ships first. The Flutter project also includes Windows, Linux, Android, iOS, and web targets, which follow.
 
 ## Public Documentation Policy
 

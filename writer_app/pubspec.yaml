@@ -1,7 +1,7 @@
 name: pellucid
-description: "A new Flutter project."
+description: "A local-first Markdown writing app for long-form fiction, with optional Google Drive backup."
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.11.4
@@ -22,6 +22,7 @@ dependencies:
   htmltopdfwidgets: ^2.1.1
   http: 1.2.2
   intl: ^0.20.2
+  macos_secure_bookmarks: ^0.2.1
   markdown: ^7.3.1
   path: ^1.9.1
   path_provider: ^2.1.5

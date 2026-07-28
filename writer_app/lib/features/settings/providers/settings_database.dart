@@ -29,6 +29,7 @@ class SettingsDatabase {
     'google_client_secret': null,
     'sync_interval_minutes': 30,
     'master_directory_path': 'scratchpad',
+    'master_directory_bookmark': null,
     'current_project_name': 'Scratchpad',
     'typewriter_enabled': 0,
     'paragraph_focus_enabled': 0,
@@ -62,7 +63,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 14, // Incremented for spell check setting
+      version: 15, // Incremented for macOS security-scoped bookmark
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -78,6 +79,7 @@ class SettingsDatabase {
         target_session_enabled INTEGER,
         focus_timer_enabled INTEGER,
         master_directory_path TEXT,
+        master_directory_bookmark TEXT,
         current_project_name TEXT,
         last_synced_time TEXT,
         page_width REAL,
@@ -181,6 +183,9 @@ class SettingsDatabase {
     }
     if (oldVersion < 14) {
       await db.execute('ALTER TABLE settings ADD COLUMN spell_check_enabled INTEGER DEFAULT 1');
+    }
+    if (oldVersion < 15) {
+      await db.execute('ALTER TABLE settings ADD COLUMN master_directory_bookmark TEXT');
     }
   }
 

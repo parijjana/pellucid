@@ -49,6 +49,10 @@ void main() {
       );
 
       await historyProvider.loadProjectStats('/test/path');
+      // The remote merge now runs in the background (unawaited) so the UI
+      // isn't blocked on the network round-trip; flush the event queue to
+      // let it complete before asserting on the merged state.
+      await pumpEventQueue();
 
       expect(historyProvider.currentProjectStats.totalWordCount, 200);
       expect(historyProvider.currentProjectStats.totalTimeSpent.inSeconds, 300);
@@ -69,6 +73,7 @@ void main() {
       );
 
       await historyProvider.loadProjectStats('/test/path');
+      await pumpEventQueue();
 
       // remains local values (150 and 120)
       expect(historyProvider.currentProjectStats.totalWordCount, 150);

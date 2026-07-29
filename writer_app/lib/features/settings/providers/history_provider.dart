@@ -100,37 +100,50 @@ class HistoryProvider extends ChangeNotifier {
       _currentProjectStats = ProjectStats();
     } else {
       _currentProjectStats = await _storageService.readProjectStats(projectPath);
-
-      if (_syncProvider != null && _syncProvider.isLoggedIn) {
-        try {
-          final normalizedPath = projectPath.replaceAll('\\', '/');
-          final projectName = normalizedPath.split('/').last;
-          final remoteContent = await _syncProvider.getLatestContent(
-            projectName: projectName,
-            fileName: 'stats',
-          );
-          if (remoteContent != null && remoteContent.trim().isNotEmpty) {
-            final remoteJson = jsonDecode(remoteContent);
-            final remoteStats = ProjectStats.fromJson(remoteJson);
-            if (remoteStats.totalTimeSpent.inSeconds > _currentProjectStats.totalTimeSpent.inSeconds ||
-                remoteStats.totalWordCount > _currentProjectStats.totalWordCount) {
-              _currentProjectStats = _currentProjectStats.copyWith(
-                totalWordCount: remoteStats.totalWordCount > _currentProjectStats.totalWordCount
-                    ? remoteStats.totalWordCount
-                    : _currentProjectStats.totalWordCount,
-                totalTimeSpent: remoteStats.totalTimeSpent.inSeconds > _currentProjectStats.totalTimeSpent.inSeconds
-                    ? remoteStats.totalTimeSpent
-                    : _currentProjectStats.totalTimeSpent,
-              );
-              await _storageService.saveProjectStats(projectPath, _currentProjectStats);
-            }
-          }
-        } catch (e) {
-          // Silent fallback on connection or parse error
-        }
-      }
+      unawaited(_mergeRemoteStats(projectPath));
     }
     notifyListeners();
+  }
+
+  /// Fetches remote stats for [projectPath] (if signed in to Drive) and merges
+  /// them in the background if they're ahead of the local values. Runs
+  /// un-awaited from [loadProjectStats] so the blocking network round-trip
+  /// never delays cold start or a project switch. Guards against the user
+  /// having switched to a different project while the fetch was in flight.
+  Future<void> _mergeRemoteStats(String projectPath) async {
+    if (_syncProvider == null || !_syncProvider.isLoggedIn) return;
+    try {
+      final normalizedPath = projectPath.replaceAll('\\', '/');
+      final projectName = normalizedPath.split('/').last;
+      final remoteContent = await _syncProvider.getLatestContent(
+        projectName: projectName,
+        fileName: 'stats',
+      );
+      // The user may have switched projects while this fetch was in flight;
+      // discard stale results rather than clobbering the now-current project.
+      if (_currentProjectPath != projectPath) return;
+      if (remoteContent != null && remoteContent.trim().isNotEmpty) {
+        final remoteJson = jsonDecode(remoteContent);
+        final remoteStats = ProjectStats.fromJson(remoteJson);
+        if (remoteStats.totalTimeSpent.inSeconds > _currentProjectStats.totalTimeSpent.inSeconds ||
+            remoteStats.totalWordCount > _currentProjectStats.totalWordCount) {
+          _currentProjectStats = _currentProjectStats.copyWith(
+            totalWordCount: remoteStats.totalWordCount > _currentProjectStats.totalWordCount
+                ? remoteStats.totalWordCount
+                : _currentProjectStats.totalWordCount,
+            totalTimeSpent: remoteStats.totalTimeSpent.inSeconds > _currentProjectStats.totalTimeSpent.inSeconds
+                ? remoteStats.totalTimeSpent
+                : _currentProjectStats.totalTimeSpent,
+          );
+          await _storageService.saveProjectStats(projectPath, _currentProjectStats);
+          if (_currentProjectPath == projectPath) {
+            notifyListeners();
+          }
+        }
+      }
+    } catch (e) {
+      // Silent fallback on connection or parse error
+    }
   }
 
   void setEditorFocus(bool focused) {

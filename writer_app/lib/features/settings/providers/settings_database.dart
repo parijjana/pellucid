@@ -37,6 +37,7 @@ class SettingsDatabase {
     'toc_word_counts_enabled': 1,
     'daily_word_goal': 0,
     'spell_check_enabled': 1,
+    'last_full_backup_time': null,
   };
 
   static final List<Map<String, dynamic>> _webHistory = [];
@@ -63,7 +64,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 15, // Incremented for macOS security-scoped bookmark
+      version: 16, // Incremented for full-library backup timestamp
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -82,6 +83,7 @@ class SettingsDatabase {
         master_directory_bookmark TEXT,
         current_project_name TEXT,
         last_synced_time TEXT,
+        last_full_backup_time TEXT,
         page_width REAL,
         horizontal_position REAL,
         zoom_level REAL,
@@ -186,6 +188,9 @@ class SettingsDatabase {
     }
     if (oldVersion < 15) {
       await db.execute('ALTER TABLE settings ADD COLUMN master_directory_bookmark TEXT');
+    }
+    if (oldVersion < 16) {
+      await db.execute('ALTER TABLE settings ADD COLUMN last_full_backup_time TEXT');
     }
   }
 

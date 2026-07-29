@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'features/sidebar/providers/notes_provider.dart';
 import 'features/sidebar/providers/note_card.dart';
 import 'features/settings/providers/settings_provider.dart';
 import 'features/settings/providers/history_provider.dart';
+import 'features/editor/providers/storage_service.dart';
 import 'features/editor/providers/sprint_controller.dart';
 import 'features/sync/providers/sync_provider.dart';
 import 'package:flutter/services.dart';
@@ -82,6 +84,32 @@ void main() async {
       child: const WriterApp(),
     ),
   );
+
+  // Full-library backup sweep: runs once at startup (if due) and then hourly so
+  // a long-running session eventually backs up once 24h elapses. Fire-and-forget
+  // so it never blocks or freezes startup/UI. One-way local -> Drive only.
+  if (!kIsWeb) {
+    _scheduleFullBackups(syncProvider, settingsProvider);
+  }
+}
+
+/// Kicks off the periodic full-backup sweep. Each invocation is a no-op unless
+/// logged in, a master directory is set, and 24h has elapsed since the last
+/// sweep, so calling it hourly is cheap and safe.
+void _scheduleFullBackups(SyncProvider sync, SettingsProvider settings) {
+  Future<void> run() async {
+    final masterPath = settings.masterDirectoryPath;
+    if (masterPath == null) return;
+    await sync.runFullBackupIfDue(
+      masterPath: masterPath,
+      storageService: StorageService(),
+    );
+  }
+
+  // Initial (background) run.
+  unawaited(run());
+  // Periodic re-check so a due sweep eventually fires within a long session.
+  Timer.periodic(const Duration(hours: 1), (_) => unawaited(run()));
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

@@ -25,6 +25,10 @@ class ProjectCard extends StatelessWidget {
   /// Optional callback to configure the word goal. Hidden when null.
   final VoidCallback? onSetGoal;
 
+  /// Optional callback to rename this project. Hidden when null (e.g. for
+  /// the protected 'User Manual' project).
+  final VoidCallback? onRename;
+
   const ProjectCard({
     super.key,
     required this.name,
@@ -37,6 +41,7 @@ class ProjectCard extends StatelessWidget {
     required this.onOpenFolder,
     this.wordGoal,
     this.onSetGoal,
+    this.onRename,
   });
 
   bool get _hasGoal => wordGoal != null && wordGoal! > 0;
@@ -136,6 +141,16 @@ class ProjectCard extends StatelessWidget {
                         child: _OpenFolderButton(theme: theme),
                       ),
                     ),
+                    if (onRename != null) ...[
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Rename Project',
+                        child: GestureDetector(
+                          onTap: onRename,
+                          child: _RenameButton(theme: theme),
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
@@ -287,6 +302,27 @@ class _OpenFolderButton extends StatelessWidget {
       ),
       child: Icon(
         Icons.folder_open,
+        size: 14,
+        color: theme.foregroundColor.withValues(alpha: 0.4),
+      ),
+    );
+  }
+}
+
+class _RenameButton extends StatelessWidget {
+  final WriterTheme theme;
+  const _RenameButton({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.foregroundColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.drive_file_rename_outline,
         size: 14,
         color: theme.foregroundColor.withValues(alpha: 0.4),
       ),

@@ -31,7 +31,7 @@ The interface uses **Whisper UI**: controls stay visually quiet until they are h
 ## Features
 
 - Markdown manuscript editor with hidden formatting markers for headings, bullets, bold, italic, and underline.
-- Multi-project dashboard backed by user-owned folders.
+- Multi-project dashboard backed by user-owned folders; rename any project from the dashboard (the folder on disk is renamed too).
 - Research notes with categories, bidirectional links, source URLs, and an attribution workflow.
 - Table of contents generated from Markdown headings, including per-section word counts.
 - Search and replace with match navigation and in-editor highlights.
@@ -77,6 +77,8 @@ Pellucid asks for a master storage folder. Each project is stored as a normal fo
 ```
 
 `document.md` is the manuscript. `notes.json` stores research notes and attributions. `stats.json` stores project totals. `categories.json` stores custom note categories. `.history/` contains rolling local manuscript snapshots.
+
+Renaming a project renames its `<ProjectName>` folder on disk. You can rename from the rename (pencil) button on a project's dashboard card, by double-tapping the project title in the header, or on macOS via the menu bar (Projects → Rename Current Project…). The seeded "User Manual" project cannot be renamed.
 
 ## Google Drive Sync
 

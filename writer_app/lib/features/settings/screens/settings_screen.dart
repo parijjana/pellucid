@@ -467,6 +467,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             theme: theme,
             wordGoal: wordGoal,
             onSetGoal: isActive ? () => _showSetGoalDialog(context, history, theme, wordGoal) : null,
+            onRename: project.name == 'User Manual'
+                ? null
+                : () => _showRenameProjectDialog(context, settings, theme, project.name),
             onTap: () async {
               final editorProvider = context.read<EditorProvider>();
               final syncProvider = context.read<SyncProvider>();
@@ -1082,6 +1085,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameProjectDialog(BuildContext context, SettingsProvider settings, WriterTheme theme, String projectName) {
+    final controller = TextEditingController(text: projectName);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.sidebarColor,
+        title: Text('Rename Project', style: TextStyle(color: theme.foregroundColor)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: theme.foregroundColor),
+          decoration: InputDecoration(
+            hintText: 'New Project Name',
+            hintStyle: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty || newName == projectName) return;
+
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              final wasCurrent = settings.currentProjectName == projectName;
+              final editorProvider = context.read<EditorProvider>();
+              final notesProvider = context.read<NotesProvider>();
+              final historyProvider = context.read<HistoryProvider>();
+
+              final ok = await settings.renameProject(projectName, newName);
+
+              if (!context.mounted) return;
+
+              if (ok) {
+                navigator.pop();
+                if (wasCurrent && mounted) {
+                  final path = settings.currentProjectPath;
+                  await editorProvider.loadProject(path);
+                  await notesProvider.loadProject(path, projectName: newName);
+                  await historyProvider.loadProjectStats(path);
+                }
+              } else {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text("Couldn't rename the project — the name may be invalid or already in use.")),
+                );
+              }
+            },
+            child: const Text('Rename'),
           ),
         ],
       ),

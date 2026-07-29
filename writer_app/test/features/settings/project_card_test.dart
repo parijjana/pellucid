@@ -53,4 +53,61 @@ void main() {
 
     expect(launched, true);
   });
+
+  testWidgets('rename button is hidden when onRename is null', (WidgetTester tester) async {
+    final theme = WriterTheme.presets.first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProjectCard(
+            name: 'User Manual',
+            wordCount: 0,
+            timeSpent: Duration.zero,
+            isActive: false,
+            theme: theme,
+            onTap: () {},
+            onLaunch: () {},
+            onOpenFolder: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.drive_file_rename_outline), findsNothing);
+    expect(find.byTooltip('Rename Project'), findsNothing);
+  });
+
+  testWidgets('rename button appears and invokes onRename when tapped', (WidgetTester tester) async {
+    bool renameTapped = false;
+    final theme = WriterTheme.presets.first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProjectCard(
+            name: 'Test Project',
+            wordCount: 100,
+            timeSpent: const Duration(minutes: 5),
+            isActive: false,
+            theme: theme,
+            onTap: () {},
+            onLaunch: () {},
+            onOpenFolder: () {},
+            onRename: () {
+              renameTapped = true;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.drive_file_rename_outline), findsOneWidget);
+    expect(find.byTooltip('Rename Project'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.drive_file_rename_outline));
+    await tester.pump(const Duration(milliseconds: 350)); // wait past double-tap timeout
+
+    expect(renameTapped, true);
+  });
 }

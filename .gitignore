@@ -54,3 +54,5 @@ agent_log/
 *.html
 .gemini/
 .env
+.env.local
+.env.*.local

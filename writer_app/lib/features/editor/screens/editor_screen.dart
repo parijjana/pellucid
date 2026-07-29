@@ -439,17 +439,15 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Actions(
         actions: <Type, Action<Intent>>{
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (_) {
-            context.read<HistoryProvider>().saveStatsNow().then((_) {
-              if (context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    settings: const RouteSettings(name: '/settings'),
-                    builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                  ),
-                );
-              }
-            });
+            // Flush stats in the background; do NOT block navigation on the Drive sync.
+            unawaited(context.read<HistoryProvider>().saveStatsNow());
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: '/settings'),
+                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+              ),
+            );
             return null;
           }),
           SetTitleIntent: CallbackAction<SetTitleIntent>(onInvoke: (_) => _applyFormat('# ')),
@@ -492,17 +490,15 @@ class _EditorScreenState extends State<EditorScreen> {
                         theme: theme,
                         onApplyFormat: _applyFormat,
                         onSettingsTap: () {
-                          context.read<HistoryProvider>().saveStatsNow().then((_) {
-                            if (context.mounted) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  settings: const RouteSettings(name: '/settings'),
-                                  builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                                ),
-                              );
-                            }
-                          });
+                          // Flush stats in the background; do NOT block navigation on the Drive sync.
+                          unawaited(context.read<HistoryProvider>().saveStatsNow());
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              settings: const RouteSettings(name: '/settings'),
+                              builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                            ),
+                          );
                         },
                       ),
                     Expanded(
@@ -635,17 +631,15 @@ class _EditorScreenState extends State<EditorScreen> {
                         uiState.setFullscreen(newValue);
                       },
                       onOpenSettings: () {
-                        context.read<HistoryProvider>().saveStatsNow().then((_) {
-                          if (context.mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                settings: const RouteSettings(name: '/settings'),
-                                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                              ),
-                            );
-                          }
-                        });
+                        // Flush stats in the background; do NOT block navigation on the Drive sync.
+                        unawaited(context.read<HistoryProvider>().saveStatsNow());
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            settings: const RouteSettings(name: '/settings'),
+                            builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                          ),
+                        );
                       },
                     ),
                   ],

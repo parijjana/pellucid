@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -603,14 +604,12 @@ class MacMenuBarWrapper extends StatelessWidget {
       state.pop();
     } else {
       final uiState = context.read<ShortcutsProvider>();
-      context.read<HistoryProvider>().saveStatsNow().then((_) {
-        if (state.mounted) {
-          state.push(MaterialPageRoute(
-            settings: const RouteSettings(name: '/settings'),
-            builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-          ));
-        }
-      });
+      // Flush stats in the background; do NOT block navigation on the Drive sync.
+      unawaited(context.read<HistoryProvider>().saveStatsNow());
+      state.push(MaterialPageRoute(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+      ));
     }
   }
 

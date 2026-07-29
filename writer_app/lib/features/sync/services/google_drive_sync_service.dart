@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -30,45 +29,11 @@ class GoogleDriveSyncService {
   static const String _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_CLIENT_ID');
   static const String _clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET', defaultValue: 'YOUR_GOOGLE_CLIENT_SECRET');
 
-  /// Keychain-backed storage for the OAuth tokens (macOS/iOS Keychain).
-  final FlutterSecureStorage _secureStorage;
-
-  GoogleDriveSyncService({FlutterSecureStorage? secureStorage})
-      : _secureStorage = secureStorage ?? const FlutterSecureStorage();
-
   drive.DriveApi? _driveApi;
 
-  /// One-time migration so already-signed-in users are NOT logged out when the
-  /// app moves the OAuth tokens from plaintext SharedPreferences into the
-  /// Keychain. If secure storage already holds a token, or the legacy prefs
-  /// have nothing, this is a cheap no-op. After a successful copy the legacy
-  /// prefs keys are deleted so tokens no longer live in plaintext.
-  Future<void> _migrateTokensIfNeeded() async {
-    final existing = await _secureStorage.read(key: _tokenKey);
-    if (existing != null) return; // Already migrated / already in Keychain.
-
-    final prefs = await SharedPreferences.getInstance();
-    final oldToken = prefs.getString(_tokenKey);
-    if (oldToken == null) return; // Nothing to migrate.
-
-    await _secureStorage.write(key: _tokenKey, value: oldToken);
-    final oldRefresh = prefs.getString(_refreshTokenKey);
-    if (oldRefresh != null) {
-      await _secureStorage.write(key: _refreshTokenKey, value: oldRefresh);
-    }
-    final oldExpiry = prefs.getInt(_expiryKey);
-    if (oldExpiry != null) {
-      await _secureStorage.write(key: _expiryKey, value: oldExpiry.toString());
-    }
-
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_refreshTokenKey);
-    await prefs.remove(_expiryKey);
-  }
-
   Future<bool> get isLoggedIn async {
-    await _migrateTokensIfNeeded();
-    return (await _secureStorage.read(key: _tokenKey)) != null;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tokenKey) != null;
   }
 
   Future<void> login({String? customClientId, String? customClientSecret}) async {
@@ -95,15 +60,12 @@ class GoogleDriveSyncService {
 
     final tokens = await helper.authenticate();
     if (tokens != null && tokens['access_token'] != null) {
-      await _secureStorage.write(key: _tokenKey, value: tokens['access_token']);
+      await prefs.setString(_tokenKey, tokens['access_token']);
       if (tokens['refresh_token'] != null) {
-        await _secureStorage.write(
-            key: _refreshTokenKey, value: tokens['refresh_token']);
+        await prefs.setString(_refreshTokenKey, tokens['refresh_token']);
       }
-      final expiresIn = (tokens['expires_in'] ?? 3600) as int;
-      final expiryMs =
-          DateTime.now().millisecondsSinceEpoch + expiresIn * 1000;
-      await _secureStorage.write(key: _expiryKey, value: expiryMs.toString());
+      final expiresIn = tokens['expires_in'] ?? 3600;
+      await prefs.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
 
       _driveApi = drive.DriveApi(GoogleAuthClient(tokens['access_token']));
     }
@@ -114,8 +76,8 @@ class GoogleDriveSyncService {
 
     // Best-effort revoke of the refresh token at Google before clearing it
     // locally, so the grant is invalidated server-side too. Failures ignored.
-    await _migrateTokensIfNeeded();
-    final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
+    final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString(_refreshTokenKey);
     if (refreshToken != null) {
       try {
         await http.post(
@@ -127,29 +89,25 @@ class GoogleDriveSyncService {
       }
     }
 
-    await _secureStorage.delete(key: _tokenKey);
-    await _secureStorage.delete(key: _refreshTokenKey);
-    await _secureStorage.delete(key: _expiryKey);
-
-    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_refreshTokenKey);
+    await prefs.remove(_expiryKey);
     await prefs.remove(_clientIdKey);
     await prefs.remove(_clientSecretKey);
   }
 
   Future<bool> _isTokenExpired() async {
-    final expiryStr = await _secureStorage.read(key: _expiryKey);
-    final expiry = expiryStr != null ? int.tryParse(expiryStr) : null;
+    final prefs = await SharedPreferences.getInstance();
+    final expiry = prefs.getInt(_expiryKey);
     if (expiry == null) return true;
     // 1-minute buffer before actual expiry
     return DateTime.now().millisecondsSinceEpoch > (expiry - 60000);
   }
 
   Future<bool> refreshAccessToken() async {
-    await _migrateTokensIfNeeded();
-    final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
-    if (refreshToken == null) return false;
-
     final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString(_refreshTokenKey);
+    if (refreshToken == null) return false;
 
     final clientId = prefs.getString(_clientIdKey) ?? _clientId;
     final clientSecret = prefs.getString(_clientSecretKey) ?? _clientSecret;
@@ -168,16 +126,13 @@ class GoogleDriveSyncService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final newAccessToken = data['access_token'];
-        final expiresIn = (data['expires_in'] ?? 3600) as int;
-        final expiryMs =
-            DateTime.now().millisecondsSinceEpoch + expiresIn * 1000;
+        final expiresIn = data['expires_in'] ?? 3600;
 
-        await _secureStorage.write(key: _tokenKey, value: newAccessToken);
-        await _secureStorage.write(key: _expiryKey, value: expiryMs.toString());
+        await prefs.setString(_tokenKey, newAccessToken);
+        await prefs.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
 
         if (data['refresh_token'] != null) {
-          await _secureStorage.write(
-              key: _refreshTokenKey, value: data['refresh_token']);
+          await prefs.setString(_refreshTokenKey, data['refresh_token']);
         }
         return true;
       }
@@ -201,9 +156,9 @@ class GoogleDriveSyncService {
     try {
       final vaultId = await _getOrCreateFolder(api, _vaultFolderName);
       final projectId = await _getOrCreateFolder(api, projectName, parentId: vaultId);
-      
+
       final existingFile = await _findFile(api, '$fileName.md', parentId: projectId);
-      
+
       final bytes = utf8.encode(content);
       final media = drive.Media(
         Stream.value(bytes),
@@ -291,9 +246,9 @@ class GoogleDriveSyncService {
       final isExpired = await _isTokenExpired();
       if (!isExpired) return _driveApi;
     }
-    
-    await _migrateTokensIfNeeded();
-    final token = await _secureStorage.read(key: _tokenKey);
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_tokenKey);
     if (token != null) {
       final isExpired = await _isTokenExpired();
       if (isExpired) {
@@ -301,7 +256,7 @@ class GoogleDriveSyncService {
         if (!success) return null;
       }
 
-      final freshToken = await _secureStorage.read(key: _tokenKey);
+      final freshToken = prefs.getString(_tokenKey);
       _driveApi = drive.DriveApi(GoogleAuthClient(freshToken!));
       return _driveApi;
     }

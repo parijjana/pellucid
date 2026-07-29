@@ -69,13 +69,14 @@ Shortcuts below are for macOS, the primary platform.
 - `Cmd + Opt + 3`: Toggle formatting toolbar.
 - `Cmd + Opt + 5`: Toggle typewriter scrolling.
 - `Cmd + Opt + 6`: Toggle paragraph focus.
-- `Cmd + Opt + Enter`: Toggle fullscreen.
+- `Cmd + Ctrl + F`: Toggle fullscreen (`Cmd + Opt + Enter` also works).
 - `Cmd + F`: Search.
 - `Cmd + Opt + N`: Add a note.
 - `Cmd + Opt + A`: Open attributions.
 - `Cmd + Opt + Shift + S`: Toggle writing sprint.
+- `Cmd + ,`: Open settings.
 
-On macOS, open settings from the system menu bar. On Windows and Linux, use `Alt` in place of `Cmd + Opt`, `Ctrl + F` for search, `Alt + 4` to open settings, and `F11` for fullscreen.
+On macOS, open settings with `Cmd + ,` (also available from the app menu bar) or `Cmd + Opt + 4`. On Windows and Linux, use `Alt` in place of `Cmd + Opt`, `Ctrl + F` for search, `Alt + 4` to open settings, and `F11` for fullscreen.
 
 ## Build Targets
 

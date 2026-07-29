@@ -13,7 +13,7 @@ Welcome to Pellucid, a distraction-free writing environment designed to let your
 Your work is automatically backed up to Google Drive. This isn't a "Black Box" - Pellucid creates a visible folder called "Pellucid Vault" in your Drive so you always own your data.
 
 How to Connect:
-1. Open Settings using the shortcut key Alt + 4 (Cmd + Opt + 4 on macOS).
+1. Open Settings using the shortcut key Alt + 4 (Cmd + Opt + 4, or Cmd + , on macOS).
 2. Select a Master Storage Folder on your local machine.
 3. Click the CONNECT button under Google Drive Backup.
 4. Complete the authorization inside your web browser. Your "Pellucid Vault" folder will be created and synchronized automatically.
@@ -28,12 +28,12 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 - Alt + 1: Toggle Table of Contents (Left Sidebar) / Cmd + Opt + 1 on macOS
 - Alt + 2: Toggle Research Notes (Right Sidebar) / Cmd + Opt + 2 on macOS
 - Alt + 3: Toggle Formatting Toolbar / Cmd + Opt + 3 on macOS
-- Alt + 4: Toggle Settings / Dashboard / Cmd + Opt + 4 on macOS
-- Alt + Enter: Toggle Fullscreen Mode (F11 also works) / Cmd + Opt + Enter on macOS
+- Alt + 4: Toggle Settings / Dashboard / Cmd + Opt + 4 on macOS (or Cmd + , on macOS)
+- Alt + Enter: Toggle Fullscreen Mode (F11 also works) / Cmd + Ctrl + F on macOS (Cmd + Opt + Enter also works)
 
 ### Text Formatting:
 - Alt + T: Format current line as Title / Cmd + Opt + T on macOS
-- Alt + H: Format current line as Header / Cmd + Opt + H on macOS
+- Alt + E: Format current line as Header / Cmd + Opt + E on macOS
 - Alt + G: Format current line as Body text / Cmd + Opt + G on macOS
 - Alt + L: Format current line as Bullet point / Cmd + Opt + L on macOS
 - Ctrl + B: Toggle Bold on selection / Cmd + B on macOS

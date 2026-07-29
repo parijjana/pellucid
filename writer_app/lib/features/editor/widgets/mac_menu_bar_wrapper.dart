@@ -143,7 +143,8 @@ class MacMenuBarWrapper extends StatelessWidget {
     );
 
     // 2. Create the new project
-    await settings.createProject(name);
+    final success = await settings.createProject(name);
+    if (!success) return;
 
     // 3. Load the new project data
     final path = settings.currentProjectPath;

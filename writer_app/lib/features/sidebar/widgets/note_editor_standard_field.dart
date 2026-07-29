@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../editor/providers/theme_provider.dart';
+import 'safe_url.dart';
 
 class NoteEditorStandardField extends StatelessWidget {
   final TextEditingController titleController;
@@ -97,8 +98,7 @@ class NoteEditorStandardField extends StatelessWidget {
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
                 onTap: () async {
-                  final trimmedUrl = sourceUrl.trim();
-                  final uri = Uri.tryParse(trimmedUrl);
+                  final uri = safeHttpUri(sourceUrl);
                   if (uri != null && await canLaunchUrl(uri)) {
                     await launchUrl(uri);
                   }

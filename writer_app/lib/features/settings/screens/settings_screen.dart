@@ -1070,8 +1070,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
                 );
-                await settings.createProject(controller.text);
-                if (mounted) {
+                final success = await settings.createProject(controller.text);
+                if (success && mounted) {
                   final path = settings.currentProjectPath;
                   await editorProvider.loadProject(path);
                   await notesProvider.loadProject(path, projectName: controller.text);

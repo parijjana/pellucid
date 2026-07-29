@@ -19,6 +19,30 @@ class StorageService {
 
   static const String userManualContent = manual_seed.userManualContent;
 
+  static const int maxProjectNameLength = 100;
+
+  // Allowlist: letters, digits, spaces, underscore, hyphen, and dot. This
+  // implicitly excludes path separators ('/', '\'), NUL and other control
+  // characters, and any other characters that could be abused when the name
+  // is interpolated directly into a filesystem path or Drive folder name.
+  static final RegExp _validProjectNamePattern = RegExp(r'^[A-Za-z0-9 _.-]+$');
+
+  /// Returns true iff [name] is safe to use as a project (directory) name.
+  ///
+  /// A name is invalid if, after trimming, it is empty; equals `.` or `..`;
+  /// starts with `.`; contains a path separator, control character, or NUL;
+  /// contains any character outside the allowlist; or exceeds
+  /// [maxProjectNameLength] characters. Pure and side-effect free.
+  static bool isValidProjectName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed.length > maxProjectNameLength) return false;
+    if (trimmed == '.' || trimmed == '..') return false;
+    if (trimmed.startsWith('.')) return false;
+    if (!_validProjectNamePattern.hasMatch(trimmed)) return false;
+    return true;
+  }
+
   StorageService({FileSystem? fileSystem, LocalSnapshotStore? snapshotStore})
       : _fileSystem = fileSystem ?? const LocalFileSystem(),
         _snapshotStore = snapshotStore ?? LocalSnapshotStore(fileSystem ?? const LocalFileSystem());
@@ -41,6 +65,7 @@ class StorageService {
   }
 
   Future<void> initProject(String masterPath, String projectName, {String initialContent = ''}) async {
+    if (!isValidProjectName(projectName)) return;
     final projectDir = _fileSystem.directory('$masterPath/$projectName');
     if (!await projectDir.exists()) {
       await projectDir.create(recursive: true);
@@ -156,6 +181,7 @@ class StorageService {
   Future<String> readLocalSnapshot(String filePath) => _snapshotStore.readSnapshot(filePath);
 
   Future<bool> renameProject(String masterPath, String oldName, String newName) async {
+    if (!isValidProjectName(newName)) return false;
     final oldDir = _fileSystem.directory('$masterPath/$oldName');
     final newDir = _fileSystem.directory('$masterPath/$newName');
     if (await newDir.exists()) {

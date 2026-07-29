@@ -69,8 +69,27 @@ void main() {
       final success = await settingsProvider.renameProject('My Project', 'Renamed Project');
       expect(success, true);
       expect(settingsProvider.currentProjectName, 'Renamed Project');
-      
+
       verify(() => mockSettingsDatabase.updateSetting('current_project_name', 'Renamed Project')).called(1);
+    });
+
+    test('SettingsProvider.createProject rejects a path-traversal name and does not touch disk', () async {
+      await settingsProvider.setMasterDirectory('/master');
+
+      final success = await settingsProvider.createProject('../evil');
+      expect(success, false);
+      expect(await fileSystem.directory('/master/../evil').exists(), false);
+      expect(settingsProvider.currentProjectName, isNot('../evil'));
+    });
+
+    test('SettingsProvider.renameProject rejects an invalid new name and leaves the project untouched', () async {
+      await settingsProvider.setMasterDirectory('/master');
+      await settingsProvider.createProject('My Project');
+
+      final success = await settingsProvider.renameProject('My Project', '.hidden');
+      expect(success, false);
+      expect(await fileSystem.directory('/master/My Project').exists(), true);
+      expect(settingsProvider.currentProjectName, 'My Project');
     });
   });
 

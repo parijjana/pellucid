@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/note_card.dart';
 import '../../editor/providers/theme_provider.dart';
+import 'safe_url.dart';
 
 class NoteEditorAttributionListItem extends StatelessWidget {
   final AttributionItem item;
@@ -91,7 +92,7 @@ class NoteEditorAttributionListItem extends StatelessWidget {
                 IconButton(
                   icon: Icon(Icons.open_in_new, size: 16, color: theme.foregroundColor.withValues(alpha: 0.6)),
                   onPressed: () async {
-                    final uri = Uri.tryParse(textUrl);
+                    final uri = safeHttpUri(textUrl);
                     if (uri != null && await canLaunchUrl(uri)) {
                       await launchUrl(uri);
                     }

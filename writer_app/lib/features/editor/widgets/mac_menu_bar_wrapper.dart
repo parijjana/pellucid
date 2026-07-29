@@ -12,6 +12,7 @@ import '../providers/shortcuts_provider.dart';
 import '../widgets/shortcuts.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/providers/history_provider.dart';
+import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../services/export_service.dart';
@@ -201,6 +202,10 @@ class MacMenuBarWrapper extends StatelessWidget {
                 PlatformMenuItem(
                   label: 'About Pellucid',
                   onSelected: () => _showAboutDialog(_getBestContext(context)),
+                ),
+                PlatformMenuItem(
+                  label: 'Settings...',
+                  onSelected: () => _openSettings(_getBestContext(context)),
                 ),
                 const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.hide),
                 const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.hideOtherApplications),
@@ -457,7 +462,7 @@ class MacMenuBarWrapper extends StatelessWidget {
                 const PlatformMenuItemGroup(members: []),
                 PlatformMenuItem(
                   label: 'Toggle Full Screen',
-                  shortcut: const SingleActivator(LogicalKeyboardKey.enter, alt: true, meta: true),
+                  shortcut: const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true),
                   onSelected: () {
                     final contextNode = FocusManager.instance.primaryFocus?.context;
                     if (contextNode != null) {
@@ -578,6 +583,34 @@ class MacMenuBarWrapper extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _openSettings(BuildContext context) {
+    // Mirrors the non-macOS branch of OpenSettingsIntent's handler in main.dart
+    // (the actual settings navigation path), since on macOS that action's
+    // onInvoke short-circuits to a snackbar telling the user to use this menu.
+    final state = navigatorKey.currentState;
+    if (state == null) return;
+
+    bool isSettingsOpen = false;
+    state.popUntil((route) {
+      if (route.settings.name == '/settings') isSettingsOpen = true;
+      return true;
+    });
+
+    if (isSettingsOpen) {
+      state.pop();
+    } else {
+      final uiState = context.read<ShortcutsProvider>();
+      context.read<HistoryProvider>().saveStatsNow().then((_) {
+        if (state.mounted) {
+          state.push(MaterialPageRoute(
+            settings: const RouteSettings(name: '/settings'),
+            builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+          ));
+        }
+      });
+    }
   }
 
   void _showAboutDialog(BuildContext context) {

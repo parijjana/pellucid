@@ -2,6 +2,7 @@
 // Description: Unit tests for SettingsProvider (TDD).
 // TestID: TEST-20260517-115000-0004
 
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:pellucid/features/settings/providers/settings_provider.dart';
@@ -112,13 +113,24 @@ void main() {
           .thenAnswer((_) async => ProjectStats(totalWordCount: 100, totalTimeSpent: Duration.zero));
 
       await settingsProvider.loadSettings();
-      
+
       expect(settingsProvider.clockEnabled, true);
       expect(settingsProvider.focusTimerEnabled, true);
       expect(settingsProvider.batteryGuardEnabled, false);
       expect(settingsProvider.batteryAlertThreshold, 15);
       expect(settingsProvider.showBatteryPercentage, false);
-      expect(settingsProvider.masterDirectoryPath, '/persisted/path');
+      // App Sandbox migration (DB v14 -> v15): a `master_directory_path` that was
+      // persisted (e.g. by a pre-sandbox build) with no accompanying
+      // `master_directory_bookmark` grants no filesystem access under the macOS
+      // App Sandbox. loadSettings treats that as unusable and nulls the path so
+      // the UI prompts the user to re-select the folder (which mints a fresh
+      // security-scoped bookmark). On non-macOS platforms there is no sandbox
+      // bookmark requirement, so the persisted raw path loads unchanged.
+      if (Platform.isMacOS) {
+        expect(settingsProvider.masterDirectoryPath, isNull);
+      } else {
+        expect(settingsProvider.masterDirectoryPath, '/persisted/path');
+      }
       expect(settingsProvider.currentProjectName, 'Old Project');
       expect(settingsProvider.syncIntervalMinutes, 15);
     });

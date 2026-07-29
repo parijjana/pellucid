@@ -45,17 +45,17 @@ The interface uses **Whisper UI**: controls stay visually quiet until they are h
 
 ## Quick Start
 
-```powershell
+```bash
 cd writer_app
 flutter pub get
-flutter run -d windows
+flutter run -d macos
 ```
 
-Use another Flutter device id if you are targeting a different platform.
+Use another Flutter device id (for example `-d windows`) if you are targeting a different platform.
 
 ## Test And Analyze
 
-```powershell
+```bash
 cd writer_app
 flutter test
 flutter analyze
@@ -80,7 +80,7 @@ Pellucid asks for a master storage folder. Each project is stored as a normal fo
 
 ## Google Drive Sync
 
-Google Drive sync is optional. When connected, Pellucid creates a visible `Pellucid Vault` folder in Drive and stores project backups there. The app supports custom OAuth credentials from settings, and the cloud auto-sync interval can be adjusted from the dashboard.
+Google Drive sync is optional. When connected, Pellucid creates a visible `Pellucid Vault` folder in Drive and stores project backups there. It syncs the file you are editing as you work, and periodically backs up your whole library. The cloud auto-sync interval can be adjusted from the dashboard.
 
 Local autosave and local snapshots work without Google Drive.
 

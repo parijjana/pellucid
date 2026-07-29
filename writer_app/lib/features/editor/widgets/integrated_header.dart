@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import '../providers/theme_provider.dart';
+import '../screenshot_mode.dart';
 
 class IntegratedHeader extends StatefulWidget {
   final WriterTheme theme;
@@ -79,7 +80,9 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
     Color dragAreaColor = Colors.transparent;
 
     final bool isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = kScreenshotCaptureMode
+        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
+        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
 
     return Container(
       height: 40,
@@ -103,14 +106,26 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
                 color: Colors.transparent,
               ),
             ),
-          if (isDesktop && widget.showWindowControls && !Platform.isMacOS)
+          if (isDesktop && widget.showWindowControls && !Platform.isMacOS && !kScreenshotCaptureMode)
             WindowCaption(
-              brightness: widget.theme.backgroundColor.computeLuminance() > 0.5 
-                  ? Brightness.light 
+              brightness: widget.theme.backgroundColor.computeLuminance() > 0.5
+                  ? Brightness.light
                   : Brightness.dark,
               backgroundColor: Colors.transparent,
             ),
-          
+          // Screenshot harness only: the real native macOS traffic lights are drawn
+          // by the OS window and never composited into the off-screen raster, so the
+          // Mac App Store set would otherwise be missing them. Draw synthetic ones for
+          // the macOS target, and nothing for every other store (keeps Apple controls
+          // out of the Windows/iOS/Android shots). Inert when not capturing.
+          if (kScreenshotCaptureMode && kScreenshotWindowControls == ScreenshotWindowControls.macOS)
+            const Positioned(
+              left: 20,
+              top: 0,
+              bottom: 0,
+              child: Center(child: _CaptureTrafficLights()),
+            ),
+
           // Action Button (Left)
           if (!isMobilePhone)
             Positioned(
@@ -122,7 +137,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
                 onExit: (_) => setState(() => _isActionHovered = false),
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
-                  opacity: _isActionHovered ? 1.0 : 0.2,
+                  opacity: (_isActionHovered || kScreenshotCaptureMode) ? 1.0 : 0.2,
                   child: widget.actionButton,
                 ),
               ),
@@ -169,7 +184,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
                         onExit: (_) => setState(() => _isTitleHovered = false),
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 200),
-                          opacity: _isTitleHovered ? 1.0 : 0.15,
+                          opacity: (_isTitleHovered || kScreenshotCaptureMode) ? 1.0 : 0.15,
                           child: Text(
                             widget.projectName!.toUpperCase(),
                             style: TextStyle(
@@ -184,6 +199,44 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
                     ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Screenshot-harness-only synthetic macOS traffic lights (close/minimize/zoom).
+/// Never used by the shipped app — only composited into the Mac App Store shots,
+/// where the real OS-drawn controls fall outside the off-screen raster.
+class _CaptureTrafficLights extends StatelessWidget {
+  const _CaptureTrafficLights();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: const [
+        _TrafficDot(Color(0xFFFF5F57)),
+        SizedBox(width: 8),
+        _TrafficDot(Color(0xFFFEBC2E)),
+        SizedBox(width: 8),
+        _TrafficDot(Color(0xFF28C840)),
+      ],
+    );
+  }
+}
+
+class _TrafficDot extends StatelessWidget {
+  final Color color;
+  const _TrafficDot(this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
       ),
     );
   }

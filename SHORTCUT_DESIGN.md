@@ -33,10 +33,10 @@ Major layout panels are mapped to neighboring number keys.
 | **Table of Contents** | Toggle Left Sidebar | `Alt + 1` | `Cmd + Opt + 1` |
 | **Notes Sidebar** | Toggle Right Sidebar | `Alt + 2` | `Cmd + Opt + 2` |
 | **Formatting Bar** | Toggle Floating Toolbar | `Alt + 3` | `Cmd + Opt + 3` |
-| **Dashboard** | Open Settings | `Alt + 4` | `Cmd + Opt + 4` |
+| **Dashboard** | Open Settings | `Alt + 4` | `Cmd + Opt + 4` OR **`Cmd + ,`** (standard macOS Preferences) |
 | **Editor** | Toggle Typewriter Scrolling | `Alt + 5` | `Cmd + Opt + 5` |
 | **Editor** | Toggle Paragraph Focus | `Alt + 6` | `Cmd + Opt + 6` |
-| **Fullscreen** | Toggle Fullscreen | `F11` OR **`Alt + Enter`** | `Cmd + Ctrl + F` OR **`Cmd + Opt + Enter`** |
+| **Fullscreen** | Toggle Fullscreen | `F11` OR **`Alt + Enter`** | **`Cmd + Ctrl + F`** OR `Cmd + Opt + Enter` |
 
 ---
 

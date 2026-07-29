@@ -15,6 +15,7 @@ import '../../editor/widgets/shortcuts.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/providers/history_provider.dart';
+import '../../editor/screenshot_mode.dart';
 
 class NotesSidebar extends StatefulWidget {
   const NotesSidebar({super.key});
@@ -259,7 +260,7 @@ class _GhostIconButtonState extends State<_GhostIconButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
-        opacity: _isHovered ? 1.0 : 0.2,
+        opacity: (_isHovered || kScreenshotCaptureMode) ? 1.0 : 0.2,
         child: IconButton(
           icon: Icon(widget.icon, size: 16, color: widget.theme.foregroundColor),
           onPressed: widget.onPressed,

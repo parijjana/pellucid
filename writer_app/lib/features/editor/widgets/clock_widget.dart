@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import 'alarm_setter_dialog.dart';
+import '../screenshot_mode.dart';
 
 class ClockWidget extends StatefulWidget {
   final WriterTheme theme;
@@ -57,7 +58,7 @@ class _ClockWidgetState extends State<ClockWidget> with SingleTickerProviderStat
           }
         },
         child: AnimatedOpacity(
-          opacity: _isHovered || widget.isPeeked || settings.isAlarmTriggered ? 1.0 : 0.2,
+          opacity: _isHovered || widget.isPeeked || settings.isAlarmTriggered || kScreenshotCaptureMode ? 1.0 : 0.2,
           duration: const Duration(milliseconds: 200),
           child: Row(
             mainAxisSize: MainAxisSize.min,

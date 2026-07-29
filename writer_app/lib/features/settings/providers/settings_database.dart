@@ -29,6 +29,7 @@ class SettingsDatabase {
     'google_client_secret': null,
     'sync_interval_minutes': 30,
     'master_directory_path': 'scratchpad',
+    'master_directory_bookmark': null,
     'current_project_name': 'Scratchpad',
     'typewriter_enabled': 0,
     'paragraph_focus_enabled': 0,
@@ -36,6 +37,7 @@ class SettingsDatabase {
     'toc_word_counts_enabled': 1,
     'daily_word_goal': 0,
     'spell_check_enabled': 1,
+    'last_full_backup_time': null,
   };
 
   static final List<Map<String, dynamic>> _webHistory = [];
@@ -62,7 +64,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 14, // Incremented for spell check setting
+      version: 16, // Incremented for full-library backup timestamp
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -78,8 +80,10 @@ class SettingsDatabase {
         target_session_enabled INTEGER,
         focus_timer_enabled INTEGER,
         master_directory_path TEXT,
+        master_directory_bookmark TEXT,
         current_project_name TEXT,
         last_synced_time TEXT,
+        last_full_backup_time TEXT,
         page_width REAL,
         horizontal_position REAL,
         zoom_level REAL,
@@ -181,6 +185,12 @@ class SettingsDatabase {
     }
     if (oldVersion < 14) {
       await db.execute('ALTER TABLE settings ADD COLUMN spell_check_enabled INTEGER DEFAULT 1');
+    }
+    if (oldVersion < 15) {
+      await db.execute('ALTER TABLE settings ADD COLUMN master_directory_bookmark TEXT');
+    }
+    if (oldVersion < 16) {
+      await db.execute('ALTER TABLE settings ADD COLUMN last_full_backup_time TEXT');
     }
   }
 

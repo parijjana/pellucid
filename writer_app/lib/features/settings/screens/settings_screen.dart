@@ -40,15 +40,12 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _exportService = ExportService();
   final _searchController = TextEditingController();
-  final _clientIdController = TextEditingController();
-  final _clientSecretController = TextEditingController();
   ProjectSort _sortType = ProjectSort.date;
   bool _invertSort = false;
 
   bool _isSetupExpanded = true;
   bool _isProjectsExpanded = true;
   bool _isStatsExpanded = true;
-  bool _showAdvancedCredentials = false;
 
   @override
   void initState() {
@@ -58,26 +55,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         context.read<SettingsProvider>().refreshProjects();
       }
     });
-    final settings = context.read<SettingsProvider>();
-    _clientIdController.text = settings.googleClientId ?? '';
-    _clientSecretController.text = settings.googleClientSecret ?? '';
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _clientIdController.dispose();
-    _clientSecretController.dispose();
     super.dispose();
   }
 
   Future<void> _handleSyncLogin(SyncProvider sync) async {
     try {
       final settings = context.read<SettingsProvider>();
-      final success = await sync.login(
-        clientId: settings.googleClientId,
-        clientSecret: settings.googleClientSecret,
-      );
+      final success = await sync.login();
       if (success && mounted) {
         final editor = context.read<EditorProvider>();
         final notes = context.read<NotesProvider>();
@@ -280,7 +269,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.3), fontSize: 11, fontStyle: FontStyle.italic)),
                           ],
                           _buildSyncIntervalSection(settings, theme),
-                          _buildAdvancedCredentialsSection(settings, theme),
                           const SizedBox(height: 32),
                           if (!isMobilePlatform) ...[
                             _subHeader('Focus & Productivity', theme),
@@ -1097,146 +1085,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildAdvancedCredentialsSection(SettingsProvider settings, WriterTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        InkWell(
-          onTap: () => setState(() => _showAdvancedCredentials = !_showAdvancedCredentials),
-          borderRadius: BorderRadius.circular(4),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _showAdvancedCredentials ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                  size: 16,
-                  color: theme.foregroundColor.withValues(alpha: 0.3),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'ADVANCED OAUTH CREDENTIALS',
-                  style: TextStyle(
-                    color: theme.foregroundColor.withValues(alpha: 0.3),
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (_showAdvancedCredentials) ...[
-          const SizedBox(height: 16),
-          _buildCredentialField(
-            label: 'GOOGLE CLIENT ID',
-            controller: _clientIdController,
-            theme: theme,
-          ),
-          const SizedBox(height: 12),
-          _buildCredentialField(
-            label: 'GOOGLE CLIENT SECRET',
-            controller: _clientSecretController,
-            theme: theme,
-            obscure: true,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: () async {
-                  final cid = _clientIdController.text.trim();
-                  final csec = _clientSecretController.text.trim();
-                  await settings.setGoogleCredentials(
-                    cid.isEmpty ? null : cid,
-                    csec.isEmpty ? null : csec,
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('OAuth credentials updated.')),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.foregroundColor.withValues(alpha: 0.05),
-                  foregroundColor: theme.foregroundColor,
-                  elevation: 0,
-                ),
-                child: const Text('SAVE CREDENTIALS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 12),
-              if (settings.googleClientId != null || settings.googleClientSecret != null)
-                TextButton(
-                  onPressed: () async {
-                    _clientIdController.clear();
-                    _clientSecretController.clear();
-                    await settings.setGoogleCredentials(null, null);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('OAuth credentials reset to defaults.')),
-                      );
-                    }
-                  },
-                  child: Text(
-                    'RESET',
-                    style: TextStyle(
-                      color: theme.foregroundColor.withValues(alpha: 0.3),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCredentialField({
-    required String label,
-    required TextEditingController controller,
-    required WriterTheme theme,
-    bool obscure = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: theme.foregroundColor.withValues(alpha: 0.4),
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: theme.sidebarColor.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: theme.foregroundColor.withValues(alpha: 0.05)),
-          ),
-          child: TextField(
-            controller: controller,
-            obscureText: obscure,
-            style: TextStyle(color: theme.foregroundColor, fontSize: 13),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 8),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

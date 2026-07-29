@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'features/sidebar/providers/notes_provider.dart';
 import 'features/sidebar/providers/note_card.dart';
 import 'features/settings/providers/settings_provider.dart';
 import 'features/settings/providers/history_provider.dart';
+import 'features/editor/providers/storage_service.dart';
 import 'features/editor/providers/sprint_controller.dart';
 import 'features/sync/providers/sync_provider.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +24,7 @@ import 'features/sidebar/widgets/note_editor_dialog.dart';
 import 'features/editor/widgets/alarm_setter_dialog.dart';
 import 'features/search/providers/search_provider.dart';
 import 'features/editor/widgets/mac_menu_bar_wrapper.dart';
+import 'features/editor/screenshot_mode.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +84,32 @@ void main() async {
       child: const WriterApp(),
     ),
   );
+
+  // Full-library backup sweep: runs once at startup (if due) and then hourly so
+  // a long-running session eventually backs up once 24h elapses. Fire-and-forget
+  // so it never blocks or freezes startup/UI. One-way local -> Drive only.
+  if (!kIsWeb) {
+    _scheduleFullBackups(syncProvider, settingsProvider);
+  }
+}
+
+/// Kicks off the periodic full-backup sweep. Each invocation is a no-op unless
+/// logged in, a master directory is set, and 24h has elapsed since the last
+/// sweep, so calling it hourly is cheap and safe.
+void _scheduleFullBackups(SyncProvider sync, SettingsProvider settings) {
+  Future<void> run() async {
+    final masterPath = settings.masterDirectoryPath;
+    if (masterPath == null) return;
+    await sync.runFullBackupIfDue(
+      masterPath: masterPath,
+      storageService: StorageService(),
+    );
+  }
+
+  // Initial (background) run.
+  unawaited(run());
+  // Periodic re-check so a due sweep eventually fires within a long session.
+  Timer.periodic(const Duration(hours: 1), (_) => unawaited(run()));
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -98,10 +127,16 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.digit2, alt: true, meta: isMac): const ToggleNotesIntent(),
         SingleActivator(LogicalKeyboardKey.digit3, alt: true, meta: isMac): const ToggleToolbarIntent(),
         SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.comma, meta: isMac, control: !isMac): const OpenSettingsIntent(),
         SingleActivator(LogicalKeyboardKey.digit5, alt: true, meta: isMac): const ToggleTypewriterIntent(),
         SingleActivator(LogicalKeyboardKey.digit6, alt: true, meta: isMac): const ToggleParagraphFocusIntent(),
         const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.enter, alt: true, meta: isMac): const ToggleFullscreenIntent(),
+        // macOS-only: standard Cmd+Ctrl+F fullscreen convention. Gated to isMac
+        // because on Windows/Linux this activator (control: true, meta: false)
+        // would otherwise be structurally identical to the Ctrl+F search
+        // shortcut below and silently overwrite it as a map key.
+        if (isMac) const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.keyC, alt: true, meta: isMac): const PeekClockIntent(),
         SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: isMac, shift: true): const SetAlarmIntent(),
         SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: isMac): const PeekSessionIntent(),
@@ -231,15 +266,6 @@ class WriterApp extends StatelessWidget {
             return null;
           }),
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (intent) {
-            if (Platform.isMacOS) {
-              final ctx = navigatorKey.currentContext;
-              if (ctx != null) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Settings are located in the top macOS System Menu Bar.'))
-                );
-              }
-              return null;
-            }
             final state = navigatorKey.currentState;
             if (state == null) return null;
 
@@ -301,7 +327,12 @@ class WriterApp extends StatelessWidget {
               if (bypassedKeys.contains(event.logicalKey)) {
                 return KeyEventResult.ignored;
               }
-              if (HardwareKeyboard.instance.isAltPressed || (isMac && HardwareKeyboard.instance.isMetaPressed)) {
+              // Only swallow Alt-modified combos here (Win/Linux Alt shortcuts,
+              // and macOS Cmd+Opt combos which also carry isAltPressed).
+              // Plain macOS Cmd+<key> (meta without alt) is left ignored so
+              // native menu items (Quit/Close/Minimize/Hide/Preferences, i.e.
+              // Cmd+Q/W/M/H/,) can still be handled by AppKit's main menu.
+              if (HardwareKeyboard.instance.isAltPressed) {
                 return KeyEventResult.handled;
               }
             }
@@ -328,7 +359,9 @@ class WriterApp extends StatelessWidget {
               ),
               home: const EditorScreen(),
               builder: (context, child) {
-                final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+                final bool isMobilePhone = kScreenshotCaptureMode
+                    ? kScreenshotLayout == ScreenshotLayout.mobilePhone
+                    : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
                 return Consumer<SettingsProvider>(
                   builder: (context, settings, _) {
                     return GlowingBorder(

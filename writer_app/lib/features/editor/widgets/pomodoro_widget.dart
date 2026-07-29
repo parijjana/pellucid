@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
+import '../screenshot_mode.dart';
 
 class PomodoroWidget extends StatefulWidget {
   final WriterTheme theme;
@@ -38,7 +39,7 @@ class _PomodoroWidgetState extends State<PomodoroWidget> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedOpacity(
-        opacity: _isHovered ? 1.0 : 0.3,
+        opacity: (_isHovered || kScreenshotCaptureMode) ? 1.0 : 0.3,
         duration: const Duration(milliseconds: 200),
         child: Row(
           mainAxisSize: MainAxisSize.min,

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file/memory.dart';
+import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'settings_database.dart';
 import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
@@ -21,6 +22,11 @@ class ProjectInfo {
 class SettingsProvider extends ChangeNotifier {
   final SettingsDatabase _db;
   final StorageService _storageService;
+
+  // macOS security-scoped bookmarks: under the App Sandbox a raw path grants no
+  // access after relaunch, so we persist a bookmark for the master folder and
+  // resolve it on load. Stateless singleton; only invoked on macOS.
+  final SecureBookmarks _bookmarks = SecureBookmarks();
 
   // Clock Settings
   bool _clockEnabled = false;
@@ -106,6 +112,29 @@ class SettingsProvider extends ChangeNotifier {
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
+
+    // On macOS (App Sandbox) a raw path grants no access after relaunch. Resolve
+    // the security-scoped bookmark saved when the folder was picked, begin
+    // accessing it, and hold that access for the app's lifetime (never stop).
+    if (!kIsWeb && Platform.isMacOS) {
+      final String? bookmark = settings['master_directory_bookmark'] as String?;
+      if (bookmark != null && bookmark.isNotEmpty) {
+        try {
+          final resolved =
+              await _bookmarks.resolveBookmark(bookmark, isDirectory: true);
+          await _bookmarks.startAccessingSecurityScopedResource(resolved);
+          _masterDirectoryPath = resolved.path;
+        } catch (e) {
+          // Stale/invalid bookmark: treat as no folder so the UI prompts
+          // re-selection rather than failing to read an inaccessible path.
+          _masterDirectoryPath = null;
+        }
+      } else if (_masterDirectoryPath != null) {
+        // A path persisted by a pre-sandbox build but no bookmark exists. Under
+        // the sandbox that path is unusable, so force re-selection.
+        _masterDirectoryPath = null;
+      }
+    }
 
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS) && _masterDirectoryPath == null) {
       final docDir = await getApplicationDocumentsDirectory();
@@ -263,6 +292,25 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setMasterDirectory(String? path) async {
     _masterDirectoryPath = path;
     _db.updateSetting('master_directory_path', path);
+
+    // On macOS (App Sandbox) persist a security-scoped bookmark so we can regain
+    // access to this folder after relaunch. The just-picked folder is already
+    // accessible this session, so no startAccessing call is needed here. Other
+    // platforms keep the raw-path behavior unchanged.
+    if (!kIsWeb && Platform.isMacOS) {
+      if (path != null) {
+        try {
+          final bookmark = await _bookmarks.bookmark(Directory(path));
+          await _db.updateSetting('master_directory_bookmark', bookmark);
+        } catch (e) {
+          // If bookmark creation fails, clear any stale value.
+          await _db.updateSetting('master_directory_bookmark', null);
+        }
+      } else {
+        await _db.updateSetting('master_directory_bookmark', null);
+      }
+    }
+
     if (path != null) {
       // Auto-seed User Manual
       await _storageService.initProject(

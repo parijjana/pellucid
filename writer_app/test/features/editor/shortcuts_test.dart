@@ -288,6 +288,100 @@ void main() {
     expect(realShortcuts.isFullscreen, isTrue);
   });
 
+  testWidgets('Fullscreen toggle triggers correctly when Ctrl+Cmd+F is pressed on macOS', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const WriterApp(),
+      ),
+    );
+
+    // Focus the TextField directly
+    final TextField textField = tester.widget<TextField>(find.byType(TextField));
+    textField.focusNode!.requestFocus();
+    await tester.pumpAndSettle();
+
+    expect(realShortcuts.isFullscreen, isFalse);
+
+    // Press Control+Cmd+F (macOS-only fullscreen convention, in addition to
+    // F11 and Cmd+Opt+Enter). control: true, meta: true is only registered
+    // as a ToggleFullscreenIntent activator when isMac is true.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(realShortcuts.isFullscreen, isTrue);
+  }, skip: !Platform.isMacOS);
+
+  testWidgets('Plain Cmd+Q is not swallowed by the app (so native Quit can handle it), while Cmd+Opt+1 is', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const WriterApp(),
+      ),
+    );
+
+    // Focus the TextField directly
+    final TextField textField = tester.widget<TextField>(find.byType(TextField));
+    textField.focusNode!.requestFocus();
+    await tester.pumpAndSettle();
+
+    expect(realShortcuts.isLeftSidebarOpen, isFalse);
+
+    // Plain Cmd+Q (meta, no alt) must NOT be consumed anywhere in the app's
+    // Shortcuts/Focus tree: main.dart's top-level Focus.onKeyEvent now only
+    // swallows combos when isAltPressed, specifically so AppKit's native
+    // Quit/Close/Minimize/Hide/Preferences menu items keep working.
+    // sendKeyDownEvent's return value reflects whether any handler in the
+    // framework marked the key event handled.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    final bool qHandled = await tester.sendKeyDownEvent(LogicalKeyboardKey.keyQ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyQ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pumpAndSettle();
+
+    expect(qHandled, isFalse,
+        reason: 'Plain Cmd+Q must be left unhandled so the native menu can Quit.');
+    // No app-level side effect either.
+    expect(realShortcuts.isLeftSidebarOpen, isFalse);
+
+    // A real app shortcut (Cmd+Opt+1, alt-modified) must still be consumed.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    final bool oneHandled = await tester.sendKeyDownEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+
+    expect(oneHandled, isTrue,
+        reason: 'Alt-modified app shortcuts like Cmd+Opt+1 must still be handled.');
+    expect(realShortcuts.isLeftSidebarOpen, isTrue);
+  }, skip: !Platform.isMacOS);
+
   testWidgets('Keyboard shortcuts Alt+A, Alt+Shift+A, and double Alt tap work correctly', (WidgetTester tester) async {
     // Stub mockNotes methods for attribution
     final mockNoteCard = NoteCard(
@@ -389,16 +483,65 @@ void main() {
     // Open settings
     await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
 
-    if (Platform.isMacOS) {
-      expect(find.byType(SettingsScreen), findsNothing);
-      expect(find.byType(SnackBar), findsOneWidget);
-    } else {
-      expect(find.byType(SettingsScreen), findsOneWidget);
+    // Cmd+Opt+4 (macOS) / Alt+4 (other platforms) opens the real SettingsScreen
+    // on every platform, including macOS.
+    expect(find.byType(SettingsScreen), findsOneWidget);
 
-      // Close settings
-      await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
-      expect(find.byType(SettingsScreen), findsNothing);
+    // Close settings
+    await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
+    expect(find.byType(SettingsScreen), findsNothing);
+  });
+
+  testWidgets('Cmd+, (macOS) / Ctrl+, (other platforms) opens the Settings screen', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const WriterApp(),
+      ),
+    );
+
+    // Focus the TextField directly via its focusNode to avoid off-screen tap issues
+    final TextField textField = tester.widget<TextField>(find.byType(TextField));
+    textField.focusNode!.requestFocus();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsScreen), findsNothing);
+
+    final bool isMac = Platform.isMacOS;
+
+    Future<void> pressComma() async {
+      if (isMac) {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      } else {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      }
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.comma);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.comma);
+      if (isMac) {
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      } else {
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      }
+      await tester.pumpAndSettle();
     }
+
+    // Open settings via Cmd+,/Ctrl+,
+    await pressComma();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+
+    // Close settings via the same shortcut
+    await pressComma();
+    expect(find.byType(SettingsScreen), findsNothing);
   });
 
   testWidgets('Settings screen shortcut toggles settings screen open and closed even when search text field has focus', (WidgetTester tester) async {
@@ -432,31 +575,26 @@ void main() {
     // Open settings
     await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
 
-    if (Platform.isMacOS) {
-      expect(find.byType(SettingsScreen), findsNothing);
-      expect(find.byType(SnackBar), findsOneWidget);
-    } else {
-      expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
 
-      // Find the search TextField on the settings screen and focus it
-      final searchFinder = find.descendant(
-        of: find.byType(SettingsScreen),
-        matching: find.byType(TextField),
-      ).first;
-      await tester.ensureVisible(searchFinder);
-      await tester.tap(searchFinder);
-      await tester.pumpAndSettle();
+    // Find the search TextField on the settings screen and focus it
+    final searchFinder = find.descendant(
+      of: find.byType(SettingsScreen),
+      matching: find.byType(TextField),
+    ).first;
+    await tester.ensureVisible(searchFinder);
+    await tester.tap(searchFinder);
+    await tester.pumpAndSettle();
 
-      // Verify search text field has focus
-      final FocusNode focusNode = Focus.of(tester.element(searchFinder));
-      expect(focusNode.hasFocus, isTrue);
+    // Verify search text field has focus
+    final FocusNode focusNode = Focus.of(tester.element(searchFinder));
+    expect(focusNode.hasFocus, isTrue);
 
-      // Close settings
-      await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
+    // Close settings
+    await pressShortcut(tester, LogicalKeyboardKey.digit4, isSettings: true);
 
-      // Verify SettingsScreen is popped
-      expect(find.byType(SettingsScreen), findsNothing);
-    }
+    // Verify SettingsScreen is popped
+    expect(find.byType(SettingsScreen), findsNothing);
   });
 
   testWidgets('NoteEditorDialog Alt+A shortcut toggles note editor dialog closed even when a text field has focus', (WidgetTester tester) async {

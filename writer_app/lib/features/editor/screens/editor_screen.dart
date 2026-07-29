@@ -33,6 +33,7 @@ import '../widgets/mobile_persistent_toolbar.dart';
 import '../widgets/cheatsheet_overlay.dart';
 import '../widgets/typewriter_scroll.dart';
 import '../utils/toc_parser.dart';
+import '../screenshot_mode.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -410,13 +411,15 @@ class _EditorScreenState extends State<EditorScreen> {
 
     final headers = _tocHeaders;
     final bool isMac = !kIsWeb && Platform.isMacOS;
-    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = kScreenshotCaptureMode
+        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
+        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         // Formatting (Still local to editor for context)
         SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: isMac): const SetTitleIntent(),
-        SingleActivator(LogicalKeyboardKey.keyH, alt: true, meta: isMac): const SetHeaderIntent(),
+        SingleActivator(LogicalKeyboardKey.keyE, alt: true, meta: isMac): const SetHeaderIntent(),
         SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: isMac): const SetBodyIntent(),
         SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: isMac): const SetBulletIntent(),
         SingleActivator(LogicalKeyboardKey.keyB, control: !isMac, meta: isMac): const ToggleBoldIntent(),
@@ -436,12 +439,6 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Actions(
         actions: <Type, Action<Intent>>{
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (_) {
-            if (Platform.isMacOS) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings are located in the top macOS System Menu Bar.'))
-              );
-              return null;
-            }
             context.read<HistoryProvider>().saveStatsNow().then((_) {
               if (context.mounted) {
                 Navigator.push(

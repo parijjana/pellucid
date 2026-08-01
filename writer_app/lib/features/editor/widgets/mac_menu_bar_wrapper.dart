@@ -16,6 +16,7 @@ import '../../settings/providers/history_provider.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import '../services/export_service.dart';
 
 class SettingsMenuBarState {
@@ -903,7 +904,7 @@ class MacMenuBarWrapper extends StatelessWidget {
       
       await sync.syncCurrentFile(
         projectName: settingsState.currentProjectName!,
-        fileName: 'manuscript',
+        fileName: LogicalFile.manuscript,
         content: editor.content,
       );
       

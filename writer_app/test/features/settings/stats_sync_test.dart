@@ -7,6 +7,7 @@ import 'package:pellucid/features/settings/providers/project_stats.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
+import 'package:pellucid/features/sync/models/logical_file.dart';
 
 class MockSettingsDatabase extends Mock implements SettingsDatabase {}
 class MockStorageService extends Mock implements StorageService {}
@@ -39,7 +40,7 @@ void main() {
     test('loadProjectStats pulls remote stats and merges if remote is higher', () async {
       when(() => mockSyncProvider.isLoggedIn).thenReturn(true);
       final remoteStatsJson = jsonEncode(ProjectStats(totalWordCount: 200, totalTimeSpent: const Duration(seconds: 300)).toJson());
-      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: 'stats'))
+      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: LogicalFile.stats))
           .thenAnswer((_) async => remoteStatsJson);
 
       historyProvider = HistoryProvider(
@@ -63,7 +64,7 @@ void main() {
     test('loadProjectStats does not merge if remote stats are lower', () async {
       when(() => mockSyncProvider.isLoggedIn).thenReturn(true);
       final remoteStatsJson = jsonEncode(ProjectStats(totalWordCount: 100, totalTimeSpent: const Duration(seconds: 50)).toJson());
-      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: 'stats'))
+      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: LogicalFile.stats))
           .thenAnswer((_) async => remoteStatsJson);
 
       historyProvider = HistoryProvider(
@@ -102,7 +103,7 @@ void main() {
     test('autosave uploads local stats to SyncProvider', () {
       fakeAsync((async) {
         when(() => mockSyncProvider.isLoggedIn).thenReturn(true);
-        when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: 'stats'))
+        when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: LogicalFile.stats))
             .thenAnswer((_) async => null);
         when(() => mockSyncProvider.syncStats(projectName: 'path', statsJson: any(named: 'statsJson')))
             .thenAnswer((_) async {});

@@ -91,6 +91,13 @@ void main() async {
   // so it never blocks or freezes startup/UI. One-way local -> Drive only.
   if (!kIsWeb) {
     _scheduleFullBackups(syncProvider, settingsProvider);
+
+    // One-time, data-preserving Drive-side manuscript filename migration
+    // (docs/two-way-sync-design.md §1). Fire-and-forget: it only touches
+    // Drive, never local disk, and is idempotent/interruption-safe (see
+    // SyncProvider.runManuscriptMigrationIfNeeded). Already-migrated vaults
+    // resolve to a single cheap Drive listing per app start.
+    unawaited(syncProvider.runManuscriptMigrationIfNeeded());
   }
 }
 

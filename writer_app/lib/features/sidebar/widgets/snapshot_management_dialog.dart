@@ -5,6 +5,7 @@ import '../../editor/providers/editor_provider.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import 'local_snapshot_list.dart';
 import 'revision_preview_dialog.dart';
 import 'snapshot_tab.dart';
@@ -44,7 +45,7 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
     if (sync.isLoggedIn) {
       setState(() => _isLoading = true);
       try {
-        await sync.loadHistory(widget.projectName, 'manuscript.md');
+        await sync.loadHistory(widget.projectName, LogicalFile.manuscript);
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -255,10 +256,10 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
       
       await sync.syncCurrentFile(
         projectName: widget.projectName,
-        fileName: 'manuscript.md',
+        fileName: LogicalFile.manuscript,
         content: content,
       );
-      await sync.loadHistory(widget.projectName, 'manuscript.md');
+      await sync.loadHistory(widget.projectName, LogicalFile.manuscript);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -271,7 +272,7 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
       builder: (context) => RevisionPreviewDialog(
         revisionId: revisionId,
         projectName: widget.projectName,
-        fileName: 'manuscript.md',
+        fileName: LogicalFile.manuscript,
         displayTime: displayTime,
       ),
     );

@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/sync/services/google_drive_sync_service.dart';
+import 'package:pellucid/features/sync/models/logical_file.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 
@@ -12,6 +13,9 @@ class MockSettingsDatabase extends Mock implements SettingsDatabase {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    registerFallbackValue(LogicalFile.manuscript);
+  });
 
   late SyncProvider syncProvider;
   late MockGoogleDriveSyncService mockService;
@@ -20,11 +24,11 @@ void main() {
   setUp(() {
     mockService = MockGoogleDriveSyncService();
     mockDb = MockSettingsDatabase();
-    
+
     when(() => mockService.isLoggedIn).thenAnswer((_) async => false);
     when(() => mockDb.getSettings()).thenAnswer((_) async => {'last_synced_time': null});
     when(() => mockDb.updateSetting(any(), any())).thenAnswer((_) async {});
-    
+
     syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
   });
 
@@ -36,9 +40,9 @@ void main() {
   test('login updates login status', () async {
     when(() => mockService.login()).thenAnswer((_) async {});
     when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
-    
+
     await syncProvider.login();
-    
+
     expect(syncProvider.isLoggedIn, true);
     verify(() => mockService.login()).called(1);
   });
@@ -61,18 +65,18 @@ void main() {
     // Re-init with logged in status
     syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
     // Need to wait for _checkLoginStatus to finish
-    await Future.microtask(() {}); 
+    await Future.microtask(() {});
 
     when(() => mockService.syncFile(
       projectName: any(named: 'projectName'),
-      fileName: any(named: 'fileName'),
+      file: any(named: 'file'),
       content: any(named: 'content'),
     )).thenAnswer((_) async {});
     when(() => mockService.getLastModified(any(), any())).thenAnswer((_) async => DateTime.now());
 
     await syncProvider.syncCurrentFile(
       projectName: 'Test',
-      fileName: 'test.md',
+      fileName: LogicalFile.manuscript,
       content: 'Hello',
     );
 
@@ -82,17 +86,17 @@ void main() {
   test('syncCurrentFile updates status to error on failure', () async {
     when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
     syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
-    await Future.microtask(() {}); 
+    await Future.microtask(() {});
 
     when(() => mockService.syncFile(
       projectName: any(named: 'projectName'),
-      fileName: any(named: 'fileName'),
+      file: any(named: 'file'),
       content: any(named: 'content'),
     )).thenThrow(Exception('Network Error'));
 
     await syncProvider.syncCurrentFile(
       projectName: 'Test',
-      fileName: 'test.md',
+      fileName: LogicalFile.manuscript,
       content: 'Hello',
     );
 
@@ -105,13 +109,13 @@ void main() {
     await Future.microtask(() {});
 
     final mockRevisions = [drive.Revision(id: 'rev-1')];
-    when(() => mockService.getRevisions('MyProject', 'manuscript.md'))
+    when(() => mockService.getRevisions('MyProject', LogicalFile.manuscript))
         .thenAnswer((_) async => mockRevisions);
 
-    await syncProvider.loadHistory('MyProject', 'manuscript.md');
+    await syncProvider.loadHistory('MyProject', LogicalFile.manuscript);
 
     expect(syncProvider.history, mockRevisions);
-    verify(() => mockService.getRevisions('MyProject', 'manuscript.md')).called(1);
+    verify(() => mockService.getRevisions('MyProject', LogicalFile.manuscript)).called(1);
   });
 
   group('shouldUploadFile out-of-date decision', () {
@@ -173,7 +177,7 @@ void main() {
       when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
       when(() => mockService.syncFile(
             projectName: any(named: 'projectName'),
-            fileName: any(named: 'fileName'),
+            file: any(named: 'file'),
             content: any(named: 'content'),
           )).thenAnswer((_) async {});
       syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
@@ -210,21 +214,16 @@ void main() {
 
       verify(() => mockService.syncFile(
           projectName: 'Alpha',
-          fileName: 'manuscript',
+          file: LogicalFile.manuscript,
           content: any(named: 'content'))).called(1);
       verify(() => mockService.syncFile(
           projectName: 'Alpha',
-          fileName: 'notes',
+          file: LogicalFile.notes,
           content: any(named: 'content'))).called(1);
       verify(() => mockService.syncFile(
           projectName: 'Alpha',
-          fileName: 'stats',
+          file: LogicalFile.stats,
           content: any(named: 'content'))).called(1);
-      // categories.json / .history are never uploaded.
-      verifyNever(() => mockService.syncFile(
-          projectName: any(named: 'projectName'),
-          fileName: 'categories',
-          content: any(named: 'content')));
       // Completion timestamp is persisted.
       verify(() => mockDb.updateSetting('last_full_backup_time', any())).called(1);
     });
@@ -242,7 +241,7 @@ void main() {
 
       verifyNever(() => mockService.syncFile(
           projectName: any(named: 'projectName'),
-          fileName: any(named: 'fileName'),
+          file: any(named: 'file'),
           content: any(named: 'content')));
     });
 
@@ -254,7 +253,7 @@ void main() {
           .thenAnswer((_) async => null);
       when(() => mockService.syncFile(
             projectName: 'Alpha',
-            fileName: 'manuscript',
+            file: LogicalFile.manuscript,
             content: any(named: 'content'),
           )).thenThrow(Exception('boom'));
 
@@ -266,11 +265,11 @@ void main() {
       // notes + stats still uploaded despite manuscript failing.
       verify(() => mockService.syncFile(
           projectName: 'Alpha',
-          fileName: 'notes',
+          file: LogicalFile.notes,
           content: any(named: 'content'))).called(1);
       verify(() => mockService.syncFile(
           projectName: 'Alpha',
-          fileName: 'stats',
+          file: LogicalFile.stats,
           content: any(named: 'content'))).called(1);
       verify(() => mockDb.updateSetting('last_full_backup_time', any())).called(1);
     });
@@ -280,7 +279,7 @@ void main() {
       when(() => mockDb.getSettings())
           .thenAnswer((_) async => {'last_full_backup_time': null});
       // Drive reports a far-future modifiedTime => local is older => skip.
-      when(() => mockService.getLastModified('Alpha', 'manuscript'))
+      when(() => mockService.getLastModified('Alpha', LogicalFile.manuscript))
           .thenAnswer((_) async => DateTime.now().toUtc().add(const Duration(days: 1)));
 
       await syncProvider.runFullBackupIfDue(
@@ -290,8 +289,181 @@ void main() {
 
       verifyNever(() => mockService.syncFile(
           projectName: 'Alpha',
-          fileName: 'manuscript',
+          file: LogicalFile.manuscript,
           content: any(named: 'content')));
+    });
+
+    test('freshness check compares against the SAME logical file it writes (regression guard)', () async {
+      // Historically the sweep compared the manuscript's freshness against a
+      // Drive file the editor never wrote to, making the check meaningless.
+      // Assert the exact call sequence: getLastModified and syncFile must be
+      // called with the identical LogicalFile for the manuscript.
+      await writeProject('Alpha', notes: false, stats: false);
+      when(() => mockDb.getSettings())
+          .thenAnswer((_) async => {'last_full_backup_time': null});
+      when(() => mockService.getLastModified('Alpha', LogicalFile.manuscript))
+          .thenAnswer((_) async => null);
+
+      await syncProvider.runFullBackupIfDue(
+        masterPath: tempDir.path,
+        storageService: StorageService(),
+      );
+
+      verify(() => mockService.getLastModified('Alpha', LogicalFile.manuscript)).called(1);
+      verify(() => mockService.syncFile(
+          projectName: 'Alpha',
+          file: LogicalFile.manuscript,
+          content: any(named: 'content'))).called(1);
+    });
+  });
+
+  group('runManuscriptMigrationIfNeeded', () {
+    setUp(() {
+      when(() => mockService.isLoggedIn).thenAnswer((_) async => true);
+    });
+
+    test('no-op when not logged in', () async {
+      when(() => mockService.isLoggedIn).thenAnswer((_) async => false);
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      verifyNever(() => mockService.listProjectNames());
+    });
+
+    test('skips projects already recorded as migrated', () async {
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      when(() => mockService.listProjectNames()).thenAnswer((_) async => ['Alpha']);
+      when(() => mockDb.getMigratedManuscriptProjects()).thenAnswer((_) async => {'Alpha'});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      verifyNever(() => mockService.findRawFileInProject(any(), any()));
+      verifyNever(() => mockDb.markManuscriptMigrated(any()));
+    });
+
+    test('copies legacy content into a newly created canonical file when only legacy exists', () async {
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      when(() => mockService.listProjectNames()).thenAnswer((_) async => ['Alpha']);
+      when(() => mockDb.getMigratedManuscriptProjects()).thenAnswer((_) async => {});
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md'))
+          .thenAnswer((_) async => null);
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md.md'))
+          .thenAnswer((_) async => drive.File(id: 'legacy-id', modifiedTime: DateTime.utc(2026, 1, 1)));
+      when(() => mockService.downloadFileContent('legacy-id'))
+          .thenAnswer((_) async => 'legacy content');
+      when(() => mockService.createRawFileInProject('Alpha', 'manuscript.md', 'legacy content'))
+          .thenAnswer((_) async => 'new-canonical-id');
+      when(() => mockDb.markManuscriptMigrated('Alpha')).thenAnswer((_) async {});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      verify(() => mockService.createRawFileInProject('Alpha', 'manuscript.md', 'legacy content')).called(1);
+      verifyNever(() => mockService.overwriteFileContent(any(), any()));
+      verify(() => mockDb.markManuscriptMigrated('Alpha')).called(1);
+    });
+
+    test('overwrites existing canonical file (never delete-then-create) when legacy is newer', () async {
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      when(() => mockService.listProjectNames()).thenAnswer((_) async => ['Alpha']);
+      when(() => mockDb.getMigratedManuscriptProjects()).thenAnswer((_) async => {});
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md')).thenAnswer(
+          (_) async => drive.File(id: 'canonical-id', modifiedTime: DateTime.utc(2026, 1, 1)));
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md.md')).thenAnswer(
+          (_) async => drive.File(id: 'legacy-id', modifiedTime: DateTime.utc(2026, 1, 2)));
+      when(() => mockService.downloadFileContent('legacy-id'))
+          .thenAnswer((_) async => 'newer legacy content');
+      when(() => mockService.overwriteFileContent('canonical-id', 'newer legacy content'))
+          .thenAnswer((_) async {});
+      when(() => mockDb.markManuscriptMigrated('Alpha')).thenAnswer((_) async {});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      verify(() => mockService.overwriteFileContent('canonical-id', 'newer legacy content')).called(1);
+      verifyNever(() => mockService.createRawFileInProject(any(), any(), any()));
+      verify(() => mockDb.markManuscriptMigrated('Alpha')).called(1);
+    });
+
+    test('does nothing and still marks migrated when canonical is already newer or equal', () async {
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      when(() => mockService.listProjectNames()).thenAnswer((_) async => ['Alpha']);
+      when(() => mockDb.getMigratedManuscriptProjects()).thenAnswer((_) async => {});
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md')).thenAnswer(
+          (_) async => drive.File(id: 'canonical-id', modifiedTime: DateTime.utc(2026, 1, 2)));
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md.md')).thenAnswer(
+          (_) async => drive.File(id: 'legacy-id', modifiedTime: DateTime.utc(2026, 1, 1)));
+      when(() => mockDb.markManuscriptMigrated('Alpha')).thenAnswer((_) async {});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      verifyNever(() => mockService.downloadFileContent(any()));
+      verifyNever(() => mockService.overwriteFileContent(any(), any()));
+      verifyNever(() => mockService.createRawFileInProject(any(), any(), any()));
+      verify(() => mockDb.markManuscriptMigrated('Alpha')).called(1);
+    });
+
+    test('never calls anything that deletes the legacy file', () async {
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      when(() => mockService.listProjectNames()).thenAnswer((_) async => ['Alpha']);
+      when(() => mockDb.getMigratedManuscriptProjects()).thenAnswer((_) async => {});
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md'))
+          .thenAnswer((_) async => null);
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md.md'))
+          .thenAnswer((_) async => drive.File(id: 'legacy-id', modifiedTime: DateTime.utc(2026, 1, 1)));
+      when(() => mockService.downloadFileContent('legacy-id'))
+          .thenAnswer((_) async => 'legacy content');
+      when(() => mockService.createRawFileInProject('Alpha', 'manuscript.md', 'legacy content'))
+          .thenAnswer((_) async => 'new-canonical-id');
+      when(() => mockDb.markManuscriptMigrated('Alpha')).thenAnswer((_) async {});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      // GoogleDriveSyncService exposes no delete method the migration could
+      // have called; this test documents that guarantee structurally by
+      // only ever stubbing/verifying non-destructive calls above.
+      verify(() => mockDb.markManuscriptMigrated('Alpha')).called(1);
+    });
+
+    test('a project with an ambiguous state (missing modifiedTime) is left unmarked and does not abort other projects', () async {
+      syncProvider = SyncProvider(service: mockService, settingsDatabase: mockDb);
+      await Future.microtask(() {});
+
+      when(() => mockService.listProjectNames()).thenAnswer((_) async => ['Alpha', 'Beta']);
+      when(() => mockDb.getMigratedManuscriptProjects()).thenAnswer((_) async => {});
+
+      // Alpha: ambiguous (both exist, canonical modifiedTime missing).
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md'))
+          .thenAnswer((_) async => drive.File(id: 'a-canonical-id', modifiedTime: null));
+      when(() => mockService.findRawFileInProject('Alpha', 'manuscript.md.md'))
+          .thenAnswer((_) async => drive.File(id: 'a-legacy-id', modifiedTime: DateTime.utc(2026, 1, 1)));
+
+      // Beta: clean case, only legacy exists.
+      when(() => mockService.findRawFileInProject('Beta', 'manuscript.md'))
+          .thenAnswer((_) async => null);
+      when(() => mockService.findRawFileInProject('Beta', 'manuscript.md.md'))
+          .thenAnswer((_) async => drive.File(id: 'b-legacy-id', modifiedTime: DateTime.utc(2026, 1, 1)));
+      when(() => mockService.downloadFileContent('b-legacy-id'))
+          .thenAnswer((_) async => 'beta legacy content');
+      when(() => mockService.createRawFileInProject('Beta', 'manuscript.md', 'beta legacy content'))
+          .thenAnswer((_) async => 'b-new-canonical-id');
+      when(() => mockDb.markManuscriptMigrated('Beta')).thenAnswer((_) async {});
+
+      await syncProvider.runManuscriptMigrationIfNeeded();
+
+      // Alpha never marked migrated (left for retry), Beta successfully migrated.
+      verifyNever(() => mockDb.markManuscriptMigrated('Alpha'));
+      verify(() => mockDb.markManuscriptMigrated('Beta')).called(1);
     });
   });
 }

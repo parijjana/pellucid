@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import '../services/google_drive_sync_service.dart';
+import '../services/manuscript_migration.dart';
+import '../models/logical_file.dart';
 import '../../settings/providers/settings_database.dart';
 import '../../editor/providers/storage_service.dart';
 
@@ -66,7 +68,7 @@ class SyncProvider with ChangeNotifier {
 
   Future<void> syncCurrentFile({
     required String projectName,
-    required String fileName,
+    required LogicalFile fileName,
     required String content,
   }) async {
     if (!_isLoggedIn) return;
@@ -77,7 +79,7 @@ class SyncProvider with ChangeNotifier {
     try {
       await _service.syncFile(
         projectName: projectName,
-        fileName: fileName,
+        file: fileName,
         content: content,
       );
       _status = SyncStatus.success;
@@ -104,16 +106,16 @@ class SyncProvider with ChangeNotifier {
     try {
       await _service.syncFile(
         projectName: projectName,
-        fileName: 'notes',
+        file: LogicalFile.notes,
         content: notesJson,
       );
-      await refreshLastSynced(projectName, 'notes');
+      await refreshLastSynced(projectName, LogicalFile.notes);
     } catch (e) {
       if (kDebugMode) print('Failed to sync notes: $e');
     }
   }
 
-  Future<void> refreshLastSynced(String projectName, String fileName) async {
+  Future<void> refreshLastSynced(String projectName, LogicalFile fileName) async {
     final driveTime = await _service.getLastModified(projectName, fileName);
     if (driveTime != null) {
       _lastSynced = driveTime.toLocal();
@@ -122,7 +124,7 @@ class SyncProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadHistory(String projectName, String fileName) async {
+  Future<void> loadHistory(String projectName, LogicalFile fileName) async {
     if (!_isLoggedIn) return;
     try {
       _history = await _service.getRevisions(projectName, fileName);
@@ -133,7 +135,7 @@ class SyncProvider with ChangeNotifier {
     }
   }
 
-  Future<String> getVersionContent(String revisionId, String projectName, String fileName) async {
+  Future<String> getVersionContent(String revisionId, String projectName, LogicalFile fileName) async {
     return await _service.getRevisionContent(revisionId, projectName, fileName);
   }
 
@@ -146,10 +148,10 @@ class SyncProvider with ChangeNotifier {
     try {
       await _service.syncFile(
         projectName: projectName,
-        fileName: 'stats',
+        file: LogicalFile.stats,
         content: statsJson,
       );
-      await refreshLastSynced(projectName, 'stats');
+      await refreshLastSynced(projectName, LogicalFile.stats);
     } catch (e) {
       if (kDebugMode) print('Failed to sync stats: $e');
     }
@@ -164,13 +166,13 @@ class SyncProvider with ChangeNotifier {
   // is always the source of truth; this path NEVER pulls Drive -> local.
   // ---------------------------------------------------------------------------
 
-  /// Local filename -> Drive logical file name, matching the editor's Drive
-  /// schema exactly so no duplicate files are ever created. `.history/`
-  /// snapshots and `categories.json` are intentionally excluded.
-  static const Map<String, String> fullBackupFileMap = {
-    'document.md': 'manuscript',
-    'notes.json': 'notes',
-    'stats.json': 'stats',
+  /// Local filename -> [LogicalFile], matching the editor's Drive schema
+  /// exactly so no duplicate files are ever created. `.history/` snapshots
+  /// and `categories.json` are intentionally excluded.
+  static const Map<String, LogicalFile> fullBackupFileMap = {
+    'document.md': LogicalFile.manuscript,
+    'notes.json': LogicalFile.notes,
+    'stats.json': LogicalFile.stats,
   };
 
   /// Pure decision for the "is this file out of date / should upload" check.
@@ -256,14 +258,17 @@ class SyncProvider with ChangeNotifier {
     String projectPath,
     String projectName,
     String localFileName,
-    String driveFileName,
+    LogicalFile file,
   ) async {
-    final file = File('$projectPath/$localFileName');
-    if (!await file.exists()) return; // Skip files that don't exist locally.
+    final localFile = File('$projectPath/$localFileName');
+    if (!await localFile.exists()) return; // Skip files that don't exist locally.
 
-    final localMtime = await file.lastModified();
-    final driveModified =
-        await _service.getLastModified(projectName, driveFileName);
+    final localMtime = await localFile.lastModified();
+    // Freshness is checked against the SAME logical file this method is about
+    // to write to below (getLastModified/syncFile both take `file`), so this
+    // can never again drift the way it used to when the manuscript's mtime
+    // check compared against a Drive file the editor never actually wrote.
+    final driveModified = await _service.getLastModified(projectName, file);
 
     if (!shouldUploadFile(
       localMtime: localMtime,
@@ -272,19 +277,19 @@ class SyncProvider with ChangeNotifier {
       return;
     }
 
-    final content = await file.readAsString();
+    final content = await localFile.readAsString();
     // Use the service directly (not syncCurrentFile) so the sweep stays quiet
     // and doesn't flip the edit-sync SyncStatus indicator repeatedly.
     await _service.syncFile(
       projectName: projectName,
-      fileName: driveFileName,
+      file: file,
       content: content,
     );
   }
 
   Future<String?> getLatestContent({
     required String projectName,
-    required String fileName,
+    required LogicalFile fileName,
   }) async {
     if (!_isLoggedIn) return null;
     try {
@@ -297,5 +302,114 @@ class SyncProvider with ChangeNotifier {
       if (kDebugMode) print('Failed to get latest content: $e');
       return null;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // One-time, data-preserving manuscript filename migration
+  // (docs/two-way-sync-design.md §1). Repairs Drive-side divergence between
+  // `manuscript.md` and the legacy `manuscript.md.md` left behind by the
+  // filename bug this LogicalFile refactor fixes. Drive-side only: never
+  // touches, deletes, or overwrites anything on local disk. Never deletes
+  // `manuscript.md.md`. See manuscript_migration.dart for the pure decision
+  // logic and its idempotency argument.
+  // ---------------------------------------------------------------------------
+
+  bool _manuscriptMigrationInProgress = false;
+  bool get isManuscriptMigrationInProgress => _manuscriptMigrationInProgress;
+
+  /// Sweeps every project in the vault and reconciles the manuscript filename
+  /// divergence. Safe to call repeatedly and safe to interrupt at any point:
+  /// - Already-migrated projects are skipped via a persisted marker
+  ///   ([SettingsDatabase.getMigratedManuscriptProjects]), so a fully migrated
+  ///   vault does one cheap `files.list` per app start and nothing else.
+  /// - If the app is killed mid-sweep, unmarked projects simply get
+  ///   re-evaluated on the next run. Re-evaluating an already-correct project
+  ///   is a no-op (see [decideManuscriptMigration]'s idempotency argument), so
+  ///   there is no unsafe partial state to recover from.
+  /// - A single project's failure or ambiguity never aborts the sweep for
+  ///   other projects — it's logged and left unmarked so it will be retried.
+  Future<void> runManuscriptMigrationIfNeeded() async {
+    if (_manuscriptMigrationInProgress) return;
+
+    if (!_isLoggedIn) {
+      _isLoggedIn = await _service.isLoggedIn;
+    }
+    if (!_isLoggedIn) return;
+
+    _manuscriptMigrationInProgress = true;
+    try {
+      final projectNames = await _service.listProjectNames();
+      final alreadyMigrated = await _db.getMigratedManuscriptProjects();
+
+      for (final projectName in projectNames) {
+        if (alreadyMigrated.contains(projectName)) continue;
+        try {
+          await _migrateOneProjectManuscript(projectName);
+          await _db.markManuscriptMigrated(projectName);
+        } catch (e) {
+          // Never guess, never let one project's ambiguity or error touch
+          // any other project. Left unmarked so it is retried next time.
+          if (kDebugMode) {
+            print('Manuscript migration aborted for project "$projectName": $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Manuscript migration sweep error: $e');
+    } finally {
+      _manuscriptMigrationInProgress = false;
+    }
+  }
+
+  Future<void> _migrateOneProjectManuscript(String projectName) async {
+    final canonical = await _service.findRawFileInProject(
+      projectName,
+      canonicalManuscriptDriveFileName,
+    );
+    final legacy = await _service.findRawFileInProject(
+      projectName,
+      legacyManuscriptDriveFileName,
+    );
+
+    final decision = decideManuscriptMigration(
+      canonicalExists: canonical != null,
+      legacyExists: legacy != null,
+      canonicalModifiedTime: canonical?.modifiedTime,
+      legacyModifiedTime: legacy?.modifiedTime,
+    );
+
+    if (decision.isAbort) {
+      throw StateError(
+        'Ambiguous migration state for "$projectName": both $canonicalManuscriptDriveFileName '
+        'and $legacyManuscriptDriveFileName exist but a modifiedTime could not be read for '
+        'one of them. Refusing to guess a winner.',
+      );
+    }
+
+    if (!decision.shouldCopyLegacyToCanonical) return; // Nothing to do; will be marked done.
+
+    // legacy is guaranteed non-null here: both onlyLegacyExists and
+    // legacyIsNewer require legacyExists == true.
+    final legacyContent = await _service.downloadFileContent(legacy!.id!);
+    if (legacyContent == null) {
+      throw StateError('Could not download legacy manuscript content for "$projectName".');
+    }
+
+    if (canonical != null) {
+      // Update the EXISTING canonical file (never delete-then-create). Drive
+      // retains the prior revision automatically on update, so whatever
+      // manuscript.md held immediately before this call remains recoverable
+      // via Drive's revision history.
+      await _service.overwriteFileContent(canonical.id!, legacyContent);
+    } else {
+      await _service.createRawFileInProject(
+        projectName,
+        canonicalManuscriptDriveFileName,
+        legacyContent,
+      );
+    }
+
+    // legacy (manuscript.md.md) is NEVER deleted or modified. It — and its
+    // own revision history — is left in place permanently as a safety copy.
   }
 }

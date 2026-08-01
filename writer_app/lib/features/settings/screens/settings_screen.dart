@@ -21,6 +21,7 @@ import '../widgets/new_project_card.dart';
 import '../widgets/daily_goal_indicator.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import '../../editor/widgets/shortcuts.dart';
 import '../../../features_config.dart';
 import '../widgets/custom_theme_designer.dart';
@@ -75,7 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (settings.currentProjectName != null) {
           await sync.syncCurrentFile(
             projectName: settings.currentProjectName!,
-            fileName: 'manuscript',
+            fileName: LogicalFile.manuscript,
             content: editor.content,
           );
           final notesJson = jsonEncode(notes.cards.map((c) => c.toJson()).toList());

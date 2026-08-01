@@ -7,6 +7,7 @@ import 'storage_service.dart';
 import '../../settings/providers/settings_database.dart';
 
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import '../../sidebar/providers/note_card.dart';
 
 class EditorProvider extends ChangeNotifier {
@@ -150,7 +151,7 @@ class EditorProvider extends ChangeNotifier {
 
     await syncProvider.syncCurrentFile(
       projectName: projectName,
-      fileName: 'manuscript.md',
+      fileName: LogicalFile.manuscript,
       content: _content,
     );
 

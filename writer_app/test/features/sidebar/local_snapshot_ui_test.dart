@@ -16,6 +16,7 @@ import 'package:pellucid/features/sidebar/widgets/revision_preview_dialog.dart';
 import 'package:pellucid/features/sidebar/widgets/snapshot_management_dialog.dart';
 import 'package:pellucid/features/sidebar/widgets/snapshot_tab_toggle.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
+import 'package:pellucid/features/sync/models/logical_file.dart';
 
 class MockStorageService extends Mock implements StorageService {}
 class MockSettingsProvider extends Mock implements SettingsProvider {
@@ -27,6 +28,10 @@ class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockSettingsDatabase extends Mock implements SettingsDatabase {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(LogicalFile.manuscript);
+  });
+
   final theme = WriterTheme.presets.first;
   late MockStorageService mockStorage;
   late MockSettingsProvider mockSettings;
@@ -170,7 +175,7 @@ void main() {
                     context: context,
                     builder: (_) => RevisionPreviewDialog(
                       projectName: 'Alpha',
-                      fileName: 'manuscript.md',
+                      fileName: LogicalFile.manuscript,
                       displayTime: '7/4 15:30',
                       localFilePath: '/master/Alpha/.history/2026-07-04T15-30-00.md',
                       storageService: mockStorage,

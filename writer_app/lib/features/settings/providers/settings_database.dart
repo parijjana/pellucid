@@ -41,6 +41,7 @@ class SettingsDatabase {
   };
 
   static final List<Map<String, dynamic>> _webHistory = [];
+  static final Set<String> _webMigratedManuscriptProjects = {};
 
   SettingsDatabase._init();
 
@@ -64,7 +65,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 16, // Incremented for full-library backup timestamp
+      version: 17, // Incremented for the manuscript-filename migration marker table
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -111,7 +112,14 @@ class SettingsDatabase {
         word_count_delta INTEGER
       )
     ''');
-    
+
+    await db.execute('''
+      CREATE TABLE manuscript_migration_status (
+        project_name TEXT PRIMARY KEY,
+        migrated_at TEXT NOT NULL
+      )
+    ''');
+
     await db.insert('settings', {
       'id': 1,
       'theme_name': 'Paper',
@@ -192,6 +200,49 @@ class SettingsDatabase {
     if (oldVersion < 16) {
       await db.execute('ALTER TABLE settings ADD COLUMN last_full_backup_time TEXT');
     }
+    if (oldVersion < 17) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS manuscript_migration_status (
+          project_name TEXT PRIMARY KEY,
+          migrated_at TEXT NOT NULL
+        )
+      ''');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Manuscript filename migration status (docs/two-way-sync-design.md §1).
+  //
+  // Tracks which projects have already had their Drive-side manuscript
+  // filename reconciled (manuscript.md vs manuscript.md.md), so a fully
+  // migrated vault doesn't re-list Drive and re-derive the decision on every
+  // app start. This is a fast-path only: the migration decision function
+  // itself is idempotent (see manuscript_migration.dart), so re-running for
+  // an already-migrated project is harmless even if this marker is somehow
+  // lost or stale.
+  // ---------------------------------------------------------------------------
+
+  Future<Set<String>> getMigratedManuscriptProjects() async {
+    if (kIsWeb) return _webMigratedManuscriptProjects;
+    final db = await instance.database;
+    final rows = await db.query('manuscript_migration_status', columns: ['project_name']);
+    return rows.map((r) => r['project_name'] as String).toSet();
+  }
+
+  Future<void> markManuscriptMigrated(String projectName) async {
+    if (kIsWeb) {
+      _webMigratedManuscriptProjects.add(projectName);
+      return;
+    }
+    final db = await instance.database;
+    await db.insert(
+      'manuscript_migration_status',
+      {
+        'project_name': projectName,
+        'migrated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   // Settings Methods

@@ -5,6 +5,7 @@ import '../../editor/providers/editor_provider.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import 'snapshot_text_utils.dart';
 
 /// Previews a single manuscript snapshot and offers a restore flow. Sourced from
@@ -12,7 +13,7 @@ import 'snapshot_text_utils.dart';
 /// snapshot file (pass [localFilePath]) — exactly one must be provided.
 class RevisionPreviewDialog extends StatefulWidget {
   final String projectName;
-  final String fileName;
+  final LogicalFile fileName;
   final String displayTime;
   final String? revisionId;
   final String? localFilePath;

@@ -8,6 +8,7 @@ import 'project_stats.dart';
 import 'settings_database.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 
 class DailyStats {
   final String date; // YYYY-MM-DD
@@ -117,7 +118,7 @@ class HistoryProvider extends ChangeNotifier {
       final projectName = normalizedPath.split('/').last;
       final remoteContent = await _syncProvider.getLatestContent(
         projectName: projectName,
-        fileName: 'stats',
+        fileName: LogicalFile.stats,
       );
       // The user may have switched projects while this fetch was in flight;
       // discard stale results rather than clobbering the now-current project.

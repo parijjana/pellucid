@@ -8,6 +8,7 @@ import 'package:pellucid/features/editor/providers/editor_provider.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
+import 'package:pellucid/features/sync/models/logical_file.dart';
 import 'package:pellucid/features/sidebar/providers/note_card.dart';
 
 class MockStorageService extends Mock implements StorageService {}
@@ -15,6 +16,10 @@ class MockSettingsDatabase extends Mock implements SettingsDatabase {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(LogicalFile.manuscript);
+  });
+
   late EditorProvider editorProvider;
   late MockStorageService mockStorageService;
   late MockSettingsDatabase mockSettingsDatabase;
@@ -110,7 +115,7 @@ void main() {
 
       verify(() => mockSyncProvider.syncCurrentFile(
         projectName: 'TestProject',
-        fileName: 'manuscript.md',
+        fileName: LogicalFile.manuscript,
         content: 'Idle debounce content',
       )).called(1);
     });
@@ -134,7 +139,7 @@ void main() {
 
       verify(() => mockSyncProvider.syncCurrentFile(
         projectName: 'TestProject',
-        fileName: 'manuscript.md',
+        fileName: LogicalFile.manuscript,
         content: 'Content 3',
       )).called(1);
     });
@@ -159,7 +164,7 @@ void main() {
       // Verify immediate sync
       verify(() => mockSyncProvider.syncCurrentFile(
         projectName: 'TestProject',
-        fileName: 'manuscript.md',
+        fileName: LogicalFile.manuscript,
         content: 'Flush content',
       )).called(1);
 

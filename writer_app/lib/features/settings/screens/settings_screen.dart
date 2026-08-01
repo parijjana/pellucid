@@ -26,6 +26,7 @@ import '../../../features_config.dart';
 import '../widgets/custom_theme_designer.dart';
 import 'stats_screen.dart';
 import '../../editor/widgets/low_contrast_widgets.dart';
+import '../../../core/platform_context.dart';
 
 enum ProjectSort { date, name }
 
@@ -153,13 +154,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final sync = context.watch<SyncProvider>();
     final history = context.watch<HistoryProvider>();
 
-    final bool isMac = !kIsWeb && Platform.isMacOS;
-    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = isPhoneLayout(context);
     final bool isMobilePlatform = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: usesCommandModifier): const OpenSettingsIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -174,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (event is KeyDownEvent) {
               final isAltPressed = HardwareKeyboard.instance.isAltPressed;
               final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
-              final bool match = isMac
+              final bool match = usesCommandModifier
                   ? (isMetaPressed && isAltPressed && event.logicalKey == LogicalKeyboardKey.digit4)
                   : (isAltPressed && event.logicalKey == LogicalKeyboardKey.digit4);
               if (match) {

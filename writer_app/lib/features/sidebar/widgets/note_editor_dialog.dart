@@ -1,7 +1,6 @@
 // @trace FEAT-20260522-0001
 // Description: Dual-mode note editor dialog (Popup and Fullscreen overlay).
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +17,7 @@ import 'note_editor_standard_field.dart';
 import 'note_editor_attribution_list.dart';
 import 'note_editor_top_bar.dart';
 import '../../editor/widgets/shortcuts.dart';
+import '../../../core/platform_context.dart';
 
 class NoteEditorDialog extends StatefulWidget {
   final String noteId;
@@ -183,17 +183,17 @@ class _NoteEditorDialogState extends State<NoteEditorDialog> {
               final isAlt = HardwareKeyboard.instance.isAltPressed;
               final isMeta = HardwareKeyboard.instance.isMetaPressed;
               final isControl = HardwareKeyboard.instance.isControlPressed;
-              final bool isMac = Platform.isMacOS;
-  
+
               // Alt + B (existing)
               if (isAlt && event.logicalKey == LogicalKeyboardKey.keyB) {
                 _saveCurrentNoteState();
                 Navigator.pop(context);
                 return KeyEventResult.handled;
               }
-  
-              // Alt + A (Windows/Linux) or Cmd + Ctrl + A (macOS)
-              final bool matchA = isMac
+
+              // Alt + A (Windows/Linux/iOS) or Cmd + Ctrl + A (macOS/iOS with
+              // Command as the primary modifier, see usesCommandModifier)
+              final bool matchA = usesCommandModifier
                   ? (isMeta && isControl && event.logicalKey == LogicalKeyboardKey.keyA)
                   : (isAlt && event.logicalKey == LogicalKeyboardKey.keyA);
               if (matchA) {

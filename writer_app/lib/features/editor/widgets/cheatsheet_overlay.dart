@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
+import '../../../core/platform_context.dart';
 
 class CheatsheetOverlayContent extends StatelessWidget {
   final WriterTheme theme;
@@ -14,7 +15,12 @@ class CheatsheetOverlayContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMac = !kIsWeb && Platform.isMacOS;
+    // "Uses Command as the primary shortcut modifier" — true on macOS AND
+    // iOS/iPadOS. See usesCommandModifier in core/platform_context.dart.
+    final bool isMac = usesCommandModifier;
+    // macOS-*specifically* — the Ctrl+Cmd+F fullscreen convention below has
+    // no iOS equivalent and stays gated on macOS alone (see main.dart).
+    final bool isMacOSOnly = !kIsWeb && Platform.isMacOS;
     return Center(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -53,7 +59,13 @@ class CheatsheetOverlayContent extends StatelessWidget {
                     if (isMac) _CheatsheetItem(theme: theme, keys: 'Cmd + ,', description: 'Settings'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 5', isMac), description: 'Typewriter Scrolling'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 6', isMac), description: 'Paragraph Focus'),
-                    _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + Ctrl + F' : 'Alt + Enter', description: 'Toggle Fullscreen'),
+                    _CheatsheetItem(
+                      theme: theme,
+                      keys: isMacOSOnly
+                          ? 'Cmd + Ctrl + F'
+                          : (isMac ? 'Cmd + Opt + Enter' : 'Alt + Enter'),
+                      description: 'Toggle Fullscreen',
+                    ),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + A', isMac), description: 'Attributions'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + Shift + A', isMac), description: 'Set Alarm'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + C', isMac), description: 'Peek Clock / Dismiss Alarm'),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import '../providers/theme_provider.dart';
 import '../screenshot_mode.dart';
+import '../../../core/platform_context.dart';
 
 class IntegratedHeader extends StatefulWidget {
   final WriterTheme theme;
@@ -80,9 +81,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
     Color dragAreaColor = Colors.transparent;
 
     final bool isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-    final bool isMobilePhone = kScreenshotCaptureMode
-        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
-        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = isPhoneLayout(context);
 
     return Container(
       height: 40,

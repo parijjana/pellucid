@@ -5,8 +5,6 @@
 // hit-testing), because TextSpan.recognizer/onEnter are not dispatched inside
 // an editable field.
 
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +12,7 @@ import '../providers/codex_index.dart';
 import '../providers/theme_provider.dart';
 import '../../sidebar/providers/note_card.dart';
 import 'codex_mention_peek.dart';
+import '../../../core/platform_context.dart';
 
 class CodexMentionDetector extends StatefulWidget {
   final bool enabled;
@@ -108,9 +107,8 @@ class _CodexMentionDetectorState extends State<CodexMentionDetector> {
   void _handlePointerDown(PointerDownEvent event) {
     if (!widget.enabled) return;
     final hw = HardwareKeyboard.instance;
-    final bool isMac = !kIsWeb && Platform.isMacOS;
-    final bool combo = isMac
-        ? (hw.isAltPressed && hw.isMetaPressed) // Cmd + Opt on macOS
+    final bool combo = usesCommandModifier
+        ? (hw.isAltPressed && hw.isMetaPressed) // Cmd + Opt on macOS/iOS
         : hw.isAltPressed;
     if (!combo) return;
     final id = _noteIdAt(event.position);

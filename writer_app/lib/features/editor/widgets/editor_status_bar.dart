@@ -1,8 +1,6 @@
 // @trace FEAT-20260516-115000-0003
 // Description: Status bar with metrics and tools (Decomposed Flat Style).
 
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/editor_provider.dart';
@@ -18,7 +16,7 @@ import 'session_timer_widget.dart';
 import 'pomodoro_widget.dart';
 import 'sprint_widget.dart';
 import 'battery_widget.dart';
-import '../screenshot_mode.dart';
+import '../../../core/platform_context.dart';
 
 class EditorStatusBar extends StatefulWidget {
   final WriterTheme theme;
@@ -53,9 +51,7 @@ class EditorStatusBar extends StatefulWidget {
 class _EditorStatusBarState extends State<EditorStatusBar> {
   @override
   Widget build(BuildContext context) {
-    final bool isMobilePhone = kScreenshotCaptureMode
-        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
-        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = isPhoneLayout(context);
     
     if (isMobilePhone) {
       return Container(

@@ -17,7 +17,16 @@ class SidebarPulltab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double topOffset = MediaQuery.of(context).size.height / 2 - 30;
+    // Thumb-height, not vertical-center: on a large iPad the screen center is
+    // a stretch for a one-handed thumb, whether held in one hand or propped
+    // up with the FAB dock's touch status bar occupying the very bottom.
+    // Anchor from the bottom instead of the vertical center, clearing both
+    // the home-indicator safe area and the touch status bar beneath it, so
+    // the tab sits in the comfortable lower-third "thumb zone" on any touch
+    // device (phone or tablet) rather than drifting to mid-screen on a 13"
+    // iPad.
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomOffset = bottomInset + 120;
     final isLeft = direction == AxisDirection.left;
 
     return AnimatedPositioned(
@@ -25,7 +34,7 @@ class SidebarPulltab extends StatelessWidget {
       curve: Curves.easeInOut,
       left: isLeft ? (isOpen ? 250 : 0) : null,
       right: !isLeft ? (isOpen ? 300 : 0) : null,
-      top: topOffset,
+      bottom: bottomOffset,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,

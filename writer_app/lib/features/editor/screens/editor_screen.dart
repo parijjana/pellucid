@@ -669,7 +669,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       ),
                     ),
                   ),
-                if (isMobilePhone) ...[
+                if (isTouchPlatform) ...[
                   SidebarPulltab(
                     theme: theme,
                     direction: AxisDirection.left,

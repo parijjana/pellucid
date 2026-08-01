@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../features/editor/screenshot_mode.dart';
 
@@ -111,4 +112,39 @@ class PointerTypeNotifier extends ChangeNotifier {
     _hasPointer = true;
     notifyListeners();
   }
+}
+
+/// Reads [PointerTypeNotifier.hasPointer] from the widget tree, subscribing
+/// to rebuilds (`context.watch`) so callers repaint the instant a hover is
+/// first observed.
+///
+/// Defaults to `true` (i.e. "assume a pointer device, same as before this
+/// signal existed") when no [PointerTypeNotifier] is registered above
+/// [context] — this is deliberately the pre-existing/legacy behavior of the
+/// Ghost UI's dim-until-hover widgets, so any widget tree built without the
+/// app's real provider set (most of the existing widget tests, which predate
+/// this signal) keeps behaving exactly as it did before this signal was
+/// wired up, instead of throwing a [ProviderNotFoundException].
+bool hasPointerOrDefault(BuildContext context) {
+  try {
+    return context.watch<PointerTypeNotifier>().hasPointer;
+  } on ProviderNotFoundException {
+    return true;
+  }
+}
+
+/// True only for a touch device that has never shown a sign of a real
+/// pointer (mouse/trackpad) — i.e. exactly the case the Ghost UI's
+/// dim-until-hover widgets cannot serve, because hover never fires there.
+///
+/// Deliberately short-circuits on [isTouchPlatform] rather than checking
+/// [hasPointerOrDefault] alone: [PointerTypeNotifier] is registered
+/// app-wide (not just on touch builds), and on a fresh desktop launch
+/// `hasPointer` briefly reads `false` until the very first mouse-hover
+/// event arrives. Without this platform short-circuit, that instant would
+/// use the touch-resting treatment on macOS/Windows/Linux too — a real,
+/// if tiny, desktop behavior change. Desktop must be unaffected, so the
+/// touch-specific styling only ever applies when [isTouchPlatform] is true.
+bool isTouchWithoutPointer(BuildContext context) {
+  return isTouchPlatform && !hasPointerOrDefault(context);
 }

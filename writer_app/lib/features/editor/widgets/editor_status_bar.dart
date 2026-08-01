@@ -49,11 +49,38 @@ class EditorStatusBar extends StatefulWidget {
 }
 
 class _EditorStatusBarState extends State<EditorStatusBar> {
+  // Whether the touch "action dock" (settings/zoom/theme/fullscreen) is
+  // currently slid into view. Touch-only state — desktop never sets this.
+  bool _isDockOpen = false;
+
+  // Base height of the persistent (always-visible) touch status bar, before
+  // the bottom safe-area inset is added. Matches the desktop bar's height so
+  // the two feel like the same control at a glance.
+  static const double _touchBarHeight = 48.0;
+  // Height of the slide-up dock strip holding the action controls. Tall
+  // enough that every control inside clears the 44x44 touch-target minimum.
+  static const double _dockHeight = 56.0;
+
   @override
   Widget build(BuildContext context) {
     final bool isMobilePhone = isPhoneLayout(context);
-    
+
+    // Touch platforms (iPhone AND iPad) get the FAB-dock status bar instead
+    // of the full desktop bar. Rationale for including iPhone, not just
+    // keyboard-less iPad: both are "quick updates when inspiration strikes"
+    // contexts per the app's own framing, and unifying the two touch bars
+    // means one code path to maintain and test instead of a third bespoke
+    // layout. iPhone's tighter width is handled by making the dock
+    // horizontally scrollable rather than by omitting it.
+    if (isTouchPlatform) {
+      return _buildTouchBar(context);
+    }
+
     if (isMobilePhone) {
+      // Unreachable in real builds (isPhoneLayout implies isTouchPlatform on
+      // every real platform), but the store-screenshot capture harness can
+      // force this layout on a desktop host via kScreenshotCaptureMode, so
+      // this legacy minimal bar is kept as-is for that harness only.
       return Container(
         height: 48,
         decoration: BoxDecoration(
@@ -68,6 +95,13 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
       );
     }
 
+    return _buildDesktopBar(context);
+  }
+
+  /// The full status bar, unchanged from before this feature: every control
+  /// always visible, sidebar toggle buttons included. Desktop/mouse-driven
+  /// platforms only.
+  Widget _buildDesktopBar(BuildContext context) {
     final editorProvider = context.watch<EditorProvider>();
     final settings = context.watch<SettingsProvider>();
     final sync = context.watch<SyncProvider>();
@@ -197,6 +231,143 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Touch (iPhone + iPad) status bar: a persistent, always-glanceable strip
+  /// (word count + sync pulse) with a FAB that slides a second "dock" strip
+  /// of action controls (settings/zoom/theme/fullscreen) in and out above
+  /// it. Sidebar toggles are intentionally absent here — [SidebarPulltab]
+  /// covers that job on touch, so the icon-button duplicates were removed.
+  ///
+  /// Respects the bottom safe area via `MediaQuery.viewPadding`/`padding` so
+  /// nothing sits under the iPad/iPhone home-indicator gesture strip.
+  Widget _buildTouchBar(BuildContext context) {
+    final editorProvider = context.watch<EditorProvider>();
+    final sync = context.watch<SyncProvider>();
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double barTotalHeight = _touchBarHeight + bottomInset;
+
+    return Stack(
+      // The dock strip is painted above this widget's own box (Positioned
+      // with `bottom` >= this box's height). Clip.none lets that overflow
+      // paint instead of being clipped, and because this widget is the last
+      // child of the enclosing Column, it paints on top of the paper area
+      // above it wherever the two overlap — the same "layer on top via
+      // paint order" trick already used for the search popup/cheatsheet
+      // overlays elsewhere in this screen.
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          height: barTotalHeight,
+          padding: EdgeInsets.only(bottom: bottomInset, left: 16, right: 16),
+          decoration: BoxDecoration(color: widget.theme.backgroundColor),
+          child: Row(
+            children: [
+              _buildSyncPulse(sync, widget.theme),
+              const SizedBox(width: 12),
+              LowContrastText(
+                label: '${widget.wordCount} words',
+                theme: widget.theme,
+              ),
+              const Spacer(),
+              _buildDockFab(),
+            ],
+          ),
+        ),
+        if (_isDockOpen)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: barTotalHeight,
+            child: Container(
+              height: _dockHeight,
+              color: widget.theme.backgroundColor,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDockAction(
+                      icon: Icons.settings,
+                      onPressed: widget.onOpenSettings,
+                    ),
+                    const SizedBox(width: 20),
+                    _buildDockAction(
+                      icon: Icons.remove,
+                      onPressed: editorProvider.zoomOut,
+                    ),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Center(
+                        child: LowContrastText(
+                          label: '${(editorProvider.zoomLevel * 100).toInt()}%',
+                          theme: widget.theme,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    _buildDockAction(
+                      icon: Icons.add,
+                      onPressed: editorProvider.zoomIn,
+                    ),
+                    const SizedBox(width: 20),
+                    _buildDockAction(
+                      icon: Icons.format_paint,
+                      onPressed: widget.onToggleToolbar,
+                    ),
+                    const SizedBox(width: 20),
+                    _buildDockAction(
+                      icon: widget.isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                      onPressed: widget.onToggleFullscreen,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// The FAB that toggles the touch action dock open/closed. 44x44 minimum
+  /// touch target, positioned inside the persistent bar's row (not
+  /// floating over the paper) so it never fights the [AlignmentBar] — which
+  /// itself no longer renders on touch-only devices (see
+  /// `hasPointerOrDefault` gating in alignment_bar.dart) — or the home
+  /// indicator, since it lives inside the safe-area-padded row.
+  Widget _buildDockFab() {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Material(
+        color: widget.theme.foregroundColor.withValues(alpha: 0.12),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => setState(() => _isDockOpen = !_isDockOpen),
+          child: Icon(
+            _isDockOpen ? Icons.close : Icons.tune,
+            size: 20,
+            color: widget.theme.foregroundColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDockAction({required IconData icon, required VoidCallback onPressed}) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: LowContrastIconButton(
+        icon: icon,
+        onPressed: onPressed,
+        theme: widget.theme,
+        size: 20,
       ),
     );
   }

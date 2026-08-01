@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'desktop_oauth_helper.dart';
+import 'oauth_helper_factory.dart';
 
 class GoogleAuthClient extends http.BaseClient {
   final Map<String, String> _headers;
@@ -29,6 +30,10 @@ class GoogleDriveSyncService {
   static const String _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_CLIENT_ID');
   static const String _clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET', defaultValue: 'YOUR_GOOGLE_CLIENT_SECRET');
 
+  // iOS OAuth clients are public (no secret) and are a separate Google Cloud
+  // Console client from the desktop one, so they get their own dart-define.
+  static const String _iosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_IOS_CLIENT_ID');
+
   drive.DriveApi? _driveApi;
 
   Future<bool> get isLoggedIn async {
@@ -49,10 +54,12 @@ class GoogleDriveSyncService {
       await prefs.remove(_clientSecretKey);
     }
 
-    final clientId = customClientId ?? _clientId;
+    // iOS has its own (secret-less, public) OAuth client; desktop platforms
+    // keep using the client id/secret pair they always have.
+    final clientId = customClientId ?? (Platform.isIOS ? _iosClientId : _clientId);
     final clientSecret = customClientSecret ?? _clientSecret;
 
-    final helper = DesktopOAuthHelper(
+    final helper = createOAuthHelper(
       clientId: clientId,
       clientSecret: clientSecret,
       scopes: [drive.DriveApi.driveFileScope, 'email', 'profile'],

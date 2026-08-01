@@ -8,8 +8,14 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'oauth_helper.dart';
 
-class DesktopOAuthHelper {
+/// The existing, shipping desktop OAuth flow: binds a real localhost HTTP
+/// server and redirects there. Unchanged behaviour — only now implements the
+/// shared [OAuthHelper] contract so `google_drive_sync_service.dart` can pick
+/// between this and the iOS ASWebAuthenticationSession flow without caring
+/// which one it has.
+class DesktopOAuthHelper implements OAuthHelper {
   final String clientId;
   final String clientSecret;
   final List<String> scopes;
@@ -45,6 +51,7 @@ class DesktopOAuthHelper {
     return base64Url.encode(digest.bytes).replaceAll('=', '');
   }
 
+  @override
   Future<Map<String, dynamic>?> authenticate() async {
     final completer = Completer<Map<String, dynamic>?>();
     final router = Router();

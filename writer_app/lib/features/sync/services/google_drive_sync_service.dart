@@ -60,10 +60,25 @@ class GoogleDriveSyncService {
     final clientId = customClientId ?? (Platform.isIOS ? _iosClientId : _clientId);
     final clientSecret = customClientSecret ?? _clientSecret;
 
+    // drive.file ONLY, deliberately. Three reasons to keep it this way:
+    //  1. Nothing in the app ever read the user's email or profile — no
+    //     id_token parsing, no userinfo call, and the settings UI shows only
+    //     "Google Drive Connected", never an account identity. They were dead
+    //     scopes on the consent screen.
+    //  2. Google's Picker for desktop/mobile apps permits drive.file and
+    //     explicitly "can't be combined with any other scope". Keeping this
+    //     list to one scope preserves the Picker as a fallback for granting
+    //     access to files the app did not create.
+    //  3. It matches the App Privacy declaration of "Data Not Collected".
+    // drive.file is non-sensitive (Google's recommended Drive scope), which is
+    // what keeps this project clear of OAuth verification and the 100-user cap.
+    // Do NOT add a sensitive or restricted scope here: a single consent starts
+    // a user-cap counter that applies for the project's entire lifetime and
+    // cannot be reset.
     final helper = createOAuthHelper(
       clientId: clientId,
       clientSecret: clientSecret,
-      scopes: [drive.DriveApi.driveFileScope, 'email', 'profile'],
+      scopes: [drive.DriveApi.driveFileScope],
     );
 
     final tokens = await helper.authenticate();

@@ -34,6 +34,7 @@ import '../widgets/cheatsheet_overlay.dart';
 import '../widgets/typewriter_scroll.dart';
 import '../utils/toc_parser.dart';
 import '../../../core/platform_context.dart';
+import '../../sidebar/widgets/snapshot_management_dialog.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -637,6 +638,24 @@ class _EditorScreenState extends State<EditorScreen> {
                           MaterialPageRoute(
                             settings: const RouteSettings(name: '/settings'),
                             builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                          ),
+                        );
+                      },
+                      onOpenVersionHistory: () {
+                        // Flush any pending edit before showing the list, so
+                        // "latest" in the dialog matches what is on screen
+                        // rather than the state at the last autosave tick.
+                        unawaited(
+                          context.read<EditorProvider>().flushSync(
+                                syncProvider: context.read<SyncProvider>(),
+                                projectName: settings.currentProjectName,
+                              ),
+                        );
+                        showDialog(
+                          context: context,
+                          builder: (context) => SnapshotManagementDialog(
+                            projectName:
+                                settings.currentProjectName ?? 'User Manual',
                           ),
                         );
                       },

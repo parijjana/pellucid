@@ -29,6 +29,7 @@ class EditorStatusBar extends StatefulWidget {
   final VoidCallback onToggleToolbar;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onOpenSettings;
+  final VoidCallback onOpenVersionHistory;
 
   const EditorStatusBar({
     super.key,
@@ -42,6 +43,7 @@ class EditorStatusBar extends StatefulWidget {
     required this.onToggleToolbar,
     required this.onToggleFullscreen,
     required this.onOpenSettings,
+    required this.onOpenVersionHistory,
   });
 
   @override
@@ -372,11 +374,40 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
     );
   }
 
+  /// The sync cloud, doubling as the main page's entry point to version
+  /// history. Reusing this glyph rather than adding a button was deliberate:
+  /// it already appears in both the desktop and touch bars, so one control
+  /// covers every layout, and an app built on near-invisible chrome cannot
+  /// afford another icon competing for the same eye.
+  ///
+  /// The cloud keeps all four of its sync states — the arc is additive, never
+  /// a replacement. Losing the signed-out slash or the sync-error cross to
+  /// make room for a history glyph would have traded away the only indication
+  /// on this screen that a writer's work is not reaching Drive.
   Widget _buildSyncPulse(SyncProvider sync, WriterTheme theme) {
-    return SyncStatusCloud(
+    final Widget cloud = SyncStatusCloud(
       isLoggedIn: sync.isLoggedIn,
       status: sync.status,
       theme: theme,
+      showHistoryAffordance: true,
+    );
+
+    // Touch needs the 44x44 minimum; the glyph itself is 24 wide, so the
+    // padding is what makes the target, not a bigger drawing.
+    final Widget target = isTouchPlatform
+        ? SizedBox(width: 44, height: 44, child: Center(child: cloud))
+        : cloud;
+
+    return Tooltip(
+      message: 'Version History',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onOpenVersionHistory,
+          child: target,
+        ),
+      ),
     );
   }
 }

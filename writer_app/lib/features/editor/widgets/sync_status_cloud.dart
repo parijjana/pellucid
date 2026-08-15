@@ -8,11 +8,18 @@ class SyncStatusCloud extends StatefulWidget {
   final SyncStatus status;
   final WriterTheme theme;
 
+  /// Draws the stacked version rules under the cloud, marking this as the
+  /// control that opens version history rather than a passive readout.
+  /// Off by default so any other placement of this glyph stays a pure status
+  /// indicator.
+  final bool showHistoryAffordance;
+
   const SyncStatusCloud({
     super.key,
     required this.isLoggedIn,
     required this.status,
     required this.theme,
+    this.showHistoryAffordance = false,
   });
 
   @override
@@ -60,13 +67,14 @@ class _SyncStatusCloudState extends State<SyncStatusCloud> with SingleTickerProv
       animation: _controller,
       builder: (context, child) {
         return CustomPaint(
-          size: const Size(24, 24),
+          size: const Size(24, 25),
           painter: CloudStatusPainter(
             isLoggedIn: widget.isLoggedIn,
             status: widget.status,
             strokeColor: strokeColor,
             fillColor: fillColor,
             animValue: _controller.value,
+            showHistoryAffordance: widget.showHistoryAffordance,
           ),
         );
       },
@@ -80,6 +88,7 @@ class CloudStatusPainter extends CustomPainter {
   final Color strokeColor;
   final Color fillColor;
   final double animValue;
+  final bool showHistoryAffordance;
 
   CloudStatusPainter({
     required this.isLoggedIn,
@@ -87,6 +96,7 @@ class CloudStatusPainter extends CustomPainter {
     required this.strokeColor,
     required this.fillColor,
     required this.animValue,
+    required this.showHistoryAffordance,
   });
 
   @override
@@ -141,7 +151,10 @@ class CloudStatusPainter extends CustomPainter {
         strokePaint..strokeWidth = 1.5,
       );
     } else if (status == SyncStatus.syncing) {
-      // 4. Syncing (Activity) -> Tiny up/down arrows below cloud
+      // 4. Syncing (Activity) -> Tiny up/down arrows below cloud.
+      // Note this branch and _paintVersionStack() are mutually exclusive by
+      // construction: both draw into the strip below the cloud, and transient
+      // transfer activity takes precedence over the standing affordance.
       final double dy = math.sin(animValue * 2 * math.pi) * 1.5;
 
       // Left arrow pointing up
@@ -178,6 +191,33 @@ class CloudStatusPainter extends CustomPainter {
         strokePaint..strokeWidth = 1.0,
       );
     }
+
+    // The standing "this opens version history" affordance. Drawn in every
+    // state except syncing, which borrows the same strip for its transfer
+    // arrows. Deliberately not gated on isLoggedIn: local snapshots exist
+    // whether or not Drive is connected, so the control is never dead.
+    if (showHistoryAffordance && status != SyncStatus.syncing) {
+      _paintVersionStack(canvas, strokeColor);
+    }
+  }
+
+  /// Two short rules stacked under the cloud, narrowing with age — earlier
+  /// versions receding behind the current one.
+  ///
+  /// Chosen over the clock and rewind-arrow treatments on purpose. Those say
+  /// "time"; this says "a list of versions", which is what the dialog actually
+  /// shows. It is also the quietest of the candidates — two hairlines at the
+  /// same weight as the rest of the status bar, adding no curve, no arrowhead
+  /// and no second silhouette to a glyph that already carries four states.
+  void _paintVersionStack(Canvas canvas, Color color) {
+    final rulePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(const Offset(7.5, 18.5), const Offset(16.5, 18.5), rulePaint);
+    canvas.drawLine(const Offset(9.5, 21.5), const Offset(14.5, 21.5), rulePaint);
   }
 
   @override
@@ -186,6 +226,7 @@ class CloudStatusPainter extends CustomPainter {
         oldDelegate.status != status ||
         oldDelegate.strokeColor != strokeColor ||
         oldDelegate.fillColor != fillColor ||
-        oldDelegate.animValue != animValue;
+        oldDelegate.animValue != animValue ||
+        oldDelegate.showHistoryAffordance != showHistoryAffordance;
   }
 }

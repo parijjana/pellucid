@@ -1,26 +1,30 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pellucid/features/sync/services/apple_oauth_helper.dart';
 import 'package:pellucid/features/sync/services/desktop_oauth_helper.dart';
-import 'package:pellucid/features/sync/services/ios_oauth_helper.dart';
 import 'package:pellucid/features/sync/services/oauth_helper_factory.dart';
 
 void main() {
   group('createOAuthHelper platform selection', () {
-    test('returns a DesktopOAuthHelper on non-iOS test host (loopback flow unchanged)', () {
-      // The test runner always executes on the host desktop OS (macOS/Linux/
-      // Windows CI), never as an actual iOS process, so Platform.isIOS is
-      // false here — this exercises exactly the "desktop" branch that must
-      // stay the shipping loopback flow.
-      expect(Platform.isIOS, isFalse);
+    final helper = createOAuthHelper(
+      clientId: 'cid',
+      clientSecret: 'secret',
+      scopes: const ['https://www.googleapis.com/auth/drive.file'],
+    );
 
-      final helper = createOAuthHelper(
-        clientId: 'cid',
-        clientSecret: 'secret',
-        scopes: const ['email', 'profile'],
-      );
+    test('Apple platforms get the ASWebAuthenticationSession helper', () {
+      // Guards the 2.4.5(i) fix: if macOS ever falls back to the loopback
+      // helper it needs com.apple.security.network.server again, which App
+      // Review's static scan rejects as an unused entitlement every time.
+      if (!Platform.isIOS && !Platform.isMacOS) return;
+      expect(helper, isA<AppleOAuthHelper>());
+      expect(helper, isNot(isA<DesktopOAuthHelper>()));
+    });
 
+    test('Windows/Linux keep the loopback flow', () {
+      if (Platform.isIOS || Platform.isMacOS) return;
       expect(helper, isA<DesktopOAuthHelper>());
-      expect(helper, isNot(isA<IosOAuthHelper>()));
+      expect(helper, isNot(isA<AppleOAuthHelper>()));
     });
   });
 }

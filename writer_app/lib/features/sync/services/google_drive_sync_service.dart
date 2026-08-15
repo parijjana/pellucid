@@ -31,9 +31,19 @@ class GoogleDriveSyncService {
   static const String _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_CLIENT_ID');
   static const String _clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET', defaultValue: 'YOUR_GOOGLE_CLIENT_SECRET');
 
-  // iOS OAuth clients are public (no secret) and are a separate Google Cloud
-  // Console client from the desktop one, so they get their own dart-define.
+  // Google's "iOS" OAuth clients are public (no secret) and are a separate
+  // Google Cloud Console client from the desktop one, so they get their own
+  // dart-define. macOS shares this client — Google has no macOS client type,
+  // and an iOS client is keyed by bundle id, which is identical across this
+  // app's macOS and iOS targets — so no Console change was needed to move
+  // macOS onto it.
   static const String _iosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_IOS_CLIENT_ID');
+
+  /// Whether this platform authenticates as a *public* OAuth client: PKCE, no
+  /// client secret. Must stay in lockstep with the [createOAuthHelper] branch,
+  /// or login and refresh will disagree about which Google client owns the
+  /// tokens.
+  static bool get _usesPublicClient => Platform.isIOS || Platform.isMacOS;
 
   drive.DriveApi? _driveApi;
 
@@ -44,21 +54,26 @@ class GoogleDriveSyncService {
 
   Future<void> login({String? customClientId, String? customClientSecret}) async {
     final prefs = await SharedPreferences.getInstance();
-    if (customClientId != null) {
-      await prefs.setString(_clientIdKey, customClientId);
-    } else {
-      await prefs.remove(_clientIdKey);
-    }
-    if (customClientSecret != null) {
-      await prefs.setString(_clientSecretKey, customClientSecret);
-    } else {
-      await prefs.remove(_clientSecretKey);
-    }
 
-    // iOS has its own (secret-less, public) OAuth client; desktop platforms
-    // keep using the client id/secret pair they always have.
-    final clientId = customClientId ?? (Platform.isIOS ? _iosClientId : _clientId);
-    final clientSecret = customClientSecret ?? _clientSecret;
+    // Apple platforms use the secret-less public client; Windows/Linux keep
+    // the client id/secret pair they always have.
+    final clientId =
+        customClientId ?? (_usesPublicClient ? _iosClientId : _clientId);
+    final clientSecret =
+        customClientSecret ?? (_usesPublicClient ? '' : _clientSecret);
+
+    // Persist whichever client actually issued the tokens, so
+    // [refreshAccessToken] renews them against the *same* client. Storing only
+    // custom overrides (as this used to) meant refresh always fell back to the
+    // desktop id+secret, which Google rejects for a token minted by the public
+    // client. An install that logged in before this change has neither key
+    // set, and its fallback to the desktop pair is still correct for it.
+    await prefs.setString(_clientIdKey, clientId);
+    if (clientSecret.isEmpty) {
+      await prefs.remove(_clientSecretKey);
+    } else {
+      await prefs.setString(_clientSecretKey, clientSecret);
+    }
 
     // drive.file ONLY, deliberately. Three reasons to keep it this way:
     //  1. Nothing in the app ever read the user's email or profile — no
@@ -132,15 +147,24 @@ class GoogleDriveSyncService {
     final refreshToken = prefs.getString(_refreshTokenKey);
     if (refreshToken == null) return false;
 
-    final clientId = prefs.getString(_clientIdKey) ?? _clientId;
-    final clientSecret = prefs.getString(_clientSecretKey) ?? _clientSecret;
+    // An install that logged in before login() started recording the effective
+    // client has neither key, and its tokens came from the desktop pair — so
+    // fall back to *both* halves together. Never mix a stored id with the
+    // compiled-in secret, or vice versa.
+    final storedClientId = prefs.getString(_clientIdKey);
+    final String clientId = storedClientId ?? _clientId;
+    final String? clientSecret = storedClientId == null
+        ? _clientSecret
+        : prefs.getString(_clientSecretKey);
 
     try {
       final response = await http.post(
         Uri.parse('https://oauth2.googleapis.com/token'),
         body: {
           'client_id': clientId,
-          'client_secret': clientSecret,
+          // Public clients must omit client_secret entirely — sending an empty
+          // one is an invalid_client error, not a no-op.
+          if (clientSecret != null) 'client_secret': clientSecret,
           'refresh_token': refreshToken,
           'grant_type': 'refresh_token',
         },

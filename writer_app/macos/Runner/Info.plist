@@ -32,6 +32,29 @@
 	<string>NSApplication</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!--
+	  Google Drive OAuth redirect for ASWebAuthenticationSession. macOS reuses
+	  the *iOS* OAuth client (Google has no macOS client type, and this app's
+	  macOS and iOS bundle ids are identical — see AppInfo.xcconfig), so this
+	  is the reverse-DNS form of the same client id supplied to the build as
+	  --dart-define=GOOGLE_IOS_CLIENT_ID from the git-ignored .env.local, and
+	  it must stay byte-identical to the ios/Runner/Info.plist entry. The two
+	  MUST also equal AppleOAuthHelper.reversedScheme(GOOGLE_IOS_CLIENT_ID) or
+	  ASWebAuthenticationSession cannot hand the redirect back to the app.
+	  A public client with no secret; PKCE (S256) secures the exchange, so this
+	  identifier is safe to keep in the tree.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.overengineeredhobbies.pellucid.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.153313615218-0r75r5q58qfn4n70ol44pf1fgjs9s2j3</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>http</string>

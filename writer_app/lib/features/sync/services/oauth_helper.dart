@@ -3,7 +3,7 @@
 /// - Desktop (macOS/Windows/Linux) uses a localhost loopback HTTP server:
 ///   see [DesktopOAuthHelper] in `desktop_oauth_helper.dart`.
 /// - iOS/iPadOS uses `ASWebAuthenticationSession` via a custom URL scheme:
-///   see `IosOAuthHelper` in `ios_oauth_helper.dart`.
+///   see `AppleOAuthHelper` in `apple_oauth_helper.dart`.
 ///
 /// Both implementations perform the full OAuth authorization-code + PKCE
 /// (S256) dance with an anti-CSRF `state` value, and return the raw token

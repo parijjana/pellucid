@@ -19,11 +19,11 @@ import 'oauth_helper.dart';
 /// [DesktopOAuthHelper.computeCodeChallenge] (state/PKCE helpers hardened and
 /// tested against the RFC 7636 vector in commit 06321bb) rather than
 /// reimplementing them.
-class IosOAuthHelper implements OAuthHelper {
+class AppleOAuthHelper implements OAuthHelper {
   final String clientId;
   final List<String> scopes;
 
-  IosOAuthHelper({
+  AppleOAuthHelper({
     required this.clientId,
     required this.scopes,
   });

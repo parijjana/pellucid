@@ -248,10 +248,15 @@ class _SnapshotManagementDialogState extends State<SnapshotManagementDialog> {
       String content = '';
       if (widget.projectName == settings.currentProjectName) {
         final editor = context.read<EditorProvider>();
+        if (editor.documentLoadFailed) return;
         content = editor.content;
       } else if (settings.masterDirectoryPath != null) {
         final path = '${settings.masterDirectoryPath}/${widget.projectName}';
-        content = await StorageService().readDocument(path);
+        final read = await StorageService().readDocument(path);
+        // A failed read would push a blank snapshot into Drive history, where
+        // it outlives the local file. Abort rather than record a lie.
+        if (read.failed) return;
+        content = read.value;
       }
       
       await sync.syncCurrentFile(

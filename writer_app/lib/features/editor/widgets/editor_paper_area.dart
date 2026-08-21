@@ -91,6 +91,10 @@ class EditorPaperArea extends StatelessWidget {
                 controller: controller,
                 focusNode: focusNode,
                 maxLines: null,
+                // The document could not be read, so we do not know what is on
+                // disk. Accepting keystrokes here would invite the writer to
+                // type into a blank page that can never be saved.
+                readOnly: provider.documentLoadFailed,
                 spellCheckConfiguration: (spellCheckEnabled && !kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST'))
                     ? (!kIsWeb && Platform.isMacOS
                         ? SpellCheckConfiguration(spellCheckService: MacSpellCheckService())

@@ -14,11 +14,19 @@ class NotesProvider extends ChangeNotifier {
   String? _currentProjectPath;
   String? _currentProjectName;
 
+  // Same read-failure latch as EditorProvider: an empty card list produced by
+  // a throwing read is a guess, and saving it back deletes every note.
+  bool _notesLoadFailed = false;
+
   NotesProvider({StorageService? storageService}) 
       : _storageService = storageService ?? StorageService();
 
   List<NoteCard> get cards => List.unmodifiable(_cards);
   List<String> get categories => List.unmodifiable(_categories);
+
+  /// True when the last read of `notes.json` threw. Notes are not persisted
+  /// while this holds, so the file on disk survives the error.
+  bool get notesLoadFailed => _notesLoadFailed;
 
   Future<void> loadProject(String? projectPath, {String? projectName}) async {
     _currentProjectPath = projectPath;
@@ -26,14 +34,18 @@ class NotesProvider extends ChangeNotifier {
     if (projectPath == null) {
       _cards = [];
       _categories = ['general', 'people', 'places', 'events'];
+      _notesLoadFailed = false;
     } else {
-      _cards = await _storageService.readNotes(projectPath);
+      final read = await _storageService.readNotes(projectPath);
+      _cards = List<NoteCard>.from(read.value);
+      _notesLoadFailed = read.failed;
       _categories = await _storageService.readCategories(projectPath);
     }
     notifyListeners();
   }
 
   void _save({SyncProvider? syncProvider}) {
+    if (_notesLoadFailed) return;
     if (_currentProjectPath != null) {
       _storageService.saveNotes(_currentProjectPath!, _cards);
       

@@ -74,7 +74,7 @@ void main() {
       when(() => mockStorageService.saveCategories(any(), any()))
           .thenAnswer((_) async {});
       when(() => mockStorageService.readNotes(any()))
-          .thenAnswer((_) async => []);
+          .thenAnswer((_) async => const ReadResult.ok(<NoteCard>[]));
       when(() => mockStorageService.saveNotes(any(), any()))
           .thenAnswer((_) async {});
     });
@@ -130,7 +130,7 @@ void main() {
       when(() => mockStorageService.saveCategories(any(), any()))
           .thenAnswer((_) async {});
       when(() => mockStorageService.readNotes(any()))
-          .thenAnswer((_) async => []);
+          .thenAnswer((_) async => const ReadResult.ok(<NoteCard>[]));
       when(() => mockStorageService.saveNotes(any(), any()))
           .thenAnswer((_) async {});
     });
@@ -189,7 +189,7 @@ void main() {
       when(() => mockStorageService.saveCategories(any(), any()))
           .thenAnswer((_) async {});
       when(() => mockStorageService.readNotes(any()))
-          .thenAnswer((_) async => []);
+          .thenAnswer((_) async => const ReadResult.ok(<NoteCard>[]));
       when(() => mockStorageService.saveNotes(any(), any()))
           .thenAnswer((_) async {});
 

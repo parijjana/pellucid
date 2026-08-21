@@ -38,6 +38,8 @@ void main() {
     mockNotes = MockNotesProvider();
 
     when(() => mockEditor.content).thenReturn('Test content');
+
+    when(() => mockEditor.documentLoadFailed).thenReturn(false);
     when(() => mockTheme.currentTheme).thenReturn(WriterTheme.presets[0]);
     when(() => mockSettings.currentProjectName).thenReturn('Test Project');
     when(() => mockSettings.masterDirectoryPath).thenReturn('/test/path');

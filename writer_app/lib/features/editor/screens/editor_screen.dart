@@ -566,6 +566,19 @@ class _EditorScreenState extends State<EditorScreen> {
                                         ),
                                       ),
                                     ),
+                                  // Drawn last so it sits above the toolbar:
+                                  // if the document could not be read, that is
+                                  // the only thing worth saying on this screen.
+                                  if (editorProvider.documentLoadFailed)
+                                    Positioned(
+                                      top: 0, left: 0, right: 0,
+                                      child: DocumentLoadFailedBanner(
+                                        theme: theme,
+                                        error: editorProvider.loadError,
+                                        onRetry: () =>
+                                            context.read<EditorProvider>().retryLoad(),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -804,5 +817,74 @@ class _EditorScreenState extends State<EditorScreen> {
     if (details.pointerCount > 1 && details.scale != 1.0) {
       context.read<EditorProvider>().setZoomLevel(_initialScaleZoom * details.scale);
     }
+  }
+}
+
+/// Shown when `document.md` could not be read.
+///
+/// The editor is read-only behind this and nothing is being saved, which is
+/// deliberate but invisible — so it has to be said out loud, or the writer
+/// types a paragraph into a page that silently discards it.
+class DocumentLoadFailedBanner extends StatelessWidget {
+  final WriterTheme theme;
+  final Object? error;
+  final VoidCallback onRetry;
+
+  const DocumentLoadFailedBanner({
+    super.key,
+    required this.theme,
+    required this.error,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = theme.foregroundColor;
+    return Material(
+      color: theme.sidebarColor,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: fg.withValues(alpha: 0.2))),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, size: 18, color: fg.withValues(alpha: 0.8)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "This document couldn't be opened. Editing is off so the "
+                    'file on disk is left untouched.',
+                    style: TextStyle(color: fg, fontSize: 13),
+                  ),
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        '$error',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: fg.withValues(alpha: 0.6),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            TextButton(
+              onPressed: onRetry,
+              child: Text('Retry', style: TextStyle(color: fg)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

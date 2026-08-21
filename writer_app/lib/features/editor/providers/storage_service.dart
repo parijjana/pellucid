@@ -10,6 +10,53 @@ import '../../settings/providers/project_stats.dart';
 import 'local_snapshot_store.dart';
 import 'user_manual_seed.dart' as manual_seed;
 
+/// Why a read of a project file produced the value it did.
+///
+/// The distinction that matters is [failed] versus everything else: a value
+/// that came back because the read *threw* tells us nothing about what is on
+/// disk, so it must never be written back over the original.
+enum ReadOutcome {
+  /// The file was read and parsed. The value is what is on disk.
+  ok,
+
+  /// The file is not there. A new project, or one not yet pulled from Drive.
+  /// The fallback value is a legitimate starting point.
+  missing,
+
+  /// The read threw — permission denied, an undownloaded iCloud/Drive
+  /// placeholder, a corrupt or half-written file. The real content is
+  /// UNKNOWN and the fallback value is a guess.
+  failed,
+}
+
+/// The outcome of a read, alongside the value the caller should display.
+///
+/// Callers may render [value] in every case, but must consult [failed] before
+/// persisting anything derived from it. Writing a fallback back to disk is how
+/// a transient read error turns into permanent data loss.
+class ReadResult<T> {
+  final T value;
+  final ReadOutcome outcome;
+
+  /// The exception that caused [ReadOutcome.failed]; null otherwise.
+  final Object? error;
+
+  const ReadResult.ok(this.value)
+      : outcome = ReadOutcome.ok,
+        error = null;
+
+  const ReadResult.missing(this.value)
+      : outcome = ReadOutcome.missing,
+        error = null;
+
+  const ReadResult.failed(this.value, this.error) : outcome = ReadOutcome.failed;
+
+  /// True when the content on disk is unknown. Do not overwrite it.
+  bool get failed => outcome == ReadOutcome.failed;
+
+  bool get missing => outcome == ReadOutcome.missing;
+}
+
 class StorageService {
   final FileSystem _fileSystem;
   final LocalSnapshotStore _snapshotStore;
@@ -77,13 +124,19 @@ class StorageService {
     }
   }
 
-  Future<String> readDocument(String projectPath) async {
+  /// Reads `document.md`, reporting *why* the result is what it is.
+  ///
+  /// A missing file and a failed read both yield an empty string, but only the
+  /// former means the document is genuinely empty. Callers must not autosave
+  /// over a [ReadOutcome.failed] result — that is how a transient read error
+  /// becomes a destroyed manuscript.
+  Future<ReadResult<String>> readDocument(String projectPath) async {
     try {
       final file = _fileSystem.file('$projectPath/$_docName');
-      if (!await file.exists()) return '';
-      return await file.readAsString();
+      if (!await file.exists()) return const ReadResult.missing('');
+      return ReadResult.ok(await file.readAsString());
     } catch (e) {
-      return '';
+      return ReadResult.failed('', e);
     }
   }
 
@@ -93,15 +146,18 @@ class StorageService {
     await file.writeAsString(content, flush: true); // Immediate flush to OS
   }
 
-  Future<List<NoteCard>> readNotes(String projectPath) async {
+  /// Reads `notes.json`. Same contract as [readDocument]: an empty list from a
+  /// [ReadOutcome.failed] read is a guess, and saving it back deletes every
+  /// note in the project.
+  Future<ReadResult<List<NoteCard>>> readNotes(String projectPath) async {
     try {
       final file = _fileSystem.file('$projectPath/$_notesName');
-      if (!await file.exists()) return [];
+      if (!await file.exists()) return const ReadResult.missing(<NoteCard>[]);
       final String content = await file.readAsString();
       final List<dynamic> jsonList = jsonDecode(content);
-      return jsonList.map((j) => NoteCard.fromJson(j)).toList();
+      return ReadResult.ok(jsonList.map((j) => NoteCard.fromJson(j)).toList());
     } catch (e) {
-      return [];
+      return ReadResult.failed(const <NoteCard>[], e);
     }
   }
 

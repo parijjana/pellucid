@@ -36,7 +36,7 @@ void main() {
     );
 
     when(() => mockStorageService.readDocument(any()))
-        .thenAnswer((_) async => 'Mock project content');
+        .thenAnswer((_) async => const ReadResult.ok('Mock project content'));
     when(() => mockStorageService.saveDocument(any(), any()))
         .thenAnswer((_) async {});
     when(() => mockStorageService.saveLocalSnapshot(any(), any()))
@@ -74,6 +74,96 @@ void main() {
       expect(editorProvider.zoomLevel, 2.0); // Clamped
 
       verify(() => mockSettingsDatabase.updateSetting('zoom_level', 2.0)).called(1);
+    });
+
+    group('failed document load', () {
+      // The bug this guards: readDocument used to return '' for BOTH "the file
+      // is missing" and "the read threw", so a transient failure showed a blank
+      // page and the 2-second autosave then wrote that blank over the real
+      // document.md.
+      void failTheRead() {
+        when(() => mockStorageService.readDocument(any())).thenAnswer(
+            (_) async => ReadResult.failed('', Exception('operation not permitted')));
+      }
+
+      test('latches the failure and exposes the error', () async {
+        failTheRead();
+
+        await editorProvider.loadProject('/test/project/path');
+
+        expect(editorProvider.documentLoadFailed, isTrue);
+        expect(editorProvider.loadError, isNotNull);
+      });
+
+      test('a missing document is NOT a failure — a new project is editable', () async {
+        when(() => mockStorageService.readDocument(any()))
+            .thenAnswer((_) async => const ReadResult.missing(''));
+
+        await editorProvider.loadProject('/test/project/path');
+
+        expect(editorProvider.documentLoadFailed, isFalse);
+      });
+
+      test('does not autosave over the document it could not read', () async {
+        failTheRead();
+        await editorProvider.loadProject('/test/project/path');
+
+        editorProvider.updateContent('a stray keystroke');
+        await Future.delayed(const Duration(milliseconds: 2100));
+
+        verifyNever(() => mockStorageService.saveDocument(any(), any()));
+        verifyNever(() => mockStorageService.saveLocalSnapshot(any(), any()));
+      });
+
+      test('does not push the unread document to the cloud', () async {
+        failTheRead();
+        editorProvider.syncDebounceDuration = const Duration(milliseconds: 50);
+        editorProvider.syncThrottleDuration = const Duration(milliseconds: 50);
+        await editorProvider.loadProject('/test/project/path');
+
+        editorProvider.updateContent(
+          'a stray keystroke',
+          syncProvider: mockSyncProvider,
+          projectName: 'TestProject',
+        );
+        await Future.delayed(const Duration(milliseconds: 150));
+        await editorProvider.flushSync(
+            syncProvider: mockSyncProvider, projectName: 'TestProject');
+
+        verifyNever(() => mockSyncProvider.syncCurrentFile(
+              projectName: any(named: 'projectName'),
+              fileName: any(named: 'fileName'),
+              content: any(named: 'content'),
+            ));
+      });
+
+      test('does not snapshot the blank when switching away', () async {
+        failTheRead();
+        await editorProvider.loadProject('/test/project/path');
+
+        await editorProvider.loadProject('/test/project/other');
+
+        verifyNever(() => mockStorageService.saveLocalSnapshot(any(), any()));
+      });
+
+      test('retryLoad clears the latch once the read succeeds', () async {
+        failTheRead();
+        await editorProvider.loadProject('/test/project/path');
+        expect(editorProvider.documentLoadFailed, isTrue);
+
+        when(() => mockStorageService.readDocument(any()))
+            .thenAnswer((_) async => const ReadResult.ok('The real manuscript'));
+        await editorProvider.retryLoad();
+
+        expect(editorProvider.documentLoadFailed, isFalse);
+        expect(editorProvider.content, 'The real manuscript');
+
+        // And saving works again.
+        editorProvider.updateContent('An edit worth keeping');
+        await Future.delayed(const Duration(milliseconds: 2100));
+        verify(() => mockStorageService.saveDocument(
+            '/test/project/path', 'An edit worth keeping')).called(1);
+      });
     });
 
     test('local auto-save should trigger 2 seconds after updateContent', () async {

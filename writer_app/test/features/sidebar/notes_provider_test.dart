@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
+import 'package:pellucid/features/sidebar/providers/note_card.dart';
 
 class MockStorageService extends Mock implements StorageService {}
 
@@ -27,9 +28,25 @@ void main() {
       expect(notesProvider.cards, isEmpty);
     });
 
+    test('a failed notes read does not let an empty list overwrite notes.json', () async {
+      // readNotes used to return [] for a corrupt or unreadable file, so the
+      // next card edit saved that empty list over every note in the project.
+      when(() => mockStorageService.readNotes(any())).thenAnswer(
+          (_) async => ReadResult.failed(const <NoteCard>[], Exception('bad json')));
+      when(() => mockStorageService.saveNotes(any(), any()))
+          .thenAnswer((_) async {});
+
+      await notesProvider.loadProject('test_path');
+      expect(notesProvider.notesLoadFailed, isTrue);
+
+      notesProvider.addCard();
+
+      verifyNever(() => mockStorageService.saveNotes(any(), any()));
+    });
+
     test('addCard should add a card and save', () async {
       when(() => mockStorageService.readNotes(any()))
-          .thenAnswer((_) async => []);
+          .thenAnswer((_) async => const ReadResult.ok(<NoteCard>[]));
       when(() => mockStorageService.saveNotes(any(), any()))
           .thenAnswer((_) async {});
       
@@ -45,7 +62,7 @@ void main() {
 
     test('deleteCard should remove card and connections', () async {
       when(() => mockStorageService.readNotes(any()))
-          .thenAnswer((_) async => []);
+          .thenAnswer((_) async => const ReadResult.ok(<NoteCard>[]));
       when(() => mockStorageService.saveNotes(any(), any()))
           .thenAnswer((_) async {});
       

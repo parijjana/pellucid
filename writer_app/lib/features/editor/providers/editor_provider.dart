@@ -30,6 +30,13 @@ class EditorProvider extends ChangeNotifier {
   Duration syncDebounceDuration = const Duration(minutes: 30);
   Duration syncThrottleDuration = const Duration(minutes: 30);
 
+  // Read-failure latch. When the last load of `document.md` THREW, the real
+  // content on disk is unknown, so every write path is disabled until a
+  // successful reload. Without this, a failed read shows a blank page and the
+  // 2-second autosave writes that blank over the manuscript.
+  bool _documentLoadFailed = false;
+  Object? _loadError;
+
   // Local Snapshot Safety Net: rolling on-disk snapshots independent of cloud sync
   DateTime? _lastSnapshotTime;
   Duration snapshotInterval = const Duration(minutes: 10);
@@ -43,6 +50,13 @@ class EditorProvider extends ChangeNotifier {
   double get pageWidth => _pageWidth;
   double get horizontalPosition => _horizontalPosition;
   bool get hasUnsyncedChanges => _hasUnsyncedChanges;
+
+  /// True when the last load of this project's document threw. The editor is
+  /// read-only and nothing is saved or synced while this holds.
+  bool get documentLoadFailed => _documentLoadFailed;
+
+  /// The exception behind [documentLoadFailed], for display. Null otherwise.
+  Object? get loadError => _loadError;
 
   Future<void> loadSettings() async {
     final settings = await _db.getSettings();
@@ -81,7 +95,9 @@ class EditorProvider extends ChangeNotifier {
     _syncThrottleTimer?.cancel();
     _syncThrottleTimer = null;
 
-    if (_currentProjectPath != null && _content.isNotEmpty) {
+    // Never snapshot content we did not successfully read — that writes a
+    // blank into `.history/`, which is the very backstop this protects.
+    if (_currentProjectPath != null && _content.isNotEmpty && !_documentLoadFailed) {
       await _storageService.saveLocalSnapshot(_currentProjectPath!, _content);
     }
     _lastSnapshotTime = null;
@@ -89,10 +105,26 @@ class EditorProvider extends ChangeNotifier {
     _currentProjectPath = projectPath;
     if (projectPath == null) {
       _content = StorageService.userManualContent;
+      _documentLoadFailed = false;
+      _loadError = null;
     } else {
-      _content = await _storageService.readDocument(projectPath);
+      final read = await _storageService.readDocument(projectPath);
+      _content = read.value;
+      _documentLoadFailed = read.failed;
+      _loadError = read.error;
     }
     _hasUnsyncedChanges = false;
+    notifyListeners();
+  }
+
+  /// Re-attempts a load that failed, so a transient error (an undownloaded
+  /// cloud placeholder, a locked file) can be cleared without restarting.
+  Future<void> retryLoad() async {
+    if (!_documentLoadFailed || _currentProjectPath == null) return;
+    final read = await _storageService.readDocument(_currentProjectPath!);
+    _content = read.value;
+    _documentLoadFailed = read.failed;
+    _loadError = read.error;
     notifyListeners();
   }
 
@@ -105,6 +137,9 @@ class EditorProvider extends ChangeNotifier {
 
   void _autoSave({SyncProvider? syncProvider, String? projectName, Duration? syncInterval}) {
     if (_currentProjectPath == null) return;
+    // The document on disk is unknown after a failed read. Saving now would
+    // overwrite it with whatever the blank editor happens to hold.
+    if (_documentLoadFailed) return;
 
     // 1. Local Auto-Save (2s debounce)
     _debounceTimer?.cancel();
@@ -133,7 +168,7 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void _maybeTakeLocalSnapshot() {
-    if (_currentProjectPath == null || _content.isEmpty) return;
+    if (_currentProjectPath == null || _content.isEmpty || _documentLoadFailed) return;
     final now = DateTime.now();
     if (_lastSnapshotTime != null && now.difference(_lastSnapshotTime!) < snapshotInterval) return;
     _lastSnapshotTime = now;
@@ -142,6 +177,9 @@ class EditorProvider extends ChangeNotifier {
 
   Future<void> _performSync(SyncProvider syncProvider, String projectName) async {
     if (!_hasUnsyncedChanges) return;
+    // Belt and braces: pushing an unread document to Drive would put the blank
+    // into cloud version history too, where it outlives the local file.
+    if (_documentLoadFailed) return;
 
     // Cancel both timers to prevent duplicate/redundant runs
     _syncDebounceTimer?.cancel();

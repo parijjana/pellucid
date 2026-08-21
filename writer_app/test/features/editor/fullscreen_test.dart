@@ -43,6 +43,8 @@ void main() {
     mockNotes = MockNotesProvider();
 
     when(() => mockEditor.content).thenReturn('# Hello World');
+
+    when(() => mockEditor.documentLoadFailed).thenReturn(false);
     when(() => mockEditor.zoomLevel).thenReturn(1.0);
     when(() => mockEditor.pageWidth).thenReturn(800.0);
     when(() => mockEditor.horizontalPosition).thenReturn(0.5);

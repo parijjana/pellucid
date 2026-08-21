@@ -59,3 +59,8 @@ agent_log/
 
 # Internal project docs live in the private project_docs repo
 .project-docs
+
+# Scratch verification entry point instantiated from the store-launch-kit
+# template. It has to live in lib/ because its imports are lib-rooted, but it
+# is a throwaway and does not belong in the repo.
+writer_app/lib/screenshot_main_p3.dart

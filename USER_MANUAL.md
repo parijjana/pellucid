@@ -18,6 +18,15 @@ How to Connect:
 3. Click the CONNECT button under Google Drive Backup.
 4. Complete the authorization inside your web browser. Your "Pellucid Vault" folder will be created and synchronized automatically.
 
+Bringing a Project to This Device:
+Connecting an account backs your work UP. To bring a project DOWN onto a device that has never seen it — a new iPad, a reinstalled machine — open Settings and look under "In your Drive".
+1. Click CHECK DRIVE. Pellucid lists every project in your Pellucid Vault and tells you which ones this device already has.
+2. Click COPY HERE beside a project you want. Pellucid never overwrites a project you already have on this device; if the names match, it says so and leaves your copy alone.
+
+A copied project TRACKS Drive: it is the other device's project, and this device does not write to it. A notice at the top of the page says so. The moment you start typing, Pellucid makes an editable copy named after this device — "Novel" becomes "Novel_iPad" — and moves you into it. The original stays in your library, untouched, so the other device's latest sits beside your new work and you can merge them yourself later.
+
+If you come back and type in the tracking copy again, Pellucid opens the editable copy you already made rather than starting a second one. Your earlier edits there are left alone.
+
 ## CHAPTER 3: KEYBOARD SHORTCUTS
 
 Pellucid is designed to be operated entirely from your keyboard, letting you write and navigate without touching your mouse.
@@ -82,3 +91,21 @@ Rename a Project: You can rename a project in any of three ways. Each of them al
 - On macOS, use the menu bar: Projects → Rename Current Project…
 
 A name is rejected if it is empty, duplicates another project, or contains path characters (for example `/` or `..`). The seeded "User Manual" project cannot be renamed.
+
+## CHAPTER 6: ON A PHONE
+
+A phone is for catching a paragraph when inspiration strikes, not for a writing session. The layout changes to suit that.
+
+- The Dock: The bottom strip always shows your word count and the sync pulse. Tap the button at its right to slide out a dock of actions — settings, zoom, the formatting toolbar, fullscreen, and the notes sidebar. Tap again to put it away. The strip clears the home-indicator gesture area, so nothing sits where a swipe would catch it.
+- Pull Tabs: The status bar's sidebar buttons are gone. In their place a small tab sits against each edge of the screen — Table of Contents on the left, Research Notes on the right. They are anchored in the lower third, within reach of a thumb. Tap one to slide its sidebar in, tap again to close it. Tapping the page also closes an open sidebar. (Research Notes can also be opened from the dock.)
+- The Ghost UI, Adjusted: The interface normally dims until your cursor hovers over it. There is no hover on a touch screen, so on a phone or tablet without a mouse the chrome rests at a readable opacity instead of fading away.
+
+## CHAPTER 7: ON AN IPAD
+
+The iPad is a first-class writing device in Pellucid, with one honest caveat: it is at its best with a hardware keyboard attached. Without one it behaves like a large phone — good for quick additions, not for a session.
+
+- Keyboard Shortcuts: With a keyboard attached, every shortcut in Chapter 3 uses Command exactly as it does on macOS. Command + Option + 1 opens the Table of Contents, Command + F searches, and so on.
+- The Dock and Pull Tabs: Both work exactly as described in Chapter 6, and the pull tabs are deliberately anchored low rather than centred, so they stay in reach on a 13" screen.
+- Split View and Stage Manager: Pellucid lays out from the width actually available to it, not from the size of the iPad. Drag it into a narrow pane and it switches to the single-column layout with the dock and pull tabs; give it the width back and the full layout returns. Nothing is lost either way.
+- Copying a Project Across: A new iPad starts with an empty library. See Chapter 2 to bring your projects down from Drive, and note what happens the first time you type in one.
+

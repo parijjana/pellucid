@@ -387,6 +387,25 @@ class GoogleDriveSyncService {
     return names;
   }
 
+  /// Downloads a project's [file] from the vault, or null if the project or
+  /// the file does not exist there. The Drive -> local direction: unlike
+  /// [getRevisionContent] this reads the file's live content, not a revision.
+  Future<String?> downloadProjectFile(String projectName, LogicalFile file) async {
+    final api = await _getApi();
+    if (api == null) return null;
+
+    final vaultId = await _findFile(api, _vaultFolderName, isFolder: true);
+    if (vaultId == null) return null;
+
+    final projectId = await _findFile(api, projectName, parentId: vaultId.id, isFolder: true);
+    if (projectId == null) return null;
+
+    final driveFile = await _findFile(api, file.driveFileName, parentId: projectId.id);
+    if (driveFile == null) return null;
+
+    return downloadFileContent(driveFile.id!);
+  }
+
   Future<drive.DriveApi?> _getApi() async {
     if (_driveApi != null) {
       final isExpired = await _isTokenExpired();

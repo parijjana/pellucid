@@ -1,11 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import '../services/google_drive_sync_service.dart';
 import '../services/manuscript_migration.dart';
+import '../services/project_pull.dart';
 import '../models/logical_file.dart';
 import '../../settings/providers/settings_database.dart';
 import '../../editor/providers/storage_service.dart';
+import '../../settings/providers/project_stats.dart';
+import '../../sidebar/providers/note_card.dart';
 
 enum SyncStatus { idle, syncing, success, error }
 
@@ -301,6 +305,164 @@ class SyncProvider with ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print('Failed to get latest content: $e');
       return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Discovery and pull (Drive -> local).
+  //
+  // The first read path in the app. Everything above this line is upload-only:
+  // nothing enumerated the vault, so a fresh device opened to an empty library
+  // while the work sat in Drive. Two rules hold this path safe:
+  //
+  //   1. A pull NEVER writes into a project this device already has. Local
+  //      prose is not overwritten by a remote copy — reconciling a name that
+  //      exists on both sides is two-way sync's job (1.2).
+  //   2. The manuscript is read from whichever of `manuscript.md` /
+  //      `manuscript.md.md` is newer, so this works against a vault the
+  //      desktop migration has not swept yet. That is what lets iOS ship
+  //      independently of the Mac release train.
+  // ---------------------------------------------------------------------------
+
+  /// Every project folder in the vault, paired with whether this device
+  /// already has it. Empty when signed out — a signed-out device has nothing
+  /// to discover, which is not an error worth surfacing.
+  Future<List<RemoteProject>> listRemoteProjects({
+    required String masterPath,
+    required StorageService storageService,
+  }) async {
+    if (!_isLoggedIn) {
+      _isLoggedIn = await _service.isLoggedIn;
+    }
+    if (!_isLoggedIn) return [];
+
+    try {
+      final remote = await _service.listProjectNames();
+      final local = await storageService.listProjects(masterPath);
+      return pairWithLocalProjects(remoteNames: remote, localNames: local);
+    } catch (e) {
+      if (kDebugMode) print('Failed to list remote projects: $e');
+      return [];
+    }
+  }
+
+  /// Copies one project from the vault into the local master directory.
+  ///
+  /// Refuses if the project already exists locally. The manuscript is
+  /// required; notes and stats are best-effort, and a file that fails to
+  /// parse is skipped rather than written as garbage — writing an unparseable
+  /// `notes.json` locally would just trip the read-failure latch later and
+  /// lock the project's notes for no reason.
+  Future<PullResult> pullProject({
+    required String projectName,
+    required String masterPath,
+    required StorageService storageService,
+  }) async {
+    if (!_isLoggedIn) {
+      _isLoggedIn = await _service.isLoggedIn;
+    }
+    if (!_isLoggedIn) {
+      return PullResult(projectName: projectName, outcome: PullOutcome.notLoggedIn);
+    }
+
+    try {
+      final local = await storageService.listProjects(masterPath);
+      if (local.any((n) => n.toLowerCase() == projectName.toLowerCase())) {
+        return PullResult(
+          projectName: projectName,
+          outcome: PullOutcome.alreadyExistsLocally,
+        );
+      }
+
+      final canonical = await _service.findRawFileInProject(
+        projectName,
+        canonicalManuscriptDriveFileName,
+      );
+      final legacy = await _service.findRawFileInProject(
+        projectName,
+        legacyManuscriptDriveFileName,
+      );
+
+      final source = chooseManuscriptSource(
+        canonicalExists: canonical != null,
+        legacyExists: legacy != null,
+        canonicalModifiedTime: canonical?.modifiedTime,
+        legacyModifiedTime: legacy?.modifiedTime,
+      );
+
+      switch (source) {
+        case ManuscriptSource.none:
+          return PullResult(
+            projectName: projectName,
+            outcome: PullOutcome.noManuscript,
+          );
+        case ManuscriptSource.ambiguous:
+          return PullResult(
+            projectName: projectName,
+            outcome: PullOutcome.ambiguousManuscript,
+          );
+        case ManuscriptSource.canonical:
+        case ManuscriptSource.legacy:
+          break;
+      }
+
+      final chosen = source == ManuscriptSource.legacy ? legacy! : canonical!;
+      final manuscript = await _service.downloadFileContent(chosen.id!);
+      if (manuscript == null) {
+        return PullResult(
+          projectName: projectName,
+          outcome: PullOutcome.noManuscript,
+        );
+      }
+
+      // Nothing is written to disk until the manuscript is in hand, so a
+      // failed download cannot leave an empty project behind.
+      await storageService.initProject(masterPath, projectName);
+      final projectPath = '$masterPath/$projectName';
+      await storageService.saveDocument(projectPath, manuscript);
+
+      final pulled = <LogicalFile>{LogicalFile.manuscript};
+      final skipped = <LogicalFile>{};
+
+      final notesJson = await _service.downloadProjectFile(projectName, LogicalFile.notes);
+      if (notesJson != null) {
+        try {
+          final cards = (jsonDecode(notesJson) as List<dynamic>)
+              .map((j) => NoteCard.fromJson(j))
+              .toList();
+          await storageService.saveNotes(projectPath, cards);
+          pulled.add(LogicalFile.notes);
+        } catch (e) {
+          skipped.add(LogicalFile.notes);
+        }
+      }
+
+      final statsJson = await _service.downloadProjectFile(projectName, LogicalFile.stats);
+      if (statsJson != null) {
+        try {
+          await storageService.saveProjectStats(
+            projectPath,
+            ProjectStats.fromJson(jsonDecode(statsJson)),
+          );
+          pulled.add(LogicalFile.stats);
+        } catch (e) {
+          skipped.add(LogicalFile.stats);
+        }
+      }
+
+      return PullResult(
+        projectName: projectName,
+        outcome: PullOutcome.pulled,
+        filesPulled: pulled,
+        filesSkipped: skipped,
+      );
+    } catch (e) {
+      if (kDebugMode) print('Pull failed for "$projectName": $e');
+      return PullResult(
+        projectName: projectName,
+        outcome: PullOutcome.failed,
+        error: e,
+      );
     }
   }
 

@@ -18,6 +18,7 @@ import '../../sidebar/providers/notes_provider.dart';
 import '../providers/history_provider.dart';
 import '../widgets/project_card.dart';
 import '../widgets/new_project_card.dart';
+import '../widgets/drive_projects_section.dart';
 import '../widgets/daily_goal_indicator.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
@@ -305,6 +306,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             _buildProjectControls(theme),
                             const SizedBox(height: 16),
                             _buildProjectArea(settings, history, theme),
+                            const SizedBox(height: 32),
+                            _subHeader('In your Drive', theme),
+                            const SizedBox(height: 12),
+                            DriveProjectsSection(theme: theme),
                             const SizedBox(height: 40),
                             _subHeader('Publish & Export', theme),
                             const SizedBox(height: 16),

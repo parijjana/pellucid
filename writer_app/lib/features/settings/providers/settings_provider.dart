@@ -342,11 +342,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createProject(String name) async {
-    if (_masterDirectoryPath == null) return;
-    await _storageService.initProject(_masterDirectoryPath!, name);
+  Future<bool> createProject(String name) async {
+    if (_masterDirectoryPath == null) return false;
+    if (!StorageService.isValidProjectName(name)) return false;
+    final cleanName = name.trim();
+    await _storageService.initProject(_masterDirectoryPath!, cleanName);
     await refreshProjects();
-    await setCurrentProject(name);
+    await setCurrentProject(cleanName);
+    return true;
   }
 
   Future<void> setCurrentProject(String? name) async {
@@ -439,6 +442,7 @@ class SettingsProvider extends ChangeNotifier {
     if (oldName == 'User Manual') return false; // Protect User Manual
     final cleanName = newName.trim();
     if (cleanName.isEmpty || cleanName == oldName) return false;
+    if (!StorageService.isValidProjectName(cleanName)) return false;
 
     try {
       final success = await _storageService.renameProject(_masterDirectoryPath!, oldName, cleanName);

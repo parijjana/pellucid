@@ -21,11 +21,13 @@ import '../widgets/new_project_card.dart';
 import '../widgets/daily_goal_indicator.dart';
 import '../../editor/services/export_service.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import '../../editor/widgets/shortcuts.dart';
 import '../../../features_config.dart';
 import '../widgets/custom_theme_designer.dart';
 import 'stats_screen.dart';
 import '../../editor/widgets/low_contrast_widgets.dart';
+import '../../../core/platform_context.dart';
 
 enum ProjectSort { date, name }
 
@@ -74,7 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (settings.currentProjectName != null) {
           await sync.syncCurrentFile(
             projectName: settings.currentProjectName!,
-            fileName: 'manuscript',
+            fileName: LogicalFile.manuscript,
             content: editor.content,
           );
           final notesJson = jsonEncode(notes.cards.map((c) => c.toJson()).toList());
@@ -153,13 +155,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final sync = context.watch<SyncProvider>();
     final history = context.watch<HistoryProvider>();
 
-    final bool isMac = !kIsWeb && Platform.isMacOS;
-    final bool isMobilePhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    final bool isMobilePhone = isPhoneLayout(context);
     final bool isMobilePlatform = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: usesCommandModifier): const OpenSettingsIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -174,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (event is KeyDownEvent) {
               final isAltPressed = HardwareKeyboard.instance.isAltPressed;
               final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
-              final bool match = isMac
+              final bool match = usesCommandModifier
                   ? (isMetaPressed && isAltPressed && event.logicalKey == LogicalKeyboardKey.digit4)
                   : (isAltPressed && event.logicalKey == LogicalKeyboardKey.digit4);
               if (match) {
@@ -467,6 +468,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             theme: theme,
             wordGoal: wordGoal,
             onSetGoal: isActive ? () => _showSetGoalDialog(context, history, theme, wordGoal) : null,
+            onRename: project.name == 'User Manual'
+                ? null
+                : () => _showRenameProjectDialog(context, settings, theme, project.name),
             onTap: () async {
               final editorProvider = context.read<EditorProvider>();
               final syncProvider = context.read<SyncProvider>();
@@ -1070,8 +1074,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
                 );
-                await settings.createProject(controller.text);
-                if (mounted) {
+                final success = await settings.createProject(controller.text);
+                if (success && mounted) {
                   final path = settings.currentProjectPath;
                   await editorProvider.loadProject(path);
                   await notesProvider.loadProject(path, projectName: controller.text);
@@ -1082,6 +1086,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameProjectDialog(BuildContext context, SettingsProvider settings, WriterTheme theme, String projectName) {
+    final controller = TextEditingController(text: projectName);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.sidebarColor,
+        title: Text('Rename Project', style: TextStyle(color: theme.foregroundColor)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: theme.foregroundColor),
+          decoration: InputDecoration(
+            hintText: 'New Project Name',
+            hintStyle: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty || newName == projectName) return;
+
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              final wasCurrent = settings.currentProjectName == projectName;
+              final editorProvider = context.read<EditorProvider>();
+              final notesProvider = context.read<NotesProvider>();
+              final historyProvider = context.read<HistoryProvider>();
+
+              final ok = await settings.renameProject(projectName, newName);
+
+              if (!context.mounted) return;
+
+              if (ok) {
+                navigator.pop();
+                if (wasCurrent && mounted) {
+                  final path = settings.currentProjectPath;
+                  await editorProvider.loadProject(path);
+                  await notesProvider.loadProject(path, projectName: newName);
+                  await historyProvider.loadProjectStats(path);
+                }
+              } else {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text("Couldn't rename the project — the name may be invalid or already in use.")),
+                );
+              }
+            },
+            child: const Text('Rename'),
           ),
         ],
       ),

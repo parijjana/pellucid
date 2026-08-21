@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import '../../settings/providers/history_provider.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 import '../services/export_service.dart';
 
 class SettingsMenuBarState {
@@ -143,7 +145,8 @@ class MacMenuBarWrapper extends StatelessWidget {
     );
 
     // 2. Create the new project
-    await settings.createProject(name);
+    final success = await settings.createProject(name);
+    if (!success) return;
 
     // 3. Load the new project data
     final path = settings.currentProjectPath;
@@ -602,14 +605,12 @@ class MacMenuBarWrapper extends StatelessWidget {
       state.pop();
     } else {
       final uiState = context.read<ShortcutsProvider>();
-      context.read<HistoryProvider>().saveStatsNow().then((_) {
-        if (state.mounted) {
-          state.push(MaterialPageRoute(
-            settings: const RouteSettings(name: '/settings'),
-            builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-          ));
-        }
-      });
+      // Flush stats in the background; do NOT block navigation on the Drive sync.
+      unawaited(context.read<HistoryProvider>().saveStatsNow());
+      state.push(MaterialPageRoute(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+      ));
     }
   }
 
@@ -903,7 +904,7 @@ class MacMenuBarWrapper extends StatelessWidget {
       
       await sync.syncCurrentFile(
         projectName: settingsState.currentProjectName!,
-        fileName: 'manuscript',
+        fileName: LogicalFile.manuscript,
         content: editor.content,
       );
       

@@ -25,6 +25,10 @@ class ProjectCard extends StatelessWidget {
   /// Optional callback to configure the word goal. Hidden when null.
   final VoidCallback? onSetGoal;
 
+  /// Optional callback to rename this project. Hidden when null (e.g. for
+  /// the protected 'User Manual' project).
+  final VoidCallback? onRename;
+
   const ProjectCard({
     super.key,
     required this.name,
@@ -37,6 +41,7 @@ class ProjectCard extends StatelessWidget {
     required this.onOpenFolder,
     this.wordGoal,
     this.onSetGoal,
+    this.onRename,
   });
 
   bool get _hasGoal => wordGoal != null && wordGoal! > 0;
@@ -89,32 +94,26 @@ class ProjectCard extends StatelessWidget {
                   const Icon(Icons.check_circle, color: Colors.blue, size: 16),
               ],
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _statText('$wordCount words', theme),
-                      const SizedBox(height: 4),
-                      _statText(_formatTime(timeSpent), theme),
-                      if (_hasGoal) ...[
-                        const SizedBox(height: 6),
-                        ProjectGoalLine(
-                          wordCount: wordCount,
-                          wordGoal: wordGoal!,
-                          theme: theme,
-                        ),
-                      ],
-                    ],
+                _statText('$wordCount words', theme),
+                const SizedBox(height: 4),
+                _statText(_formatTime(timeSpent), theme),
+                if (_hasGoal) ...[
+                  const SizedBox(height: 6),
+                  ProjectGoalLine(
+                    wordCount: wordCount,
+                    wordGoal: wordGoal!,
+                    theme: theme,
                   ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    if (onSetGoal != null) ...[
+                    if (onSetGoal != null)
                       Tooltip(
                         message: 'Set Word Goal',
                         child: GestureDetector(
@@ -122,13 +121,10 @@ class ProjectCard extends StatelessWidget {
                           child: _GoalButton(theme: theme),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
                     GestureDetector(
                       onTap: onLaunch,
                       child: _LaunchButton(theme: theme),
                     ),
-                    const SizedBox(width: 8),
                     Tooltip(
                       message: _getFolderTooltip(),
                       child: GestureDetector(
@@ -136,7 +132,14 @@ class ProjectCard extends StatelessWidget {
                         child: _OpenFolderButton(theme: theme),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    if (onRename != null)
+                      Tooltip(
+                        message: 'Rename Project',
+                        child: GestureDetector(
+                          onTap: onRename,
+                          child: _RenameButton(theme: theme),
+                        ),
+                      ),
                     GestureDetector(
                       onTap: () {
                         showDialog(
@@ -146,8 +149,7 @@ class ProjectCard extends StatelessWidget {
                       },
                       child: _SnapshotsButton(theme: theme),
                     ),
-                    if (isActive) ...[
-                      const SizedBox(width: 8),
+                    if (isActive)
                       GestureDetector(
                         onTap: () {
                           Navigator.push(
@@ -160,7 +162,6 @@ class ProjectCard extends StatelessWidget {
                         },
                         child: _HistoryButton(theme: theme),
                       ),
-                    ],
                   ],
                 ),
               ],
@@ -287,6 +288,27 @@ class _OpenFolderButton extends StatelessWidget {
       ),
       child: Icon(
         Icons.folder_open,
+        size: 14,
+        color: theme.foregroundColor.withValues(alpha: 0.4),
+      ),
+    );
+  }
+}
+
+class _RenameButton extends StatelessWidget {
+  final WriterTheme theme;
+  const _RenameButton({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.foregroundColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.drive_file_rename_outline,
         size: 14,
         color: theme.foregroundColor.withValues(alpha: 0.4),
       ),

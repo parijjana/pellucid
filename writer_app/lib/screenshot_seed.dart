@@ -7,6 +7,7 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import 'features/sidebar/providers/note_card.dart';
 import 'features/sidebar/providers/notes_provider.dart';
 import 'features/sync/providers/sync_provider.dart';
+import 'features/sync/models/logical_file.dart';
 import 'features/settings/providers/settings_provider.dart';
 import 'features/settings/providers/history_provider.dart';
 import 'features/settings/providers/project_stats.dart';
@@ -115,13 +116,13 @@ class ScreenshotSyncProvider extends SyncProvider {
   @override
   List<drive.Revision> get history => _seed;
   @override
-  Future<void> loadHistory(String projectName, String fileName) async {}
+  Future<void> loadHistory(String projectName, LogicalFile fileName) async {}
   @override
-  Future<void> refreshLastSynced(String projectName, String fileName) async {}
+  Future<void> refreshLastSynced(String projectName, LogicalFile fileName) async {}
   @override
-  Future<String?> getLatestContent({required String projectName, required String fileName}) async => null;
+  Future<String?> getLatestContent({required String projectName, required LogicalFile fileName}) async => null;
   @override
-  Future<void> syncCurrentFile({required String projectName, required String fileName, required String content}) async {}
+  Future<void> syncCurrentFile({required String projectName, required LogicalFile fileName, required String content}) async {}
 }
 
 /// Realistic session/goal/timer display values. No DB writes (base setters are

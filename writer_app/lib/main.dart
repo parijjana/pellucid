@@ -24,7 +24,7 @@ import 'features/sidebar/widgets/note_editor_dialog.dart';
 import 'features/editor/widgets/alarm_setter_dialog.dart';
 import 'features/search/providers/search_provider.dart';
 import 'features/editor/widgets/mac_menu_bar_wrapper.dart';
-import 'features/editor/screenshot_mode.dart';
+import 'core/platform_context.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,6 +80,7 @@ void main() async {
         ChangeNotifierProvider.value(value: searchProvider),
         ChangeNotifierProvider.value(value: sprintController),
         ChangeNotifierProvider(create: (_) => ShortcutsProvider()),
+        ChangeNotifierProvider(create: (_) => PointerTypeNotifier()),
       ],
       child: const WriterApp(),
     ),
@@ -90,6 +91,13 @@ void main() async {
   // so it never blocks or freezes startup/UI. One-way local -> Drive only.
   if (!kIsWeb) {
     _scheduleFullBackups(syncProvider, settingsProvider);
+
+    // One-time, data-preserving Drive-side manuscript filename migration
+    // (docs/two-way-sync-design.md §1). Fire-and-forget: it only touches
+    // Drive, never local disk, and is idempotent/interruption-safe (see
+    // SyncProvider.runManuscriptMigrationIfNeeded). Already-migrated vaults
+    // resolve to a single cheap Drive listing per app start.
+    unawaited(syncProvider.runManuscriptMigrationIfNeeded());
   }
 }
 
@@ -119,33 +127,50 @@ class WriterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMac = !kIsWeb && Platform.isMacOS;
+    // "Uses Command as the primary shortcut modifier" — true on macOS AND
+    // iOS/iPadOS (relevant for iPad + hardware keyboard users). Everywhere
+    // else (Windows, Linux, Android, web) uses Ctrl/Alt. See
+    // usesCommandModifier in core/platform_context.dart for the full
+    // rationale (imported as `usesCommandModifier`, used directly below).
+    //
+    // macOS-*specifically* (not iOS) — reserved for the one shortcut below
+    // that has no iOS equivalent.
+    final bool isMacOS = !kIsWeb && Platform.isMacOS;
 
-    return Shortcuts(
+    // Latches PointerTypeNotifier.hasPointer the first time a mouse/trackpad
+    // hover is observed anywhere in the app. Listener is non-opaque (it only
+    // participates in hit-testing if a child does), so this adds pointer
+    // observation without changing hit-testing or visuals anywhere below it.
+    return Listener(
+      onPointerHover: (event) => context.read<PointerTypeNotifier>().onPointerHover(event),
+      child: Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.digit1, alt: true, meta: isMac): const ToggleToCIntent(),
-        SingleActivator(LogicalKeyboardKey.digit2, alt: true, meta: isMac): const ToggleNotesIntent(),
-        SingleActivator(LogicalKeyboardKey.digit3, alt: true, meta: isMac): const ToggleToolbarIntent(),
-        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: isMac): const OpenSettingsIntent(),
-        SingleActivator(LogicalKeyboardKey.comma, meta: isMac, control: !isMac): const OpenSettingsIntent(),
-        SingleActivator(LogicalKeyboardKey.digit5, alt: true, meta: isMac): const ToggleTypewriterIntent(),
-        SingleActivator(LogicalKeyboardKey.digit6, alt: true, meta: isMac): const ToggleParagraphFocusIntent(),
+        SingleActivator(LogicalKeyboardKey.digit1, alt: true, meta: usesCommandModifier): const ToggleToCIntent(),
+        SingleActivator(LogicalKeyboardKey.digit2, alt: true, meta: usesCommandModifier): const ToggleNotesIntent(),
+        SingleActivator(LogicalKeyboardKey.digit3, alt: true, meta: usesCommandModifier): const ToggleToolbarIntent(),
+        SingleActivator(LogicalKeyboardKey.digit4, alt: true, meta: usesCommandModifier): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.comma, meta: usesCommandModifier, control: !usesCommandModifier): const OpenSettingsIntent(),
+        SingleActivator(LogicalKeyboardKey.digit5, alt: true, meta: usesCommandModifier): const ToggleTypewriterIntent(),
+        SingleActivator(LogicalKeyboardKey.digit6, alt: true, meta: usesCommandModifier): const ToggleParagraphFocusIntent(),
         const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
-        SingleActivator(LogicalKeyboardKey.enter, alt: true, meta: isMac): const ToggleFullscreenIntent(),
-        // macOS-only: standard Cmd+Ctrl+F fullscreen convention. Gated to isMac
-        // because on Windows/Linux this activator (control: true, meta: false)
+        SingleActivator(LogicalKeyboardKey.enter, alt: true, meta: usesCommandModifier): const ToggleFullscreenIntent(),
+        // macOS-only: standard Cmd+Ctrl+F fullscreen convention. Gated to
+        // isMacOS specifically (not usesCommandModifier / iOS) because on
+        // Windows/Linux this activator (control: true, meta: false)
         // would otherwise be structurally identical to the Ctrl+F search
-        // shortcut below and silently overwrite it as a map key.
-        if (isMac) const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true): const ToggleFullscreenIntent(),
-        SingleActivator(LogicalKeyboardKey.keyC, alt: true, meta: isMac): const PeekClockIntent(),
-        SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: isMac, shift: true): const SetAlarmIntent(),
-        SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: isMac): const PeekSessionIntent(),
-        SingleActivator(LogicalKeyboardKey.keyN, alt: true, meta: isMac): const AddNoteIntent(),
-        SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: isMac): const OpenAttributionIntent(),
-        SingleActivator(LogicalKeyboardKey.keyP, alt: true, meta: isMac): const TogglePomodoroIntent(),
-        SingleActivator(LogicalKeyboardKey.keyP, alt: true, meta: isMac, shift: true): const ResetPomodoroIntent(),
-        SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: isMac, shift: true): const ToggleSprintIntent(),
-        SingleActivator(LogicalKeyboardKey.keyF, control: !isMac, meta: isMac): const ToggleSearchIntent(),
+        // shortcut below and silently overwrite it as a map key. iOS has no
+        // equivalent native fullscreen convention, so it is deliberately
+        // excluded too.
+        if (isMacOS) const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true): const ToggleFullscreenIntent(),
+        SingleActivator(LogicalKeyboardKey.keyC, alt: true, meta: usesCommandModifier): const PeekClockIntent(),
+        SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: usesCommandModifier, shift: true): const SetAlarmIntent(),
+        SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: usesCommandModifier): const PeekSessionIntent(),
+        SingleActivator(LogicalKeyboardKey.keyN, alt: true, meta: usesCommandModifier): const AddNoteIntent(),
+        SingleActivator(LogicalKeyboardKey.keyA, alt: true, meta: usesCommandModifier): const OpenAttributionIntent(),
+        SingleActivator(LogicalKeyboardKey.keyP, alt: true, meta: usesCommandModifier): const TogglePomodoroIntent(),
+        SingleActivator(LogicalKeyboardKey.keyP, alt: true, meta: usesCommandModifier, shift: true): const ResetPomodoroIntent(),
+        SingleActivator(LogicalKeyboardKey.keyS, alt: true, meta: usesCommandModifier, shift: true): const ToggleSprintIntent(),
+        SingleActivator(LogicalKeyboardKey.keyF, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleSearchIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -279,14 +304,12 @@ class WriterApp extends StatelessWidget {
               state.pop();
             } else {
               final uiState = context.read<ShortcutsProvider>();
-              context.read<HistoryProvider>().saveStatsNow().then((_) {
-                if (state.mounted) {
-                  state.push(MaterialPageRoute(
-                    settings: const RouteSettings(name: '/settings'),
-                    builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                  ));
-                }
-              });
+              // Flush stats in the background; do NOT block navigation on the Drive sync.
+              unawaited(context.read<HistoryProvider>().saveStatsNow());
+              state.push(MaterialPageRoute(
+                settings: const RouteSettings(name: '/settings'),
+                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+              ));
             }
             return null;
           }),
@@ -359,9 +382,7 @@ class WriterApp extends StatelessWidget {
               ),
               home: const EditorScreen(),
               builder: (context, child) {
-                final bool isMobilePhone = kScreenshotCaptureMode
-                    ? kScreenshotLayout == ScreenshotLayout.mobilePhone
-                    : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+                final bool isMobilePhone = isPhoneLayout(context);
                 return Consumer<SettingsProvider>(
                   builder: (context, settings, _) {
                     return GlowingBorder(
@@ -376,6 +397,7 @@ class WriterApp extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

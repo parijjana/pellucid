@@ -56,3 +56,6 @@ agent_log/
 .env
 .env.local
 .env.*.local
+
+# Internal project docs live in the private project_docs repo
+.project-docs

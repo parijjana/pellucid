@@ -33,7 +33,8 @@ import '../widgets/mobile_persistent_toolbar.dart';
 import '../widgets/cheatsheet_overlay.dart';
 import '../widgets/typewriter_scroll.dart';
 import '../utils/toc_parser.dart';
-import '../screenshot_mode.dart';
+import '../../../core/platform_context.dart';
+import '../../sidebar/widgets/snapshot_management_dialog.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -410,46 +411,43 @@ class _EditorScreenState extends State<EditorScreen> {
 
 
     final headers = _tocHeaders;
-    final bool isMac = !kIsWeb && Platform.isMacOS;
-    final bool isMobilePhone = kScreenshotCaptureMode
-        ? kScreenshotLayout == ScreenshotLayout.mobilePhone
-        : !kIsWeb && (Platform.isAndroid || Platform.isIOS) && MediaQuery.of(context).size.shortestSide < 600;
+    // "Uses Command as the primary shortcut modifier" — true on macOS AND
+    // iOS/iPadOS. See usesCommandModifier in core/platform_context.dart.
+    final bool isMobilePhone = isPhoneLayout(context);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         // Formatting (Still local to editor for context)
-        SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: isMac): const SetTitleIntent(),
-        SingleActivator(LogicalKeyboardKey.keyE, alt: true, meta: isMac): const SetHeaderIntent(),
-        SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: isMac): const SetBodyIntent(),
-        SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: isMac): const SetBulletIntent(),
-        SingleActivator(LogicalKeyboardKey.keyB, control: !isMac, meta: isMac): const ToggleBoldIntent(),
-        SingleActivator(LogicalKeyboardKey.keyI, control: !isMac, meta: isMac): const ToggleItalicIntent(),
-        SingleActivator(LogicalKeyboardKey.keyU, control: !isMac, meta: isMac): const ToggleUnderlineIntent(),
+        SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: usesCommandModifier): const SetTitleIntent(),
+        SingleActivator(LogicalKeyboardKey.keyE, alt: true, meta: usesCommandModifier): const SetHeaderIntent(),
+        SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: usesCommandModifier): const SetBodyIntent(),
+        SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: usesCommandModifier): const SetBulletIntent(),
+        SingleActivator(LogicalKeyboardKey.keyB, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleBoldIntent(),
+        SingleActivator(LogicalKeyboardKey.keyI, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleItalicIntent(),
+        SingleActivator(LogicalKeyboardKey.keyU, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleUnderlineIntent(),
 
         // Alignment
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: isMac): const IncreaseWidthIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: isMac): const DecreaseWidthIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: isMac, shift: true): const ShiftPaperRightIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: isMac, shift: true): const ShiftPaperLeftIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: usesCommandModifier): const IncreaseWidthIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: usesCommandModifier): const DecreaseWidthIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true, meta: usesCommandModifier, shift: true): const ShiftPaperRightIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true, meta: usesCommandModifier, shift: true): const ShiftPaperLeftIntent(),
 
         // Zoom (Ctrl/Cmd)
-        SingleActivator(LogicalKeyboardKey.equal, control: !isMac, meta: isMac): const ZoomInIntent(),
-        SingleActivator(LogicalKeyboardKey.minus, control: !isMac, meta: isMac): const ZoomOutIntent(),
+        SingleActivator(LogicalKeyboardKey.equal, control: !usesCommandModifier, meta: usesCommandModifier): const ZoomInIntent(),
+        SingleActivator(LogicalKeyboardKey.minus, control: !usesCommandModifier, meta: usesCommandModifier): const ZoomOutIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
           OpenSettingsIntent: CallbackAction<OpenSettingsIntent>(onInvoke: (_) {
-            context.read<HistoryProvider>().saveStatsNow().then((_) {
-              if (context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    settings: const RouteSettings(name: '/settings'),
-                    builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                  ),
-                );
-              }
-            });
+            // Flush stats in the background; do NOT block navigation on the Drive sync.
+            unawaited(context.read<HistoryProvider>().saveStatsNow());
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: '/settings'),
+                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+              ),
+            );
             return null;
           }),
           SetTitleIntent: CallbackAction<SetTitleIntent>(onInvoke: (_) => _applyFormat('# ')),
@@ -492,17 +490,15 @@ class _EditorScreenState extends State<EditorScreen> {
                         theme: theme,
                         onApplyFormat: _applyFormat,
                         onSettingsTap: () {
-                          context.read<HistoryProvider>().saveStatsNow().then((_) {
-                            if (context.mounted) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  settings: const RouteSettings(name: '/settings'),
-                                  builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
-                                ),
-                              );
-                            }
-                          });
+                          // Flush stats in the background; do NOT block navigation on the Drive sync.
+                          unawaited(context.read<HistoryProvider>().saveStatsNow());
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              settings: const RouteSettings(name: '/settings'),
+                              builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                            ),
+                          );
                         },
                       ),
                     Expanded(
@@ -635,17 +631,33 @@ class _EditorScreenState extends State<EditorScreen> {
                         uiState.setFullscreen(newValue);
                       },
                       onOpenSettings: () {
-                        context.read<HistoryProvider>().saveStatsNow().then((_) {
-                          if (context.mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                settings: const RouteSettings(name: '/settings'),
-                                builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                        // Flush stats in the background; do NOT block navigation on the Drive sync.
+                        unawaited(context.read<HistoryProvider>().saveStatsNow());
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            settings: const RouteSettings(name: '/settings'),
+                            builder: (context) => SettingsScreen(isFullscreen: uiState.isFullscreen),
+                          ),
+                        );
+                      },
+                      onOpenVersionHistory: () {
+                        // Flush any pending edit before showing the list, so
+                        // "latest" in the dialog matches what is on screen
+                        // rather than the state at the last autosave tick.
+                        unawaited(
+                          context.read<EditorProvider>().flushSync(
+                                syncProvider: context.read<SyncProvider>(),
+                                projectName: settings.currentProjectName,
                               ),
-                            );
-                          }
-                        });
+                        );
+                        showDialog(
+                          context: context,
+                          builder: (context) => SnapshotManagementDialog(
+                            projectName:
+                                settings.currentProjectName ?? 'User Manual',
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -676,7 +688,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       ),
                     ),
                   ),
-                if (isMobilePhone) ...[
+                if (isTouchPlatform) ...[
                   SidebarPulltab(
                     theme: theme,
                     direction: AxisDirection.left,

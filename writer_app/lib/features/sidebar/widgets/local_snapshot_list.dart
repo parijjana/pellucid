@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../editor/providers/local_snapshot_store.dart';
+import '../../sync/models/logical_file.dart';
 import 'revision_preview_dialog.dart';
 import 'snapshot_text_utils.dart';
 
@@ -66,7 +67,7 @@ class _LocalSnapshotListState extends State<LocalSnapshotList> {
       context: context,
       builder: (context) => RevisionPreviewDialog(
         projectName: widget.projectName,
-        fileName: 'manuscript.md',
+        fileName: LogicalFile.manuscript,
         displayTime: formatSnapshotTime(entry.record.timestamp),
         localFilePath: entry.record.filePath,
         storageService: widget.storageService,

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
+import '../../../core/platform_context.dart';
 
 class AlignmentBar extends StatefulWidget {
   final WriterTheme theme;
@@ -30,6 +31,17 @@ class _AlignmentBarState extends State<AlignmentBar> {
 
   @override
   Widget build(BuildContext context) {
+    // This is a fiddly hover+drag-only control (~15 hover sites below) with
+    // no touch equivalent by design — the owner explicitly does not want a
+    // touch redesign here. On a touch-only device `hover` never fires, so
+    // without this gate the bar would sit permanently invisible (opacity 0)
+    // yet still eat touch/drag gestures over its hit area. Hiding it
+    // entirely once we know no pointer device is present removes both
+    // problems; it reappears immediately once a mouse/trackpad is detected
+    // (e.g. Split View + trackpad on iPad).
+    if (isTouchWithoutPointer(context)) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
       child: MouseRegion(

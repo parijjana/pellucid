@@ -79,6 +79,15 @@ Key Features:
 - Persistent Highlights: The search box and highlights remain active even when you interact with other panels (such as clicking on chapters in the TOC or browsing your notes).
 - Match Navigation: Step through matches using the up/down arrows in the search box or by pressing Enter in the search field. The editor will automatically scroll to center the active match with a distinct orange highlight.
 - Dismissal: Click the close button inside the search box or press Escape to close the panel and remove the highlights.
+
+## CHAPTER 5: MANAGING PROJECTS
+
+Rename a Project: You can rename a project in any of three ways. Each of them also renames the project's folder inside your Master Storage Directory, so your files stay organized under the new name:
+- In Settings / Dashboard, click the rename (pencil) button on the project's card. This works for any project in the list.
+- Double-tap the project title at the top of the editor to edit it inline, then press Enter (renames the currently open project).
+- On macOS, use the menu bar: Projects → Rename Current Project…
+
+A name is rejected if it is empty, duplicates another project, or contains path characters (for example `/` or `..`). The seeded "User Manual" project cannot be renamed.
 ''';
 
 String userManualNotesJson() => jsonEncode([

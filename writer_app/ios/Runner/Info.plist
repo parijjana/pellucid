@@ -26,6 +26,27 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!--
+	  Google Sign-In / Drive OAuth redirect for ASWebAuthenticationSession.
+	  This is the reverse-DNS form of the "iOS" OAuth client id, which is also
+	  supplied to the build as --dart-define=GOOGLE_IOS_CLIENT_ID (sourced from
+	  the git-ignored writer_app/.env.local). The two MUST stay in sync: this
+	  string has to equal IosOAuthHelper.reversedScheme(GOOGLE_IOS_CLIENT_ID),
+	  or ASWebAuthenticationSession cannot deliver the redirect back to the app.
+	  An iOS OAuth client is a public client with no secret; PKCE (S256) secures
+	  the exchange, so this identifier is safe to keep in the tree.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.overengineeredhobbies.pellucid.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.153313615218-0r75r5q58qfn4n70ol44pf1fgjs9s2j3</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -53,6 +74,8 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

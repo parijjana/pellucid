@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-27T05:42:04.404594Z",
+  "generated": "2026-07-31T10:57:47.112338Z",
   "out_root": "/Users/animeshsarkar/code/projects/pellucid/writer_app/store_screenshots",
   "shots": [
     {
@@ -11,7 +11,9 @@
       "expected_w": 2880,
       "expected_h": 1800,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "mac/02-navigation.png",
@@ -22,7 +24,9 @@
       "expected_w": 2880,
       "expected_h": 1800,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "mac/03-notes-codex.png",
@@ -33,7 +37,9 @@
       "expected_w": 2880,
       "expected_h": 1800,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "mac/04-writing-sprint.png",
@@ -44,7 +50,9 @@
       "expected_w": 2880,
       "expected_h": 1800,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "mac/05-version-history.png",
@@ -55,7 +63,9 @@
       "expected_w": 2880,
       "expected_h": 1800,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "microsoft/01-hero-editor.png",
@@ -66,7 +76,9 @@
       "expected_w": 2560,
       "expected_h": 1440,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "microsoft/02-navigation.png",
@@ -77,7 +89,9 @@
       "expected_w": 2560,
       "expected_h": 1440,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "microsoft/03-notes-codex.png",
@@ -88,7 +102,9 @@
       "expected_w": 2560,
       "expected_h": 1440,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "microsoft/04-writing-sprint.png",
@@ -99,7 +115,9 @@
       "expected_w": 2560,
       "expected_h": 1440,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "microsoft/05-version-history.png",
@@ -110,7 +128,9 @@
       "expected_w": 2560,
       "expected_h": 1440,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/iphone69/01-hero-editor.png",
@@ -121,7 +141,9 @@
       "expected_w": 1290,
       "expected_h": 2796,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/iphone69/02-navigation.png",
@@ -132,7 +154,9 @@
       "expected_w": 1290,
       "expected_h": 2796,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/iphone69/03-notes-codex.png",
@@ -143,7 +167,9 @@
       "expected_w": 1290,
       "expected_h": 2796,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/01-hero-editor.png",
@@ -154,7 +180,9 @@
       "expected_w": 2048,
       "expected_h": 2732,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/02-navigation.png",
@@ -165,7 +193,9 @@
       "expected_w": 2048,
       "expected_h": 2732,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/03-notes-codex.png",
@@ -176,7 +206,9 @@
       "expected_w": 2048,
       "expected_h": 2732,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/04-writing-sprint.png",
@@ -187,7 +219,9 @@
       "expected_w": 2048,
       "expected_h": 2732,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/05-version-history.png",
@@ -198,7 +232,9 @@
       "expected_w": 2048,
       "expected_h": 2732,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/land-01-hero-editor.png",
@@ -209,7 +245,9 @@
       "expected_w": 2732,
       "expected_h": 2048,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/land-02-navigation.png",
@@ -220,7 +258,9 @@
       "expected_w": 2732,
       "expected_h": 2048,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/land-03-notes-codex.png",
@@ -231,7 +271,9 @@
       "expected_w": 2732,
       "expected_h": 2048,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/land-04-writing-sprint.png",
@@ -242,7 +284,9 @@
       "expected_w": 2732,
       "expected_h": 2048,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "ios/ipad13/land-05-version-history.png",
@@ -253,7 +297,9 @@
       "expected_w": 2732,
       "expected_h": 2048,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/phone/01-hero-editor.png",
@@ -264,7 +310,9 @@
       "expected_w": 1080,
       "expected_h": 2400,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/phone/02-navigation.png",
@@ -275,7 +323,9 @@
       "expected_w": 1080,
       "expected_h": 2400,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/phone/03-notes-codex.png",
@@ -286,7 +336,9 @@
       "expected_w": 1080,
       "expected_h": 2400,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/tablet/01-hero-editor.png",
@@ -297,7 +349,9 @@
       "expected_w": 1600,
       "expected_h": 2560,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/tablet/02-navigation.png",
@@ -308,7 +362,9 @@
       "expected_w": 1600,
       "expected_h": 2560,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/tablet/03-notes-codex.png",
@@ -319,7 +375,9 @@
       "expected_w": 1600,
       "expected_h": 2560,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/tablet/04-writing-sprint.png",
@@ -330,7 +388,9 @@
       "expected_w": 1600,
       "expected_h": 2560,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     },
     {
       "file": "play/tablet/05-version-history.png",
@@ -341,8 +401,13 @@
       "expected_w": 1600,
       "expected_h": 2560,
       "overflow": false,
-      "overflow_details": []
+      "overflow_details": [],
+      "layout_error": false,
+      "layout_error_details": []
     }
   ],
-  "skipped": []
+  "skipped": [],
+  "settle_timeouts": [],
+  "scene_retries": [],
+  "scene_mismatches": []
 }

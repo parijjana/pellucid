@@ -7,6 +7,7 @@ import 'package:pellucid/features/settings/providers/project_stats.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
+import 'package:pellucid/features/sync/models/logical_file.dart';
 
 class MockSettingsDatabase extends Mock implements SettingsDatabase {}
 class MockStorageService extends Mock implements StorageService {}
@@ -39,7 +40,7 @@ void main() {
     test('loadProjectStats pulls remote stats and merges if remote is higher', () async {
       when(() => mockSyncProvider.isLoggedIn).thenReturn(true);
       final remoteStatsJson = jsonEncode(ProjectStats(totalWordCount: 200, totalTimeSpent: const Duration(seconds: 300)).toJson());
-      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: 'stats'))
+      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: LogicalFile.stats))
           .thenAnswer((_) async => remoteStatsJson);
 
       historyProvider = HistoryProvider(
@@ -49,6 +50,10 @@ void main() {
       );
 
       await historyProvider.loadProjectStats('/test/path');
+      // The remote merge now runs in the background (unawaited) so the UI
+      // isn't blocked on the network round-trip; flush the event queue to
+      // let it complete before asserting on the merged state.
+      await pumpEventQueue();
 
       expect(historyProvider.currentProjectStats.totalWordCount, 200);
       expect(historyProvider.currentProjectStats.totalTimeSpent.inSeconds, 300);
@@ -59,7 +64,7 @@ void main() {
     test('loadProjectStats does not merge if remote stats are lower', () async {
       when(() => mockSyncProvider.isLoggedIn).thenReturn(true);
       final remoteStatsJson = jsonEncode(ProjectStats(totalWordCount: 100, totalTimeSpent: const Duration(seconds: 50)).toJson());
-      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: 'stats'))
+      when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: LogicalFile.stats))
           .thenAnswer((_) async => remoteStatsJson);
 
       historyProvider = HistoryProvider(
@@ -69,6 +74,7 @@ void main() {
       );
 
       await historyProvider.loadProjectStats('/test/path');
+      await pumpEventQueue();
 
       // remains local values (150 and 120)
       expect(historyProvider.currentProjectStats.totalWordCount, 150);
@@ -97,7 +103,7 @@ void main() {
     test('autosave uploads local stats to SyncProvider', () {
       fakeAsync((async) {
         when(() => mockSyncProvider.isLoggedIn).thenReturn(true);
-        when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: 'stats'))
+        when(() => mockSyncProvider.getLatestContent(projectName: 'path', fileName: LogicalFile.stats))
             .thenAnswer((_) async => null);
         when(() => mockSyncProvider.syncStats(projectName: 'path', statsJson: any(named: 'statsJson')))
             .thenAnswer((_) async {});

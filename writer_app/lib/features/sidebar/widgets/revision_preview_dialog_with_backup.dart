@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../sync/providers/sync_provider.dart';
+import '../../sync/models/logical_file.dart';
 
 class RevisionPreviewDialogWithBackup extends StatefulWidget {
   final String revisionId;
   final String projectName;
-  final String fileName;
+  final LogicalFile fileName;
   final String displayTime;
 
   const RevisionPreviewDialogWithBackup({

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest for the Pellucid app target.
+
+  Required on iOS/iPadOS since 2024; macOS is NOT in scope, which is why the
+  Mac 1.0.1 submission was approved without one and why this gap only appears
+  now. A missing or incomplete manifest surfaces as ITMS-91053 "Missing API
+  declaration" from App Store Connect after upload, not as a build error.
+
+  Embedded frameworks carry their own manifests and Apple aggregates them all
+  into one privacy report; this file covers the app target itself.
+    - Flutter.framework declares FileTimestamp (0A2A.1, C617.1) and
+      SystemBootTime, which covers dart:io's own syscalls.
+    - shared_preferences_foundation declares UserDefaults (1C8F.1).
+    - sqflite_darwin declares its file and disk-space access.
+  The declarations below restate the two that Pellucid's OWN logic causes, so
+  the app target is accurate standalone rather than relying on a dependency's
+  manifest to describe the app's behaviour.
+
+  IMPORTANT: NSPrivacyCollectedDataTypes must stay consistent with the App
+  Privacy answers given on the App Store Connect record. A manifest that
+  disagrees with the questionnaire is a rejection.
+-->
+<plist version="1.0">
+<dict>
+	<!-- No tracking, no advertising SDKs, no third-party analytics. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!--
+	  Empty by design. Pellucid transmits nothing to its developer. The only
+	  network destination is Google Drive, under the user's OWN account and
+	  the narrow `drive.file` scope, writing into a folder the user can see
+	  and own ("Pellucid Vault"). OAuth tokens never leave the device.
+	-->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!--
+			  File timestamps. Two distinct uses, hence two reasons:
+			    C617.1 — files inside the app container: the rolling
+			      `.history/` snapshots are ordered and pruned by their
+			      modification times.
+			    DDA9.1 — files in a directory the user specifically granted
+			      access to: the Master Storage Directory is user-chosen, and
+			      the Drive backup sweep compares each local file's
+			      lastModified() against Drive's modifiedTime to decide
+			      whether an upload is needed (sync_provider.dart).
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+				<string>DDA9.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!--
+			  CA92.1 — user defaults readable only by this app. Pellucid
+			  stores its Drive OAuth tokens and sync bookkeeping there via
+			  shared_preferences. Nothing is shared with an app group.
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

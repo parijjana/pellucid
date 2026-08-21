@@ -388,12 +388,12 @@ class WriterApp extends StatelessWidget {
               ),
               home: const EditorScreen(),
               builder: (context, child) {
-                final bool isMobilePhone = isPhoneLayout(context);
+                final bool isCompactLayout = usesCompactLayout(context);
                 return Consumer<SettingsProvider>(
                   builder: (context, settings, _) {
                     return GlowingBorder(
-                      isActive: !isMobilePhone && settings.isAlarmTriggered,
-                      borderThickness: isMobilePhone ? 0.0 : 20.0,
+                      isActive: !isCompactLayout && settings.isAlarmTriggered,
+                      borderThickness: isCompactLayout ? 0.0 : 20.0,
                       color: Colors.red,
                       child: child ?? const SizedBox.shrink(),
                     );

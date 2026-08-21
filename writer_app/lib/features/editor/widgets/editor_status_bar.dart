@@ -65,7 +65,7 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobilePhone = isPhoneLayout(context);
+    final bool isCompactLayout = usesCompactLayout(context);
 
     // Touch platforms (iPhone AND iPad) get the FAB-dock status bar instead
     // of the full desktop bar. Rationale for including iPhone, not just
@@ -78,7 +78,7 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
       return _buildTouchBar(context);
     }
 
-    if (isMobilePhone) {
+    if (isCompactLayout) {
       // Unreachable in real builds (isPhoneLayout implies isTouchPlatform on
       // every real platform), but the store-screenshot capture harness can
       // force this layout on a desktop host via kScreenshotCaptureMode, so

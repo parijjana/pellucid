@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final sync = context.watch<SyncProvider>();
     final history = context.watch<HistoryProvider>();
 
-    final bool isMobilePhone = isPhoneLayout(context);
+    final bool isCompactLayout = usesCompactLayout(context);
     final bool isMobilePlatform = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
     return Shortcuts(

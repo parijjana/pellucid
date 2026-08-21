@@ -80,7 +80,7 @@ bool isPhoneLayout(BuildContext context) {
 ///
 /// Breakpoints: `compact` < 600, `medium` 600–899, `expanded` >= 900.
 ///
-/// Not wired into any consumer yet; added for later responsive work.
+/// Consumed by [compactLayoutFor] via [usesCompactLayout].
 enum LayoutWidth { compact, medium, expanded }
 
 /// Derives the current [LayoutWidth] from `MediaQuery.of(context).size.width`.
@@ -89,6 +89,61 @@ LayoutWidth layoutWidthOf(BuildContext context) {
   if (width < 600) return LayoutWidth.compact;
   if (width < 900) return LayoutWidth.medium;
   return LayoutWidth.expanded;
+}
+
+/// The pure decision behind [usesCompactLayout], taking its inputs directly.
+///
+/// Exists as a separate function because `flutter test` always runs on a
+/// desktop host, and iPad Split View / Stage Manager cannot be driven from
+/// the CLI at all — simulator rotation and Split View need a System Events
+/// Automation permission that is denied here. So the layout rule itself is
+/// exercised exhaustively offline, and only the plumbing that reads
+/// MediaQuery is left unverified.
+///
+/// True when the single-column layout should be used:
+///   - the capture harness's forced layout always wins, so store screenshots
+///     are unaffected by any of this;
+///   - otherwise, on a touch device, when EITHER the device is phone-sized
+///     (the pre-existing `shortestSide` rule, kept so nothing regresses) OR
+///     the actually available width is [LayoutWidth.compact].
+///
+/// The second clause is the Split View fix. `shortestSide` is a device
+/// property: an iPad in a 320pt pane still reports 768+, so it used to render
+/// the full desktop chrome — window controls, the floating formatting
+/// toolbar, no FAB dock — inside a pane a third that wide.
+///
+/// Still gated on [isTouchPlatform]. A desktop window narrowed below 600pt
+/// keeps the desktop layout exactly as it does today: that is a live,
+/// shipped behaviour on the Mac App Store, and changing it is not part of
+/// making the iPad work.
+bool compactLayoutFor({
+  required bool isCaptureMode,
+  required bool captureLayoutIsPhone,
+  required bool isTouch,
+  required double shortestSide,
+  required double width,
+}) {
+  if (isCaptureMode) return captureLayoutIsPhone;
+  if (!isTouch) return false;
+  return shortestSide < 600 || width < 600;
+}
+
+/// Whether the single-column layout should be used for the CURRENT context.
+///
+/// Prefer this over [isPhoneLayout] for anything that lays out chrome.
+/// [isPhoneLayout] answers "is this a phone-sized device", which is a
+/// different and narrower question, and it stays that way because the
+/// capture harness and the fork-suffix device check both depend on its exact
+/// semantics.
+bool usesCompactLayout(BuildContext context) {
+  final size = MediaQuery.of(context).size;
+  return compactLayoutFor(
+    isCaptureMode: kScreenshotCaptureMode,
+    captureLayoutIsPhone: kScreenshotLayout == ScreenshotLayout.mobilePhone,
+    isTouch: isTouchPlatform,
+    shortestSide: size.shortestSide,
+    width: size.width,
+  );
 }
 
 /// Latches on the first sign of a mouse/trackpad, and never unlatches.

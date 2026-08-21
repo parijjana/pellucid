@@ -416,7 +416,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final headers = _tocHeaders;
     // "Uses Command as the primary shortcut modifier" — true on macOS AND
     // iOS/iPadOS. See usesCommandModifier in core/platform_context.dart.
-    final bool isMobilePhone = isPhoneLayout(context);
+    final bool isCompactLayout = usesCompactLayout(context);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
@@ -476,7 +476,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     IntegratedHeader(
                       theme: theme,
                       projectName: settings.currentProjectName ?? 'User Manual',
-                      showWindowControls: !isMobilePhone && !uiState.isFullscreen,
+                      showWindowControls: !isCompactLayout && !uiState.isFullscreen,
                       onRename: (newName) async {
                         final success = await settings.renameProject(settings.currentProjectName!, newName);
                         if (success && mounted) {
@@ -488,7 +488,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       },
                       actionButton: const SizedBox.shrink(),
                     ),
-                    if (isMobilePhone)
+                    if (isCompactLayout)
                       MobilePersistentToolbar(
                         theme: theme,
                         onApplyFormat: _applyFormat,
@@ -519,7 +519,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         controller: _editorController,
                                         scrollController: _scrollController,
                                         focusNode: _editorFocusNode,
-                                        codexEnabled: settings.codexLinkingEnabled && !isMobilePhone,
+                                        codexEnabled: settings.codexLinkingEnabled && !isCompactLayout,
                                         codexIndex: _editorController.codexIndex,
                                         notes: notesProvider.cards,
                                         onOpenNote: _openNote,
@@ -537,7 +537,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         },
                                       );
 
-                                      if (isMobilePhone) {
+                                      if (isCompactLayout) {
                                         paperArea = GestureDetector(
                                           behavior: HitTestBehavior.translucent,
                                           onTapDown: (_) {
@@ -559,7 +559,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                       return paperArea;
                                     },
                                   ),
-                                  if (!isMobilePhone && uiState.isToolbarOpen)
+                                  if (!isCompactLayout && uiState.isToolbarOpen)
                                     Positioned(
                                       top: 0, left: 0, right: 0,
                                       child: Center(

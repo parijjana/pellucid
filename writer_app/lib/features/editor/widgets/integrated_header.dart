@@ -81,7 +81,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
     Color dragAreaColor = Colors.transparent;
 
     final bool isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-    final bool isMobilePhone = isPhoneLayout(context);
+    final bool isCompactLayout = usesCompactLayout(context);
 
     return Container(
       height: 40,
@@ -126,7 +126,7 @@ class _IntegratedHeaderState extends State<IntegratedHeader> {
             ),
 
           // Action Button (Left)
-          if (!isMobilePhone)
+          if (!isCompactLayout)
             Positioned(
               left: leftPadding,
               top: 0,

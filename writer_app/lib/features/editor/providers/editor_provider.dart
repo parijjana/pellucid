@@ -37,6 +37,25 @@ class EditorProvider extends ChangeNotifier {
   bool _documentLoadFailed = false;
   Object? _loadError;
 
+  // Mirror latch. A project pulled out of the Drive vault is owned by another
+  // device, so this one does not write to it: the first edit forks it into a
+  // project this device owns (docs/release-plan.md, "iOS 1.0 sync model").
+  // Until the fork lands, nothing is saved or synced for the mirror.
+  bool _isMirrorProject = false;
+  bool _forkRequested = false;
+
+  /// Resolves whether a project path is a mirror. Injected once at startup so
+  /// that every `loadProject` call site gets the rule for free — there are
+  /// eleven of them across the app, and one that forgot would silently make a
+  /// mirror writable again.
+  bool Function(String projectPath)? isMirrorProjectPath;
+
+  /// Called once, on the first edit of a mirrored project, with the editor's
+  /// live text so a new fork can carry the keystroke that triggered it. The
+  /// screen owns the fork itself — creating projects and switching the app to
+  /// them is not this provider's job.
+  Future<void> Function(String content)? onMirrorEditAttempt;
+
   // Local Snapshot Safety Net: rolling on-disk snapshots independent of cloud sync
   DateTime? _lastSnapshotTime;
   Duration snapshotInterval = const Duration(minutes: 10);
@@ -57,6 +76,11 @@ class EditorProvider extends ChangeNotifier {
 
   /// The exception behind [documentLoadFailed], for display. Null otherwise.
   Object? get loadError => _loadError;
+
+  /// True when the open project mirrors one owned by another device. The
+  /// editor accepts typing — that is what triggers the fork — but nothing is
+  /// written to the mirror itself.
+  bool get isMirrorProject => _isMirrorProject;
 
   Future<void> loadSettings() async {
     final settings = await _db.getSettings();
@@ -88,7 +112,7 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadProject(String? projectPath) async {
+  Future<void> loadProject(String? projectPath, {bool isMirror = false}) async {
     _debounceTimer?.cancel();
     _syncDebounceTimer?.cancel();
     _syncDebounceTimer = null;
@@ -97,12 +121,23 @@ class EditorProvider extends ChangeNotifier {
 
     // Never snapshot content we did not successfully read — that writes a
     // blank into `.history/`, which is the very backstop this protects.
-    if (_currentProjectPath != null && _content.isNotEmpty && !_documentLoadFailed) {
+    if (_currentProjectPath != null &&
+        _content.isNotEmpty &&
+        !_documentLoadFailed &&
+        !_isMirrorProject) {
       await _storageService.saveLocalSnapshot(_currentProjectPath!, _content);
     }
     _lastSnapshotTime = null;
 
     _currentProjectPath = projectPath;
+    // Defaults to false, so a call site that forgets to pass this makes a
+    // mirror editable rather than making an owned project unwritable. The
+    // cost of that mistake is divergence from Drive; the cost of the reverse
+    // would be a writer who cannot type.
+    _isMirrorProject = isMirror ||
+        (projectPath != null &&
+            (isMirrorProjectPath?.call(projectPath) ?? false));
+    _forkRequested = false;
     if (projectPath == null) {
       _content = StorageService.userManualContent;
       _documentLoadFailed = false;
@@ -131,6 +166,19 @@ class EditorProvider extends ChangeNotifier {
   void updateContent(String newContent, {SyncProvider? syncProvider, String? projectName, Duration? syncInterval}) {
     if (_content == newContent) return;
     _content = newContent;
+
+    if (_isMirrorProject) {
+      // The edit is kept on screen and handed to the fork, but never written
+      // to the mirror. Fired once: the fork is async and a fast typist
+      // produces several more keystrokes before it lands.
+      if (!_forkRequested) {
+        _forkRequested = true;
+        onMirrorEditAttempt?.call(newContent);
+      }
+      notifyListeners();
+      return;
+    }
+
     _autoSave(syncProvider: syncProvider, projectName: projectName, syncInterval: syncInterval);
     notifyListeners();
   }
@@ -140,6 +188,8 @@ class EditorProvider extends ChangeNotifier {
     // The document on disk is unknown after a failed read. Saving now would
     // overwrite it with whatever the blank editor happens to hold.
     if (_documentLoadFailed) return;
+    // A mirror is another device's project. Nothing here writes to it.
+    if (_isMirrorProject) return;
 
     // 1. Local Auto-Save (2s debounce)
     _debounceTimer?.cancel();

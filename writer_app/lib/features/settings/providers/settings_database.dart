@@ -42,6 +42,7 @@ class SettingsDatabase {
 
   static final List<Map<String, dynamic>> _webHistory = [];
   static final Set<String> _webMigratedManuscriptProjects = {};
+  static final Set<String> _webMirroredProjects = {};
 
   SettingsDatabase._init();
 
@@ -65,7 +66,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 17, // Incremented for the manuscript-filename migration marker table
+      version: 18, // Incremented for the manuscript-filename migration marker table
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -117,6 +118,13 @@ class SettingsDatabase {
       CREATE TABLE manuscript_migration_status (
         project_name TEXT PRIMARY KEY,
         migrated_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE mirrored_projects (
+        project_name TEXT PRIMARY KEY,
+        pulled_at TEXT NOT NULL
       )
     ''');
 
@@ -208,6 +216,14 @@ class SettingsDatabase {
         )
       ''');
     }
+    if (oldVersion < 18) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS mirrored_projects (
+          project_name TEXT PRIMARY KEY,
+          pulled_at TEXT NOT NULL
+        )
+      ''');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -243,6 +259,56 @@ class SettingsDatabase {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mirrored projects (docs/release-plan.md, "iOS 1.0 sync model").
+  //
+  // A project that arrived on this device by being PULLED out of the Drive
+  // vault, rather than being written here. Something else owns it, so this
+  // device does not edit it in place: the first edit forks it to a normally
+  // owned copy and the mirror stays behind, read-only, still tracking Drive.
+  // That is what makes the stopgap conflict-free by construction until real
+  // two-way sync lands in 1.2.
+  //
+  // Absence of a marker means "this device owns it", which is the safe
+  // default: a lost marker makes a mirror editable, never the reverse, and
+  // every project that existed before this table was added was written here.
+  // ---------------------------------------------------------------------------
+
+  Future<Set<String>> getMirroredProjects() async {
+    if (kIsWeb) return _webMirroredProjects;
+    final db = await instance.database;
+    final rows = await db.query('mirrored_projects', columns: ['project_name']);
+    return rows.map((r) => r['project_name'] as String).toSet();
+  }
+
+  Future<void> markProjectMirrored(String projectName) async {
+    if (kIsWeb) {
+      _webMirroredProjects.add(projectName);
+      return;
+    }
+    final db = await instance.database;
+    await db.insert(
+      'mirrored_projects',
+      {
+        'project_name': projectName,
+        'pulled_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Drops the marker — used when a mirrored project is renamed, so the name
+  /// left in this table cannot later shadow an unrelated project.
+  Future<void> unmarkProjectMirrored(String projectName) async {
+    if (kIsWeb) {
+      _webMirroredProjects.remove(projectName);
+      return;
+    }
+    final db = await instance.database;
+    await db.delete('mirrored_projects',
+        where: 'project_name = ?', whereArgs: [projectName]);
   }
 
   // Settings Methods

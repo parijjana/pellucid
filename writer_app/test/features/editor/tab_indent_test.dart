@@ -22,6 +22,7 @@ void main() {
     when(() => mockProvider.pageWidth).thenReturn(800.0);
     when(() => mockProvider.horizontalPosition).thenReturn(0.5);
     when(() => mockProvider.documentLoadFailed).thenReturn(false);
+    when(() => mockProvider.isMirrorProject).thenReturn(false);
 
     await tester.pumpWidget(
       MaterialApp(

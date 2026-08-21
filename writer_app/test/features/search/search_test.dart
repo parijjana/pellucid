@@ -72,6 +72,8 @@ void main() {
       when(() => mockEditor.content).thenReturn('Once upon a time in a fantasy world.');
 
       when(() => mockEditor.documentLoadFailed).thenReturn(false);
+
+      when(() => mockEditor.isMirrorProject).thenReturn(false);
       when(() => mockTheme.currentTheme).thenReturn(WriterTheme.presets[0]);
       when(() => mockNotes.cards).thenReturn([
         NoteCard(title: 'Character info', content: 'Alice is a wizard.'),

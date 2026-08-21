@@ -43,6 +43,12 @@ void main() async {
   final searchProvider = SearchProvider();
   final sprintController = SprintController();
 
+  // One place decides whether an open project is a mirror of another device's
+  // Drive project, rather than eleven `loadProject` call sites each having to
+  // remember to ask.
+  editorProvider.isMirrorProjectPath = (projectPath) =>
+      settingsProvider.isMirroredProject(projectPath.split('/').last);
+
   if (!kIsWeb) {
     await themeProvider.loadSettings();
     await editorProvider.loadSettings();

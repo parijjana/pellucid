@@ -24,6 +24,7 @@ void main() {
   setUp(() {
     mockService = MockGoogleDriveSyncService();
     mockDb = MockSettingsDatabase();
+    when(() => mockDb.getMirroredProjects()).thenAnswer((_) async => <String>{});
 
     when(() => mockService.isLoggedIn).thenAnswer((_) async => false);
     when(() => mockDb.getSettings()).thenAnswer((_) async => {'last_synced_time': null});

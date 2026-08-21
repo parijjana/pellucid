@@ -48,6 +48,7 @@ void main() {
   Future<void> pumpEditor(WidgetTester tester, String content) async {
     when(() => mockEditor.content).thenReturn(content);
     when(() => mockEditor.documentLoadFailed).thenReturn(false);
+    when(() => mockEditor.isMirrorProject).thenReturn(false);
     when(() => mockEditor.zoomLevel).thenReturn(1.0);
     when(() => mockEditor.pageWidth).thenReturn(800.0);
     when(() => mockEditor.horizontalPosition).thenReturn(0.5);

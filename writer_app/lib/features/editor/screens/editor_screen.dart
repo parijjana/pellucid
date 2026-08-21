@@ -10,6 +10,7 @@ import '../../settings/screens/settings_screen.dart';
 import '../../sidebar/screens/notes_sidebar.dart';
 import '../widgets/editor_status_bar.dart';
 import '../widgets/markdown_controller.dart';
+import '../../sync/services/project_fork.dart';
 import '../widgets/alignment_bar.dart';
 import '../widgets/noise_overlay.dart';
 import '../widgets/formatting_toolbar.dart';
@@ -298,6 +299,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
     _editorProvider = context.read<EditorProvider>();
     _editorProvider.addListener(_onEditorProviderChanged);
+    _editorProvider.onMirrorEditAttempt = _forkMirroredProject;
 
     _searchProvider = context.read<SearchProvider>();
     _searchProvider.addListener(_onSearchChanged);
@@ -316,6 +318,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _editorController.removeListener(_onTypewriterUpdate);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _editorProvider.removeListener(_onEditorProviderChanged);
+    _editorProvider.onMirrorEditAttempt = null;
     _searchProvider.removeListener(_onSearchChanged);
     _editorController.dispose();
     _scrollController.dispose();
@@ -569,6 +572,16 @@ class _EditorScreenState extends State<EditorScreen> {
                                   // Drawn last so it sits above the toolbar:
                                   // if the document could not be read, that is
                                   // the only thing worth saying on this screen.
+                                  if (editorProvider.isMirrorProject &&
+                                      !editorProvider.documentLoadFailed)
+                                    Positioned(
+                                      top: 0, left: 0, right: 0,
+                                      child: MirrorProjectBanner(
+                                        theme: theme,
+                                        projectName:
+                                            settings.currentProjectName ?? '',
+                                      ),
+                                    ),
                                   if (editorProvider.documentLoadFailed)
                                     Positioned(
                                       top: 0, left: 0, right: 0,
@@ -809,6 +822,53 @@ class _EditorScreenState extends State<EditorScreen> {
     return count;
   }
 
+  /// The first edit of a mirrored project. Forks it into a project this
+  /// device owns and switches the app there, so the keystroke lands somewhere
+  /// that will actually be saved. The mirror stays in the library, untouched,
+  /// still tracking Drive — which is what makes the eventual manual merge
+  /// possible and keeps this stopgap conflict-free.
+  Future<void> _forkMirroredProject(String content) async {
+    final settings = context.read<SettingsProvider>();
+    final notes = context.read<NotesProvider>();
+    final history = context.read<HistoryProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final sourceName = settings.currentProjectName;
+    if (sourceName == null) return;
+
+    final result = await settings.forkMirroredProject(
+      sourceName: sourceName,
+      device: currentForkDevice(isTablet: !isPhoneLayout(context)),
+      seedContent: content,
+    );
+
+    if (!mounted) return;
+
+    if (!result.succeeded) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Could not make an editable copy of "$sourceName": '
+            '${result.error}'),
+      ));
+      return;
+    }
+
+    final path = settings.currentProjectPath;
+    await _editorProvider.loadProject(path);
+    if (!mounted) return;
+    await notes.loadProject(path, projectName: result.forkName);
+    if (!mounted) return;
+    await history.loadProjectStats(path);
+    if (!mounted) return;
+
+    _editorController.text = _editorProvider.content;
+    messenger.showSnackBar(SnackBar(
+      content: Text(result.outcome == ForkOutcome.created
+          ? 'Now editing "${result.forkName}". "$sourceName" stays as a '
+              'read-only copy of Drive.'
+          : 'Opened your existing copy "${result.forkName}". Your earlier '
+              'edits there were left alone.'),
+    ));
+  }
+
   void _onScaleStart(ScaleStartDetails details) {
     _initialScaleZoom = context.read<EditorProvider>().zoomLevel;
   }
@@ -881,6 +941,50 @@ class DocumentLoadFailedBanner extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text('Retry', style: TextStyle(color: fg)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Shown on a project pulled out of the Drive vault.
+///
+/// The mirror accepts typing — that is what triggers the fork — so without
+/// this the writer has no way to know their next keystroke will move them to
+/// a differently named project.
+class MirrorProjectBanner extends StatelessWidget {
+  final WriterTheme theme;
+  final String projectName;
+
+  const MirrorProjectBanner({
+    super.key,
+    required this.theme,
+    required this.projectName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = theme.foregroundColor;
+    return Material(
+      color: theme.sidebarColor,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: fg.withValues(alpha: 0.2))),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_outlined, size: 16, color: fg.withValues(alpha: 0.7)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'This copy tracks Drive. Start typing and your work moves to an '
+                'editable copy — this one stays as it is.',
+                style: TextStyle(color: fg.withValues(alpha: 0.8), fontSize: 12),
+              ),
             ),
           ],
         ),

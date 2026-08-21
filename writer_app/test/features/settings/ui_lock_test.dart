@@ -40,11 +40,14 @@ void main() {
     when(() => mockEditor.content).thenReturn('Test content');
 
     when(() => mockEditor.documentLoadFailed).thenReturn(false);
+
+    when(() => mockEditor.isMirrorProject).thenReturn(false);
     when(() => mockTheme.currentTheme).thenReturn(WriterTheme.presets[0]);
     when(() => mockSettings.currentProjectName).thenReturn('Test Project');
     when(() => mockSettings.masterDirectoryPath).thenReturn('/test/path');
     when(() => mockSettings.availableProjects).thenReturn([]);
     when(() => mockSettings.refreshProjects()).thenAnswer((_) async {});
+    when(() => mockSettings.markProjectMirrored(any())).thenAnswer((_) async {});
     when(() => mockSettings.clockEnabled).thenReturn(false);
     when(() => mockSettings.currentSessionEnabled).thenReturn(false);
     when(() => mockSettings.focusTimerEnabled).thenReturn(false);

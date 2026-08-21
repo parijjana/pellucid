@@ -38,6 +38,7 @@ void main() {
   setUp(() async {
     mockService = MockGoogleDriveSyncService();
     mockDb = MockSettingsDatabase();
+    when(() => mockDb.getMirroredProjects()).thenAnswer((_) async => <String>{});
     fs = MemoryFileSystem();
     storage = StorageService(fileSystem: fs);
 

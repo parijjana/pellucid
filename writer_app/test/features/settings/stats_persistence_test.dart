@@ -16,6 +16,7 @@ void main() {
 
   setUp(() {
     mockSettingsDatabase = MockSettingsDatabase();
+    when(() => mockSettingsDatabase.getMirroredProjects()).thenAnswer((_) async => <String>{});
     mockStorageService = MockStorageService();
 
     when(() => mockSettingsDatabase.getHistory()).thenAnswer((_) async => []);

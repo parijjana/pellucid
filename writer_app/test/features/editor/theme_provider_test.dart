@@ -15,6 +15,7 @@ void main() {
 
   setUp(() {
     mockSettingsDatabase = MockSettingsDatabase();
+    when(() => mockSettingsDatabase.getMirroredProjects()).thenAnswer((_) async => <String>{});
     
     // Will fail to compile: ThemeProvider doesn't accept settingsDatabase yet.
     themeProvider = ThemeProvider(settingsDatabase: mockSettingsDatabase);

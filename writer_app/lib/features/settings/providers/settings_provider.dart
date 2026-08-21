@@ -11,6 +11,8 @@ import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'settings_database.dart';
 import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
+import '../../sidebar/providers/note_card.dart';
+import '../../sync/services/project_fork.dart';
 
 class ProjectInfo {
   final String name;
@@ -27,6 +29,11 @@ class SettingsProvider extends ChangeNotifier {
   // access after relaunch, so we persist a bookmark for the master folder and
   // resolve it on load. Stateless singleton; only invoked on macOS.
   final SecureBookmarks _bookmarks = SecureBookmarks();
+
+  // Projects that arrived here by being pulled out of the Drive vault. Another
+  // device owns them, so the first edit forks rather than writing in place.
+  // See SettingsDatabase.getMirroredProjects for why absence means "ours".
+  Set<String> _mirroredProjects = {};
 
   // Clock Settings
   bool _clockEnabled = false;
@@ -92,6 +99,7 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> loadSettings() async {
+    _mirroredProjects = await _db.getMirroredProjects();
     final settings = await _db.getSettings();
     _clockEnabled = settings['clock_enabled'] == 1;
     _currentSessionEnabled = settings['current_session_enabled'] == 1;
@@ -342,6 +350,99 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// True when [projectName] is a mirror of a Drive project owned by another
+  /// device. Null and unknown names are not mirrors: absence means ours.
+  bool isMirroredProject(String? projectName) =>
+      projectName != null && _mirroredProjects.contains(projectName);
+
+  Set<String> get mirroredProjects => Set.unmodifiable(_mirroredProjects);
+
+  /// Records that [projectName] was pulled from Drive rather than written here.
+  Future<void> markProjectMirrored(String projectName) async {
+    await _db.markProjectMirrored(projectName);
+    _mirroredProjects = await _db.getMirroredProjects();
+    notifyListeners();
+  }
+
+  /// Forks a mirrored project into one this device owns, and makes it current.
+  ///
+  /// A NEW fork is seeded with [seedContent] when given — the editor's live
+  /// text, so the keystroke that triggered the fork is carried across rather
+  /// than swallowed — and otherwise with the mirror's content on disk.
+  ///
+  /// An EXISTING fork is reused and never refreshed: it holds edits from an
+  /// earlier session on this device, and overwriting them with the mirror's
+  /// copy would destroy the work this mechanism exists to protect. The rule
+  /// is one line: a new fork takes what is on screen, an existing fork is
+  /// opened untouched.
+  Future<ForkResult> forkMirroredProject({
+    required String sourceName,
+    required ForkDevice device,
+    String? seedContent,
+  }) async {
+    final master = _masterDirectoryPath;
+    if (master == null) {
+      return ForkResult(
+        sourceName: sourceName,
+        forkName: sourceName,
+        outcome: ForkOutcome.failed,
+        error: StateError('No master directory is set.'),
+      );
+    }
+
+    final forkName = forkNameFor(sourceName, forkSuffixFor(device));
+
+    try {
+      final existing = await _storageService.listProjects(master);
+      final alreadyForked =
+          existing.any((n) => n.toLowerCase() == forkName.toLowerCase());
+
+      if (!alreadyForked) {
+        final sourcePath = '$master/$sourceName';
+        final read = await _storageService.readDocument(sourcePath);
+        if (seedContent == null && read.failed) {
+          // Refuse rather than seed a fork with a blank: the mirror's real
+          // content is unknown, and a blank fork would look like a project
+          // whose words were deleted.
+          return ForkResult(
+            sourceName: sourceName,
+            forkName: forkName,
+            outcome: ForkOutcome.failed,
+            error: read.error,
+          );
+        }
+
+        await _storageService.initProject(master, forkName,
+            initialContent: seedContent ?? read.value);
+
+        final forkPath = '$master/$forkName';
+        final notes = await _storageService.readNotes(sourcePath);
+        if (!notes.failed && notes.value.isNotEmpty) {
+          await _storageService.saveNotes(
+              forkPath, List<NoteCard>.from(notes.value));
+        }
+        final stats = await _storageService.readProjectStats(sourcePath);
+        await _storageService.saveProjectStats(forkPath, stats);
+      }
+
+      await refreshProjects();
+      await setCurrentProject(forkName);
+
+      return ForkResult(
+        sourceName: sourceName,
+        forkName: forkName,
+        outcome: alreadyForked ? ForkOutcome.reused : ForkOutcome.created,
+      );
+    } catch (e) {
+      return ForkResult(
+        sourceName: sourceName,
+        forkName: forkName,
+        outcome: ForkOutcome.failed,
+        error: e,
+      );
+    }
+  }
+
   Future<bool> createProject(String name) async {
     if (_masterDirectoryPath == null) return false;
     if (!StorageService.isValidProjectName(name)) return false;
@@ -451,6 +552,15 @@ class SettingsProvider extends ChangeNotifier {
       if (_currentProjectName == oldName) {
         _currentProjectName = cleanName;
         await _db.updateSetting('current_project_name', cleanName);
+      }
+
+      // A renamed mirror keeps being a mirror, but under its new name — the
+      // old name left behind would shadow any unrelated project later given
+      // it, silently making that one unwritable.
+      if (_mirroredProjects.contains(oldName)) {
+        await _db.unmarkProjectMirrored(oldName);
+        await _db.markProjectMirrored(cleanName);
+        _mirroredProjects = await _db.getMirroredProjects();
       }
 
       await refreshProjects();

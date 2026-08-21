@@ -186,6 +186,7 @@ void main() {
 
     setUp(() {
       mockDb = MockSettingsDatabase();
+      when(() => mockDb.getMirroredProjects()).thenAnswer((_) async => <String>{});
       mockStorage = MockStorageService();
       settingsProvider = SettingsProvider(
         settingsDatabase: mockDb,

@@ -71,6 +71,11 @@ class _DriveProjectsSectionState extends State<DriveProjectsSection> {
       masterPath: masterPath,
       storageService: _storage,
     );
+    if (result.succeeded) {
+      // The project came FROM Drive, so another device owns it. Recording that
+      // is what makes the first edit fork instead of writing in place.
+      await settings.markProjectMirrored(result.projectName);
+    }
     // The local library changed underneath the grid above, and the pulled
     // project must stop being offered as a pull.
     await settings.refreshProjects();
@@ -88,7 +93,8 @@ class _DriveProjectsSectionState extends State<DriveProjectsSection> {
       case PullOutcome.pulled:
         final skipped = result.filesSkipped;
         if (skipped.isEmpty) {
-          return 'Copied "${result.projectName}" from Drive.';
+          return 'Copied "${result.projectName}" from Drive. It tracks Drive — '
+            'your first edit makes an editable copy.';
         }
         final names = skipped.map((f) => f.name).join(' and ');
         return 'Copied "${result.projectName}", but its $names could not be read '

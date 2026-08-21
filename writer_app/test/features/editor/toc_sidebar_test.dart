@@ -27,6 +27,7 @@ void main() {
     searchProvider = SearchProvider();
     when(() => mockEditor.content).thenReturn('# Chapter One\n...');
     when(() => mockEditor.documentLoadFailed).thenReturn(false);
+    when(() => mockEditor.isMirrorProject).thenReturn(false);
   });
 
   Widget buildSidebar({required bool showWordCounts}) {

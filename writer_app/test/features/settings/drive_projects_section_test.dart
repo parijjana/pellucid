@@ -38,6 +38,7 @@ void main() {
     when(() => sync.isLoggedIn).thenReturn(true);
     when(() => settings.masterDirectoryPath).thenReturn('/master');
     when(() => settings.refreshProjects()).thenAnswer((_) async {});
+    when(() => settings.markProjectMirrored(any())).thenAnswer((_) async {});
   });
 
   Future<void> pump(WidgetTester tester) async {

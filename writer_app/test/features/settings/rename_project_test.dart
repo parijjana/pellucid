@@ -21,6 +21,7 @@ void main() {
     fileSystem = MemoryFileSystem();
     storageService = StorageService(fileSystem: fileSystem);
     mockSettingsDatabase = MockSettingsDatabase();
+    when(() => mockSettingsDatabase.getMirroredProjects()).thenAnswer((_) async => <String>{});
     settingsProvider = SettingsProvider(
       settingsDatabase: mockSettingsDatabase,
       storageService: storageService,

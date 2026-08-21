@@ -66,6 +66,8 @@ void main() {
     when(() => mockEditor.content).thenReturn('# Hello World');
 
     when(() => mockEditor.documentLoadFailed).thenReturn(false);
+
+    when(() => mockEditor.isMirrorProject).thenReturn(false);
     when(() => mockEditor.zoomLevel).thenReturn(1.0);
     when(() => mockEditor.pageWidth).thenReturn(800.0);
     when(() => mockEditor.horizontalPosition).thenReturn(0.5);
@@ -87,6 +89,7 @@ void main() {
     when(() => mockSettings.lastNotesFullscreenState).thenReturn(false);
     when(() => mockSettings.setLastNotesFullscreenState(any())).thenAnswer((_) async {});
     when(() => mockSettings.refreshProjects()).thenAnswer((_) async {});
+    when(() => mockSettings.markProjectMirrored(any())).thenAnswer((_) async {});
     when(() => mockSettings.syncIntervalMinutes).thenReturn(30);
     when(() => mockSettings.typewriterEnabled).thenReturn(false);
     when(() => mockSettings.paragraphFocusEnabled).thenReturn(false);

@@ -28,6 +28,7 @@ void main() {
   setUp(() {
     mockStorageService = MockStorageService();
     mockSettingsDatabase = MockSettingsDatabase();
+    when(() => mockSettingsDatabase.getMirroredProjects()).thenAnswer((_) async => <String>{});
     mockSyncProvider = MockSyncProvider();
     
     editorProvider = EditorProvider(
@@ -163,6 +164,101 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 2100));
         verify(() => mockStorageService.saveDocument(
             '/test/project/path', 'An edit worth keeping')).called(1);
+      });
+    });
+
+    group('mirrored project', () {
+      // A project pulled out of the Drive vault is owned by another device.
+      // Editing it in place would put two writers on one file with no
+      // conflict handling, which is what 1.2 exists to solve. Until then the
+      // first edit forks.
+
+      test('the resolver decides, so no call site has to remember', () async {
+        editorProvider.isMirrorProjectPath = (path) => path.endsWith('/Novel');
+
+        await editorProvider.loadProject('/test/Novel');
+        expect(editorProvider.isMirrorProject, isTrue);
+
+        await editorProvider.loadProject('/test/Owned');
+        expect(editorProvider.isMirrorProject, isFalse);
+      });
+
+      test('writes nothing to the mirror — not disk, not snapshots', () async {
+        await editorProvider.loadProject('/test/Novel', isMirror: true);
+
+        editorProvider.updateContent('a stray keystroke');
+        await Future.delayed(const Duration(milliseconds: 2100));
+
+        verifyNever(() => mockStorageService.saveDocument(any(), any()));
+        verifyNever(() => mockStorageService.saveLocalSnapshot(any(), any()));
+      });
+
+      test('does not push the mirror to the cloud', () async {
+        editorProvider.syncDebounceDuration = const Duration(milliseconds: 50);
+        editorProvider.syncThrottleDuration = const Duration(milliseconds: 50);
+        await editorProvider.loadProject('/test/Novel', isMirror: true);
+
+        editorProvider.updateContent(
+          'a stray keystroke',
+          syncProvider: mockSyncProvider,
+          projectName: 'Novel',
+        );
+        await Future.delayed(const Duration(milliseconds: 150));
+
+        verifyNever(() => mockSyncProvider.syncCurrentFile(
+              projectName: any(named: 'projectName'),
+              fileName: any(named: 'fileName'),
+              content: any(named: 'content'),
+            ));
+      });
+
+      test('keeps the keystroke on screen and hands it to the fork', () async {
+        String? handed;
+        editorProvider.onMirrorEditAttempt = (content) async => handed = content;
+        await editorProvider.loadProject('/test/Novel', isMirror: true);
+
+        editorProvider.updateContent('Mock project content!');
+
+        expect(editorProvider.content, 'Mock project content!');
+        expect(handed, 'Mock project content!');
+      });
+
+      test('asks for the fork ONCE, however fast the writer types', () async {
+        // The fork is async; more keystrokes land before it completes.
+        var calls = 0;
+        editorProvider.onMirrorEditAttempt = (_) async => calls++;
+        await editorProvider.loadProject('/test/Novel', isMirror: true);
+
+        editorProvider.updateContent('a');
+        editorProvider.updateContent('ab');
+        editorProvider.updateContent('abc');
+
+        expect(calls, 1);
+      });
+
+      test('the one-shot resets when another project is opened', () async {
+        var calls = 0;
+        editorProvider.onMirrorEditAttempt = (_) async => calls++;
+
+        await editorProvider.loadProject('/test/Novel', isMirror: true);
+        editorProvider.updateContent('a');
+        await editorProvider.loadProject('/test/Sketches', isMirror: true);
+        editorProvider.updateContent('b');
+
+        expect(calls, 2);
+      });
+
+      test('an owned project is unaffected', () async {
+        var calls = 0;
+        editorProvider.onMirrorEditAttempt = (_) async => calls++;
+        await editorProvider.loadProject('/test/Owned');
+
+        editorProvider.updateContent('New local content');
+        await Future.delayed(const Duration(milliseconds: 2100));
+
+        expect(calls, 0);
+        verify(() => mockStorageService.saveDocument(
+            '/test/Owned', 'New local content')).called(1);
       });
     });
 

@@ -12,6 +12,7 @@ void main() {
 
   setUp(() {
     mockSettingsDatabase = MockSettingsDatabase();
+    when(() => mockSettingsDatabase.getMirroredProjects()).thenAnswer((_) async => <String>{});
   });
 
   group('Custom Theme Encoding/Decoding Tests', () {

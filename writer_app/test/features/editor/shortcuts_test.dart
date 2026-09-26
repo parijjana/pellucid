@@ -460,6 +460,96 @@ void main() {
     expect(find.text('KEYBOARD SHORTCUTS CHEATSHEET'), findsNothing);
   });
 
+  // AltGr is reported as Ctrl+Alt on Windows. AltGr+letter types characters
+  // on European layouts (Polish AltGr+A = ą, German AltGr+Q = @, AltGr+M = µ),
+  // so it must never fire an Alt shortcut or be swallowed as one.
+  Future<bool> pressAltGr(WidgetTester tester, LogicalKeyboardKey key) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altRight);
+    final bool handled = await tester.sendKeyDownEvent(key);
+    await tester.sendKeyUpEvent(key);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    return handled;
+  }
+
+  Widget buildApp() => MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const WriterApp(),
+      );
+
+  testWidgets('AltGr (Ctrl+Alt) in the editor is left for text input, plain Alt is swallowed', (WidgetTester tester) async {
+    await tester.pumpWidget(buildApp());
+    final TextField textField = tester.widget<TextField>(find.byType(TextField));
+    textField.focusNode!.requestFocus();
+    await tester.pumpAndSettle();
+
+    // German AltGr+Q = @, AltGr+E = €; Polish AltGr+L = ł, AltGr+Z = ż.
+    for (final key in [
+      LogicalKeyboardKey.keyQ,
+      LogicalKeyboardKey.keyE,
+      LogicalKeyboardKey.keyL,
+      LogicalKeyboardKey.keyZ,
+    ]) {
+      expect(await pressAltGr(tester, key), isFalse,
+          reason: 'AltGr+${key.keyLabel} must reach text input');
+    }
+
+    // Control: an unbound plain Alt+letter is still swallowed by main.dart.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    final bool altQHandled = await tester.sendKeyDownEvent(LogicalKeyboardKey.keyQ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyQ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    expect(altQHandled, isTrue);
+  }, skip: Platform.isMacOS);
+
+  testWidgets('AltGr+A/B/M in a note dialog types instead of closing it', (WidgetTester tester) async {
+    final mockNoteCard = NoteCard(
+      id: 'attr-id',
+      title: 'Attributions',
+      content: 'Attribution Content',
+      category: 'general',
+      isAttribution: true,
+    );
+    when(() => mockNotes.cards).thenReturn([mockNoteCard]);
+    when(() => mockNotes.addAttributionCard(syncProvider: any(named: 'syncProvider'))).thenAnswer((_) async {});
+
+    await tester.pumpWidget(buildApp());
+    final TextField textField = tester.widget<TextField>(find.byType(TextField));
+    textField.focusNode!.requestFocus();
+    await tester.pumpAndSettle();
+
+    await pressShortcut(tester, LogicalKeyboardKey.keyA);
+    expect(find.byType(NoteEditorDialog), findsOneWidget);
+
+    for (final key in [
+      LogicalKeyboardKey.keyA, // Polish ą
+      LogicalKeyboardKey.keyB,
+      LogicalKeyboardKey.keyM, // German µ
+    ]) {
+      expect(await pressAltGr(tester, key), isFalse,
+          reason: 'AltGr+${key.keyLabel} must reach text input');
+      expect(find.byType(NoteEditorDialog), findsOneWidget,
+          reason: 'AltGr+${key.keyLabel} must not close the note dialog');
+    }
+
+    // Plain Alt+B still saves and closes.
+    await pressShortcut(tester, LogicalKeyboardKey.keyB);
+    expect(find.byType(NoteEditorDialog), findsNothing);
+  }, skip: Platform.isMacOS);
+
   testWidgets('Settings screen shortcut toggles settings screen open and closed', (WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(

@@ -361,7 +361,9 @@ class WriterApp extends StatelessWidget {
               // Plain macOS Cmd+<key> (meta without alt) is left ignored so
               // native menu items (Quit/Close/Minimize/Hide/Preferences, i.e.
               // Cmd+Q/W/M/H/,) can still be handled by AppKit's main menu.
-              if (HardwareKeyboard.instance.isAltPressed) {
+              // AltGr (Ctrl+Alt on Windows) is typing, not a shortcut: see
+              // isAltShortcutPressed.
+              if (isAltShortcutPressed) {
                 return KeyEventResult.handled;
               }
             }

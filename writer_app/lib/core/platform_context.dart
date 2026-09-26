@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../features/editor/screenshot_mode.dart';
@@ -49,6 +50,21 @@ bool get isTouchPlatform =>
 /// still need the raw macOS check.
 bool get usesCommandModifier =>
     !kIsWeb && (Platform.isMacOS || Platform.isIOS);
+
+/// Whether the held modifiers make the current key an Alt-based Pellucid
+/// shortcut, for raw `onKeyEvent` handlers (`SingleActivator(alt: true)`
+/// already requires Ctrl to be up).
+///
+/// On Ctrl platforms, AltGr is reported as Ctrl+Alt, and AltGr+letter is how
+/// Polish/German/etc. layouts type ą ę ł @ € µ. Pellucid binds no Ctrl+Alt
+/// combos there, so Ctrl (or Meta) held alongside Alt means "typing", never
+/// "shortcut". On Command platforms the check stays plain `isAltPressed`.
+bool get isAltShortcutPressed {
+  final keyboard = HardwareKeyboard.instance;
+  if (!keyboard.isAltPressed) return false;
+  if (usesCommandModifier) return true;
+  return !keyboard.isControlPressed && !keyboard.isMetaPressed;
+}
 
 /// Whether the current build should use the single-column "mobile phone"
 /// layout.

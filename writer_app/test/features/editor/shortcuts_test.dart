@@ -263,8 +263,19 @@ void main() {
     // 4. Toggle Spell Check (Alt + K); MockSettingsProvider reports it on.
     // K must also be in main.dart's bypassedKeys or the top-level Focus
     // swallows it before the Shortcuts map sees it.
-    await triggerShortcut(LogicalKeyboardKey.keyK);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    if (isMac) await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+    if (isMac) await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pump();
     verify(() => mockSettings.toggleSpellCheck(false)).called(1);
+
+    // A faint notice confirms it, then fades away by itself in ~2 s.
+    expect(find.text('Spell check off'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 2100));
+    await tester.pump();
+    expect(find.text('Spell check off'), findsNothing);
   });
 
   testWidgets('Fullscreen toggle triggers correctly when F11 is pressed', (WidgetTester tester) async {

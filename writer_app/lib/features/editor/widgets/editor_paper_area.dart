@@ -87,7 +87,11 @@ class EditorPaperArea extends StatelessWidget {
               index: codexIndex,
               notes: notes,
               onActivate: onOpenNote,
-              child: TextField(
+              child: _NativeSpellCheckSync(
+                enabled: spellCheckEnabled,
+                focusNode: focusNode,
+                controller: controller,
+                child: TextField(
                 controller: controller,
                 focusNode: focusNode,
                 maxLines: null,
@@ -95,11 +99,13 @@ class EditorPaperArea extends StatelessWidget {
                 // disk. Accepting keystrokes here would invite the writer to
                 // type into a blank page that can never be saved.
                 readOnly: provider.documentLoadFailed,
-                spellCheckConfiguration: (spellCheckEnabled && !kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST'))
-                    ? (NativeSpellCheckService.isSupported
-                        ? SpellCheckConfiguration(spellCheckService: NativeSpellCheckService())
-                        : const SpellCheckConfiguration())
-                    : const SpellCheckConfiguration.disabled(),
+                spellCheckConfiguration: !_nativeSpellCheckAvailable
+                    ? (spellCheckEnabled && !kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST')
+                        ? const SpellCheckConfiguration()
+                        : const SpellCheckConfiguration.disabled())
+                    // Always attached: EditableText never re-reads this, so the
+                    // on/off setting is applied inside the service instead.
+                    : SpellCheckConfiguration(spellCheckService: NativeSpellCheckService.instance),
                 cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
                 style: TextStyle(
                   color: theme.foregroundColor,
@@ -114,10 +120,57 @@ class EditorPaperArea extends StatelessWidget {
                 ),
                 onChanged: onChanged,
               ),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+bool get _nativeSpellCheckAvailable =>
+    !kIsWeb &&
+    NativeSpellCheckService.isSupported &&
+    !Platform.environment.containsKey('FLUTTER_TEST');
+
+/// Keeps [NativeSpellCheckService.enabled] in step with the setting, and
+/// updates the underlines as soon as it flips (Alt+K, the macOS menu or
+/// Settings) instead of on the next keystroke.
+class _NativeSpellCheckSync extends StatefulWidget {
+  final bool enabled;
+  final FocusNode focusNode;
+  final TextEditingController controller;
+  final Widget child;
+
+  const _NativeSpellCheckSync({
+    required this.enabled,
+    required this.focusNode,
+    required this.controller,
+    required this.child,
+  });
+
+  @override
+  State<_NativeSpellCheckSync> createState() => _NativeSpellCheckSyncState();
+}
+
+class _NativeSpellCheckSyncState extends State<_NativeSpellCheckSync> {
+  @override
+  void initState() {
+    super.initState();
+    NativeSpellCheckService.instance.enabled = widget.enabled;
+  }
+
+  @override
+  void didUpdateWidget(_NativeSpellCheckSync oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.enabled == oldWidget.enabled) return;
+    NativeSpellCheckService.instance.enabled = widget.enabled;
+    if (_nativeSpellCheckAvailable) {
+      NativeSpellCheckService.instance.refresh(widget.focusNode, widget.controller);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

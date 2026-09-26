@@ -18,6 +18,7 @@ import 'features/sync/providers/sync_provider.dart';
 import 'package:flutter/services.dart';
 import 'features/editor/providers/shortcuts_provider.dart';
 import 'features/editor/widgets/shortcuts.dart';
+import 'features/editor/widgets/status_notice.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'features/editor/widgets/glowing_border.dart';
 import 'features/sidebar/widgets/note_editor_dialog.dart';
@@ -336,7 +337,17 @@ class WriterApp extends StatelessWidget {
           }),
           ToggleSpellCheckIntent: CallbackAction<ToggleSpellCheckIntent>(onInvoke: (intent) {
             final settings = context.read<SettingsProvider>();
-            settings.toggleSpellCheck(!settings.spellCheckEnabled);
+            final enabled = !settings.spellCheckEnabled;
+            settings.toggleSpellCheck(enabled);
+            // No control is on screen for this, so confirm it quietly.
+            final overlay = navigatorKey.currentState?.overlay;
+            if (overlay != null) {
+              showStatusNotice(
+                overlay,
+                context.read<ThemeProvider>().currentTheme,
+                enabled ? 'Spell check on' : 'Spell check off',
+              );
+            }
             return null;
           }),
         },

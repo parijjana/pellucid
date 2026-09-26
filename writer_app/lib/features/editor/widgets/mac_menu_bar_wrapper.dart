@@ -322,7 +322,15 @@ class MacMenuBarWrapper extends StatelessWidget {
                 PlatformMenuItem(
                   label: settingsState.spellCheckEnabled ? '✓ Check Spelling While Typing' : '   Check Spelling While Typing',
                   shortcut: const SingleActivator(LogicalKeyboardKey.keyK, alt: true, meta: true),
-                  onSelected: () => settings.toggleSpellCheck(!settingsState.spellCheckEnabled),
+                  onSelected: () {
+                    // Same path as the shortcut, so the menu shows the notice too.
+                    final contextNode = FocusManager.instance.primaryFocus?.context;
+                    if (contextNode != null) {
+                      Actions.maybeInvoke(contextNode, const ToggleSpellCheckIntent());
+                    } else {
+                      settings.toggleSpellCheck(!settingsState.spellCheckEnabled);
+                    }
+                  },
                 ),
               ],
             ),

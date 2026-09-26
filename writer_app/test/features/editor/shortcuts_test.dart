@@ -201,7 +201,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('Alt+5 and Alt+6 toggle typewriter scrolling and paragraph focus', (WidgetTester tester) async {
+  testWidgets('Alt+5, Alt+6 and Alt+K toggle typewriter scrolling, paragraph focus and spell check', (WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -259,6 +259,12 @@ void main() {
 
     await triggerShortcut(LogicalKeyboardKey.digit6);
     verify(() => mockSettings.toggleParagraphFocus(false)).called(1);
+
+    // 4. Toggle Spell Check (Alt + K); MockSettingsProvider reports it on.
+    // K must also be in main.dart's bypassedKeys or the top-level Focus
+    // swallows it before the Shortcuts map sees it.
+    await triggerShortcut(LogicalKeyboardKey.keyK);
+    verify(() => mockSettings.toggleSpellCheck(false)).called(1);
   });
 
   testWidgets('Fullscreen toggle triggers correctly when F11 is pressed', (WidgetTester tester) async {

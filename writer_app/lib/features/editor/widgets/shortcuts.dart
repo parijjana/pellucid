@@ -18,6 +18,7 @@ class ToggleFullscreenIntent extends Intent { const ToggleFullscreenIntent(); }
 class ToggleSearchIntent extends Intent { const ToggleSearchIntent(); }
 class ToggleTypewriterIntent extends Intent { const ToggleTypewriterIntent(); }
 class ToggleParagraphFocusIntent extends Intent { const ToggleParagraphFocusIntent(); }
+class ToggleSpellCheckIntent extends Intent { const ToggleSpellCheckIntent(); }
 
 // Zoom
 class ZoomInIntent extends Intent { const ZoomInIntent(); }

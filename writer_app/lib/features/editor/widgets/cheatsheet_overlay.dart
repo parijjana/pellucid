@@ -59,6 +59,7 @@ class CheatsheetOverlayContent extends StatelessWidget {
                     if (isMac) _CheatsheetItem(theme: theme, keys: 'Cmd + ,', description: 'Settings'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 5', isMac), description: 'Typewriter Scrolling'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + 6', isMac), description: 'Paragraph Focus'),
+                    _CheatsheetItem(theme: theme, keys: _getKeys('Alt + K', isMac), description: 'Spell Check'),
                     _CheatsheetItem(
                       theme: theme,
                       keys: isMacOSOnly

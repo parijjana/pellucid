@@ -158,6 +158,7 @@ class WriterApp extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.comma, meta: usesCommandModifier, control: !usesCommandModifier): const OpenSettingsIntent(),
         SingleActivator(LogicalKeyboardKey.digit5, alt: true, meta: usesCommandModifier): const ToggleTypewriterIntent(),
         SingleActivator(LogicalKeyboardKey.digit6, alt: true, meta: usesCommandModifier): const ToggleParagraphFocusIntent(),
+        SingleActivator(LogicalKeyboardKey.keyK, alt: true, meta: usesCommandModifier): const ToggleSpellCheckIntent(),
         const SingleActivator(LogicalKeyboardKey.f11): const ToggleFullscreenIntent(),
         SingleActivator(LogicalKeyboardKey.enter, alt: true, meta: usesCommandModifier): const ToggleFullscreenIntent(),
         // macOS-only: standard Cmd+Ctrl+F fullscreen convention. Gated to
@@ -333,6 +334,11 @@ class WriterApp extends StatelessWidget {
             settings.toggleParagraphFocus(!settings.paragraphFocusEnabled);
             return null;
           }),
+          ToggleSpellCheckIntent: CallbackAction<ToggleSpellCheckIntent>(onInvoke: (intent) {
+            final settings = context.read<SettingsProvider>();
+            settings.toggleSpellCheck(!settings.spellCheckEnabled);
+            return null;
+          }),
         },
         child: Focus(
           autofocus: true,
@@ -352,6 +358,7 @@ class WriterApp extends StatelessWidget {
                 LogicalKeyboardKey.keyN,
                 LogicalKeyboardKey.keyP,
                 LogicalKeyboardKey.keyF,
+                LogicalKeyboardKey.keyK,
               };
               if (bypassedKeys.contains(event.logicalKey)) {
                 return KeyEventResult.ignored;

@@ -36,6 +36,7 @@ Major layout panels are mapped to neighboring number keys.
 | **Dashboard** | Open Settings | `Alt + 4` | `Cmd + Opt + 4` OR **`Cmd + ,`** (standard macOS Preferences) |
 | **Editor** | Toggle Typewriter Scrolling | `Alt + 5` | `Cmd + Opt + 5` |
 | **Editor** | Toggle Paragraph Focus | `Alt + 6` | `Cmd + Opt + 6` |
+| **Editor** | Toggle Spell Check | `Alt + K` | `Cmd + Opt + K` (also Edit → Check Spelling While Typing) |
 | **Fullscreen** | Toggle Fullscreen | `F11` OR **`Alt + Enter`** | **`Cmd + Ctrl + F`** OR `Cmd + Opt + Enter` |
 
 ---

@@ -44,6 +44,7 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 - Alt + 2: Toggle Research Notes (Right Sidebar) / Cmd + Opt + 2 on macOS
 - Alt + 3: Toggle Formatting Toolbar / Cmd + Opt + 3 on macOS
 - Alt + 4: Toggle Settings / Dashboard / Cmd + Opt + 4 on macOS (or Cmd + , on macOS)
+- Alt + K: Toggle Spell Check / Cmd + Opt + K on macOS
 - Alt + Enter: Toggle Fullscreen Mode (F11 also works) / Cmd + Ctrl + F on macOS (Cmd + Opt + Enter also works)
 
 ### Text Formatting:

@@ -158,7 +158,8 @@ class MarkdownEditingController extends TextEditingController {
           style: (textSpan.style ?? const TextStyle()).copyWith(
             decoration: TextDecoration.underline,
             decorationStyle: TextDecorationStyle.wavy,
-            decorationColor: Colors.red.withValues(alpha: 0.7),
+            decorationColor: _misspellingColor,
+            decorationThickness: 2.0,
           ),
         ));
         cursor = mEnd;
@@ -172,6 +173,11 @@ class MarkdownEditingController extends TextEditingController {
     }
     return out;
   }
+
+  /// Full-strength red, lighter on dark themes: dark red at partial opacity
+  /// all but disappears on near-black pages such as Cyberpunk.
+  Color get _misspellingColor =>
+      theme.backgroundColor.computeLuminance() < 0.2 ? const Color(0xFFFF5370) : const Color(0xFFD32F2F);
 
   List<InlineSpan> _searchHighlight(String text, TextStyle baseStyle, String query, int startOffset) {
     if (query.isEmpty) {

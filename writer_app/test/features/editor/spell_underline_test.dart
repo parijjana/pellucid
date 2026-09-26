@@ -64,6 +64,16 @@ void main() {
     expect(spans.map((s) => s.text).join(), c.text, reason: 'no text lost or duplicated');
   });
 
+  testWidgets('underline is thick and bright enough on a dark theme', (tester) async {
+    final cyberpunk = WriterTheme.presets.firstWhere((t) => t.name == 'Cyberpunk');
+    final c = MarkdownEditingController(text: 'teh', theme: cyberpunk);
+    c.setMisspellings([const TextRange(start: 0, end: 3)]);
+    final teh = (await spansFor(tester, c)).single;
+    expect(teh.style!.decorationThickness, 2.0);
+    expect(teh.style!.decorationColor!.a, 1.0);
+    expect(teh.style!.decorationColor!.computeLuminance(), greaterThan(0.2));
+  });
+
   testWidgets('no misspellings leaves the spans untouched', (tester) async {
     final c = MarkdownEditingController(text: '# Title\nbody', theme: theme);
     expect((await spansFor(tester, c)).where(_isWavy), isEmpty);

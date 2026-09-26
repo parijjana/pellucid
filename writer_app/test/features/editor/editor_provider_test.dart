@@ -77,6 +77,25 @@ void main() {
       verify(() => mockSettingsDatabase.updateSetting('zoom_level', 2.0)).called(1);
     });
 
+    test('zoom snaps to 5% steps so a trackpad pinch cannot leave it at 99%', () async {
+      when(() => mockSettingsDatabase.updateSetting(any(), any()))
+          .thenAnswer((_) async {});
+
+      editorProvider.setZoomLevel(0.99);
+      expect(editorProvider.zoomLevel, 1.0);
+
+      editorProvider.setZoomLevel(1.13);
+      expect(editorProvider.zoomLevel, 1.15);
+
+      // +/- from a snapped value lands on exact steps, back to 100%.
+      editorProvider.zoomOut();
+      editorProvider.zoomOut();
+      editorProvider.zoomIn();
+      expect(editorProvider.zoomLevel, 1.05);
+      expect(EditorProvider.snapZoom(0.99), 1.0);
+      expect(EditorProvider.snapZoom(0.1), 0.5);
+    });
+
     group('failed document load', () {
       // The bug this guards: readDocument used to return '' for BOTH "the file
       // is missing" and "the read threw", so a transient failure showed a blank

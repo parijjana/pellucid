@@ -84,15 +84,21 @@ class EditorProvider extends ChangeNotifier {
 
   Future<void> loadSettings() async {
     final settings = await _db.getSettings();
-    _zoomLevel = settings['zoom_level'] ?? 1.0;
+    _zoomLevel = snapZoom((settings['zoom_level'] as num?)?.toDouble() ?? 1.0);
     _pageWidth = settings['page_width'] ?? 800.0;
     _horizontalPosition = settings['horizontal_position'] ?? 0.5;
     notifyListeners();
   }
 
+  /// Zoom lives on a 5% grid, 50%–200%. A trackpad pinch reports any scale
+  /// (e.g. 0.99), and off-grid sizes render text between pixels (lighter,
+  /// blurrier) and can never be stepped back to 100% with +/- (10% steps).
+  static double snapZoom(double level) => ((level.clamp(0.5, 2.0)) * 20).round() / 20;
+
   void setZoomLevel(double level) {
-    if (_zoomLevel == level) return;
-    _zoomLevel = level.clamp(0.5, 2.0);
+    final snapped = snapZoom(level);
+    if (_zoomLevel == snapped) return;
+    _zoomLevel = snapped;
     _db.updateSetting('zoom_level', _zoomLevel);
     notifyListeners();
   }

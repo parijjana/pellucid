@@ -16,6 +16,51 @@ class MarkdownEditingController extends TextEditingController {
 
   MarkdownEditingController({super.text, required this.theme});
 
+  List<TextRange> _misspellings = const [];
+
+  /// Misspelled ranges (absolute offsets), drawn with a wavy underline inside
+  /// this controller's own spans. EditableText's built-in spell-check drawing
+  /// replaces buildTextSpan wholesale, which would drop the markdown styling.
+  List<TextRange> get misspellings => _misspellings;
+
+  /// Deliberately does not notify: controller listeners (autosave, stats)
+  /// treat a notification as an edit. The caller repaints the editor.
+  void setMisspellings(List<TextRange> ranges) =>
+      _misspellings = [...ranges]..sort((a, b) => a.start.compareTo(b.start));
+
+  /// Keeps underlines on the right words between checks: ranges before the
+  /// edit stay, ranges after it move with it, ranges touching it are dropped
+  /// until the next check.
+  @override
+  set value(TextEditingValue newValue) {
+    if (_misspellings.isNotEmpty && newValue.text != text) {
+      _misspellings = shiftRangesForEdit(_misspellings, text, newValue.text);
+    }
+    super.value = newValue;
+  }
+
+  static List<TextRange> shiftRangesForEdit(List<TextRange> ranges, String oldText, String newText) {
+    final int maxPrefix = oldText.length < newText.length ? oldText.length : newText.length;
+    int prefix = 0;
+    while (prefix < maxPrefix && oldText.codeUnitAt(prefix) == newText.codeUnitAt(prefix)) {
+      prefix++;
+    }
+    int suffix = 0;
+    while (suffix < maxPrefix - prefix &&
+        oldText.codeUnitAt(oldText.length - 1 - suffix) == newText.codeUnitAt(newText.length - 1 - suffix)) {
+      suffix++;
+    }
+    final int editEnd = oldText.length - suffix;
+    final int delta = newText.length - oldText.length;
+    return [
+      for (final r in ranges)
+        if (r.end <= prefix)
+          r
+        else if (r.start >= editEnd)
+          TextRange(start: r.start + delta, end: r.end + delta),
+    ];
+  }
+
   bool get codexLinkingEnabled => _codexLinkingEnabled;
   set codexLinkingEnabled(bool val) {
     if (_codexLinkingEnabled != val) {
@@ -86,6 +131,49 @@ class MarkdownEditingController extends TextEditingController {
   }
 
   List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query, int startOffset) {
+    final spans = _searchHighlight(text, baseStyle, query, startOffset);
+    return _misspellings.isEmpty ? spans : _underlineMisspellings(spans, startOffset);
+  }
+
+  /// Splits leaf spans (contiguous from [startOffset]) wherever they cross a
+  /// misspelled range and gives those pieces the wavy underline.
+  List<InlineSpan> _underlineMisspellings(List<InlineSpan> spans, int startOffset) {
+    final List<InlineSpan> out = [];
+    int offset = startOffset;
+    for (final span in spans) {
+      final textSpan = span as TextSpan;
+      final String run = textSpan.text ?? '';
+      final int runEnd = offset + run.length;
+      int cursor = 0;
+      for (final r in _misspellings) {
+        if (r.end <= offset + cursor) continue;
+        if (r.start >= runEnd) break;
+        final int mStart = (r.start < offset ? offset : r.start) - offset;
+        final int mEnd = (r.end > runEnd ? runEnd : r.end) - offset;
+        if (mStart > cursor) {
+          out.add(TextSpan(text: run.substring(cursor, mStart), style: textSpan.style));
+        }
+        out.add(TextSpan(
+          text: run.substring(mStart, mEnd),
+          style: (textSpan.style ?? const TextStyle()).copyWith(
+            decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.wavy,
+            decorationColor: Colors.red.withValues(alpha: 0.7),
+          ),
+        ));
+        cursor = mEnd;
+      }
+      if (cursor == 0) {
+        out.add(span);
+      } else if (cursor < run.length) {
+        out.add(TextSpan(text: run.substring(cursor), style: textSpan.style));
+      }
+      offset = runEnd;
+    }
+    return out;
+  }
+
+  List<InlineSpan> _searchHighlight(String text, TextStyle baseStyle, String query, int startOffset) {
     if (query.isEmpty) {
       return [TextSpan(text: text, style: baseStyle)];
     }

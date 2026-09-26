@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../providers/editor_provider.dart';
 import '../providers/codex_index.dart';
 import '../../sidebar/providers/note_card.dart';
 import 'codex_mention_detector.dart';
+import 'markdown_controller.dart';
 
 class EditorPaperArea extends StatelessWidget {
   final WriterTheme theme;
@@ -87,7 +89,7 @@ class EditorPaperArea extends StatelessWidget {
               index: codexIndex,
               notes: notes,
               onActivate: onOpenNote,
-              child: _NativeSpellCheckSync(
+              child: _NativeSpellCheckDriver(
                 enabled: spellCheckEnabled,
                 focusNode: focusNode,
                 controller: controller,
@@ -99,13 +101,15 @@ class EditorPaperArea extends StatelessWidget {
                 // disk. Accepting keystrokes here would invite the writer to
                 // type into a blank page that can never be saved.
                 readOnly: provider.documentLoadFailed,
-                spellCheckConfiguration: !_nativeSpellCheckAvailable
-                    ? (spellCheckEnabled && !kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST')
-                        ? const SpellCheckConfiguration()
-                        : const SpellCheckConfiguration.disabled())
-                    // Always attached: EditableText never re-reads this, so the
-                    // on/off setting is applied inside the service instead.
-                    : SpellCheckConfiguration(spellCheckService: NativeSpellCheckService.instance),
+                // macOS/Windows: off here, driven by _NativeSpellCheckDriver and
+                // drawn by MarkdownEditingController, because EditableText's own
+                // spell-check drawing replaces the markdown styling.
+                spellCheckConfiguration: (spellCheckEnabled &&
+                        !kIsWeb &&
+                        !NativeSpellCheckService.isSupported &&
+                        !Platform.environment.containsKey('FLUTTER_TEST'))
+                    ? const SpellCheckConfiguration()
+                    : const SpellCheckConfiguration.disabled(),
                 cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
                 style: TextStyle(
                   color: theme.foregroundColor,
@@ -134,16 +138,17 @@ bool get _nativeSpellCheckAvailable =>
     NativeSpellCheckService.isSupported &&
     !Platform.environment.containsKey('FLUTTER_TEST');
 
-/// Keeps [NativeSpellCheckService.enabled] in step with the setting, and
-/// updates the underlines as soon as it flips (Alt+K, the macOS menu or
-/// Settings) instead of on the next keystroke.
-class _NativeSpellCheckSync extends StatefulWidget {
+/// Runs the OS spell checker over the manuscript and hands the misspelled
+/// ranges to [MarkdownEditingController], which draws them. Checks when the
+/// editor opens, shortly after typing pauses, and the moment the setting
+/// flips (Alt+K, the macOS menu or Settings).
+class _NativeSpellCheckDriver extends StatefulWidget {
   final bool enabled;
   final FocusNode focusNode;
   final TextEditingController controller;
   final Widget child;
 
-  const _NativeSpellCheckSync({
+  const _NativeSpellCheckDriver({
     required this.enabled,
     required this.focusNode,
     required this.controller,
@@ -151,24 +156,88 @@ class _NativeSpellCheckSync extends StatefulWidget {
   });
 
   @override
-  State<_NativeSpellCheckSync> createState() => _NativeSpellCheckSyncState();
+  State<_NativeSpellCheckDriver> createState() => _NativeSpellCheckDriverState();
 }
 
-class _NativeSpellCheckSyncState extends State<_NativeSpellCheckSync> {
+class _NativeSpellCheckDriverState extends State<_NativeSpellCheckDriver> {
+  static const _service = NativeSpellCheckService();
+  static const _pause = Duration(milliseconds: 400);
+
+  Timer? _debounce;
+  String? _checkedText;
+
+  MarkdownEditingController? get _markdown {
+    final c = widget.controller;
+    return c is MarkdownEditingController ? c : null;
+  }
+
+  bool get _active => widget.enabled && _nativeSpellCheckAvailable && _markdown != null;
+
   @override
   void initState() {
     super.initState();
-    NativeSpellCheckService.instance.enabled = widget.enabled;
+    widget.controller.addListener(_onTextChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
   @override
-  void didUpdateWidget(_NativeSpellCheckSync oldWidget) {
+  void didUpdateWidget(_NativeSpellCheckDriver oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.enabled == oldWidget.enabled) return;
-    NativeSpellCheckService.instance.enabled = widget.enabled;
-    if (_nativeSpellCheckAvailable) {
-      NativeSpellCheckService.instance.refresh(widget.focusNode, widget.controller);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onTextChanged);
+      widget.controller.addListener(_onTextChanged);
+      _checkedText = null;
     }
+    if (oldWidget.enabled != widget.enabled || oldWidget.controller != widget.controller) {
+      _debounce?.cancel();
+      _check();
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    widget.controller.removeListener(_onTextChanged);
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    if (!_active || widget.controller.text == _checkedText) return;
+    _debounce?.cancel();
+    _debounce = Timer(_pause, _check);
+  }
+
+  Future<void> _check() async {
+    final markdown = _markdown;
+    if (markdown == null) return;
+    if (!_active) {
+      _checkedText = null;
+      if (markdown.misspellings.isNotEmpty) {
+        markdown.setMisspellings(const []);
+        _repaint();
+      }
+      return;
+    }
+    final text = markdown.text;
+    final spans = text.isEmpty
+        ? const <SuggestionSpan>[]
+        : await _service.fetchSpellCheckSuggestions(
+            Localizations.maybeLocaleOf(context) ?? const Locale('en', 'US'), text);
+    // Stale: the writer kept typing (a newer check is queued) or it was
+    // switched off while the OS was checking.
+    if (!mounted || !_active || markdown.text != text) return;
+    _checkedText = text;
+    markdown.setMisspellings([for (final s in spans) s.range]);
+    _repaint();
+  }
+
+  /// Rebuild the editor's spans without notifying the controller (whose
+  /// listeners treat that as an edit), the same way EditableText applies its
+  /// own spell-check results.
+  void _repaint() {
+    final editable = widget.focusNode.context?.findAncestorStateOfType<EditableTextState>();
+    if (editable == null || !editable.mounted) return;
+    editable.renderEditable.text = editable.buildTextSpan();
   }
 
   @override

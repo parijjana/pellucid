@@ -2,24 +2,18 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-/// Red-underline spell checking through the OS spell checker: NSSpellChecker
-/// on macOS (MainFlutterWindow.swift) and ISpellChecker on Windows
+/// Spell checking through the OS spell checker: NSSpellChecker on macOS
+/// (MainFlutterWindow.swift) and ISpellChecker on Windows
 /// (windows/runner/spell_check_channel.cpp). Flutter has no desktop default.
 ///
-/// EditableText reads its SpellCheckConfiguration once, in initState, and
-/// only re-checks when the user types. So the editor is always given this one
-/// [instance], the on/off setting lives in [enabled], and [refresh] brings a
-/// live editor up to date the moment the setting changes.
+/// Not handed to EditableText: its built-in spell-check drawing replaces the
+/// editor's markdown styling. EditorPaperArea drives this service itself and
+/// MarkdownEditingController draws the underlines.
 class NativeSpellCheckService implements SpellCheckService {
-  NativeSpellCheckService._();
-
-  static final NativeSpellCheckService instance = NativeSpellCheckService._();
+  const NativeSpellCheckService();
 
   /// Platforms with a native handler for [_channel].
   static bool get isSupported => Platform.isMacOS || Platform.isWindows;
-
-  /// Mirrors SettingsProvider.spellCheckEnabled; off means no misspellings.
-  bool enabled = true;
 
   static const _channel = MethodChannel('com.overengineeredhobbies.pellucid/spellcheck');
 
@@ -28,7 +22,7 @@ class NativeSpellCheckService implements SpellCheckService {
     Locale locale,
     String text,
   ) async {
-    if (!isSupported || !enabled) return [];
+    if (!isSupported) return [];
 
     try {
       final List<dynamic>? result = await _channel.invokeMethod(
@@ -57,23 +51,5 @@ class NativeSpellCheckService implements SpellCheckService {
     } catch (e) {
       return [];
     }
-  }
-
-  /// Re-check (or clear) the editor that owns [editorFocus] right away,
-  /// without waiting for the next keystroke. EditableText only exposes its
-  /// results as a public field, so set it and repaint the same way it does
-  /// after its own check.
-  Future<void> refresh(FocusNode editorFocus, TextEditingController controller) async {
-    final editable = editorFocus.context?.findAncestorStateOfType<EditableTextState>();
-    if (editable == null) return;
-    final text = controller.text;
-    List<SuggestionSpan> spans = const [];
-    if (enabled && text.isNotEmpty) {
-      final locale = Localizations.maybeLocaleOf(editable.context) ?? const Locale('en', 'US');
-      spans = await fetchSpellCheckSuggestions(locale, text);
-    }
-    if (!editable.mounted || controller.text != text) return;
-    editable.spellCheckResults = SpellCheckResults(text, spans);
-    editable.renderEditable.text = editable.buildTextSpan();
   }
 }

@@ -61,9 +61,9 @@ flutter:
 # the app → Product management → Product identity. They are public (shown in the Store).
 msix_config:
   display_name: Pellucid
-  publisher_display_name: REPLACE_FROM_PARTNER_CENTER
-  identity_name: REPLACE_FROM_PARTNER_CENTER
-  publisher: REPLACE_FROM_PARTNER_CENTER
+  publisher_display_name: OverEngineeredHobbies
+  identity_name: OverEngineeredHobbies.Pellucid
+  publisher: "CN=DC2CEF40-679E-422D-881F-9B5352D05AEB"
   msix_version: 1.0.1.0
   logo_path: windows/msix/pellucid_logo.png
   capabilities: internetClient

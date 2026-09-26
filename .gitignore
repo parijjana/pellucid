@@ -60,6 +60,12 @@ agent_log/
 # Internal project docs live in the private project_docs repo
 .project-docs
 
+# store_submission now lives in the private project_docs repo and is reached
+# through a symlink here. No trailing slash: a trailing slash matches
+# directories only, and once this path is a symlink git would try to commit
+# the symlink itself into this public repo.
+writer_app/store_submission
+
 # Scratch verification entry point instantiated from the store-launch-kit
 # template. It has to live in lib/ because its imports are lib-rooted, but it
 # is a throwaway and does not belong in the repo.

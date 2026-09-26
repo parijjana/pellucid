@@ -44,6 +44,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   mocktail: ^1.0.5
   flutter_launcher_icons: ^0.13.1
+  msix: ^3.18.0
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -52,3 +53,20 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+
+# Microsoft Store package. Runbook: project_docs/pellucid/docs/WINDOWS_STORE.md.
+# Build on Windows only: `flutter build windows --release --dart-define=...` first (the OAuth
+# secrets never go in this file), then `dart run msix:create`.
+# identity_name / publisher / publisher_display_name come from Partner Center →
+# the app → Product management → Product identity. They are public (shown in the Store).
+msix_config:
+  display_name: Pellucid
+  publisher_display_name: REPLACE_FROM_PARTNER_CENTER
+  identity_name: REPLACE_FROM_PARTNER_CENTER
+  publisher: REPLACE_FROM_PARTNER_CENTER
+  msix_version: 1.0.1.0
+  logo_path: windows/msix/pellucid_logo.png
+  capabilities: internetClient
+  languages: en-us
+  store: true
+  build_windows: false

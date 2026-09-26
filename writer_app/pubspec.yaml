@@ -56,7 +56,8 @@ flutter:
 
 # Microsoft Store package. Runbook: project_docs/pellucid/docs/WINDOWS_STORE.md.
 # Build on Windows only: `flutter build windows --release --dart-define=...` first (the OAuth
-# secrets never go in this file), then `dart run msix:create`.
+# secrets never go in this file), then `dart run msix:create --store` (Store upload) or plain
+# `dart run msix:create --install-certificate false` (self-signed local test build).
 # identity_name / publisher / publisher_display_name come from Partner Center →
 # the app → Product management → Product identity. They are public (shown in the Store).
 msix_config:
@@ -68,5 +69,5 @@ msix_config:
   logo_path: windows/msix/pellucid_logo.png
   capabilities: internetClient
   languages: en-us
-  store: true
+  store: false  # test build by default; Store package: dart run msix:create --store
   build_windows: false

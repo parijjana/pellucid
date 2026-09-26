@@ -897,6 +897,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _buildToggleRow(label: 'Typewriter Scrolling', value: settings.typewriterEnabled, onChanged: settings.toggleTypewriter, theme: theme),
         _buildToggleRow(label: 'Paragraph Focus', value: settings.paragraphFocusEnabled, onChanged: settings.toggleParagraphFocus, theme: theme),
         _buildToggleRow(label: 'Codex Linking', value: settings.codexLinkingEnabled, onChanged: settings.toggleCodexLinking, theme: theme),
+        // macOS toggles this from the menu bar (Edit → Check Spelling While
+        // Typing); Windows has no menu bar, so it lives here.
+        if (!kIsWeb && Platform.isWindows)
+          _buildToggleRow(label: 'Spell Check', value: settings.spellCheckEnabled, onChanged: settings.toggleSpellCheck, theme: theme),
         _buildToggleRow(label: 'TOC Word Counts', value: settings.tocWordCountsEnabled, onChanged: settings.toggleTocWordCounts, theme: theme),
         _buildDailyGoalRow(settings, theme),
         _buildToggleRow(label: 'Battery Guard', value: settings.batteryGuardEnabled, onChanged: settings.toggleBatteryGuard, theme: theme),

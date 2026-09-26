@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/mac_spell_check_service.dart';
+import '../services/native_spell_check_service.dart';
 import '../providers/theme_provider.dart';
 import '../providers/editor_provider.dart';
 import '../providers/codex_index.dart';
@@ -96,8 +96,8 @@ class EditorPaperArea extends StatelessWidget {
                 // type into a blank page that can never be saved.
                 readOnly: provider.documentLoadFailed,
                 spellCheckConfiguration: (spellCheckEnabled && !kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST'))
-                    ? (!kIsWeb && Platform.isMacOS
-                        ? SpellCheckConfiguration(spellCheckService: MacSpellCheckService())
+                    ? (NativeSpellCheckService.isSupported
+                        ? SpellCheckConfiguration(spellCheckService: NativeSpellCheckService())
                         : const SpellCheckConfiguration())
                     : const SpellCheckConfiguration.disabled(),
                 cursorColor: theme.foregroundColor.withValues(alpha: 0.3),

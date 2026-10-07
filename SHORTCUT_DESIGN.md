@@ -18,6 +18,7 @@ Supports all standard OS text interactions.
 | :--- | :--- | :--- |
 | Toggle Bold | `Ctrl + B` | `Cmd + B` |
 | Toggle Italic | `Ctrl + I` | `Cmd + I` |
+| Line as Subheading (`### `) | `Alt + J` | `Cmd + Opt + J` |
 | Copy | `Ctrl + C` OR `Ctrl + Insert` | `Cmd + C` |
 | Paste | `Ctrl + V` OR `Shift + Insert` | `Cmd + V` |
 | Cut | `Ctrl + X` | `Cmd + X` |

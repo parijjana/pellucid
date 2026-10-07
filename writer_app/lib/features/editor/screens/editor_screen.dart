@@ -465,6 +465,7 @@ class _EditorScreenState extends State<EditorScreen> {
         // Formatting (Still local to editor for context)
         SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: usesCommandModifier): const SetTitleIntent(),
         SingleActivator(LogicalKeyboardKey.keyE, alt: true, meta: usesCommandModifier): const SetHeaderIntent(),
+        SingleActivator(LogicalKeyboardKey.keyJ, alt: true, meta: usesCommandModifier): const SetSubheadingIntent(),
         SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: usesCommandModifier): const SetBodyIntent(),
         SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: usesCommandModifier): const SetBulletIntent(),
         SingleActivator(LogicalKeyboardKey.keyB, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleBoldIntent(),
@@ -497,6 +498,7 @@ class _EditorScreenState extends State<EditorScreen> {
           }),
           SetTitleIntent: CallbackAction<SetTitleIntent>(onInvoke: (_) => _applyFormat('# ')),
           SetHeaderIntent: CallbackAction<SetHeaderIntent>(onInvoke: (_) => _applyFormat('## ')),
+          SetSubheadingIntent: CallbackAction<SetSubheadingIntent>(onInvoke: (_) => _applyFormat('### ')),
           SetBodyIntent: CallbackAction<SetBodyIntent>(onInvoke: (_) => _applyFormat('body')),
           SetBulletIntent: CallbackAction<SetBulletIntent>(onInvoke: (_) => _applyFormat('- ')),
           ToggleBoldIntent: CallbackAction<ToggleBoldIntent>(onInvoke: (_) => _applyFormat('**')),

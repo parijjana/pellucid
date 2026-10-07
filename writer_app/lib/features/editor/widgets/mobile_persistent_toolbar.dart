@@ -42,6 +42,11 @@ class MobilePersistentToolbar extends StatelessWidget {
                     onPressed: () => onApplyFormat('## '),
                   ),
                   _ToolbarTextButton(
+                    label: 'SUBHEAD',
+                    theme: theme,
+                    onPressed: () => onApplyFormat('### '),
+                  ),
+                  _ToolbarTextButton(
                     label: 'BODY',
                     theme: theme,
                     onPressed: () => onApplyFormat('body'),

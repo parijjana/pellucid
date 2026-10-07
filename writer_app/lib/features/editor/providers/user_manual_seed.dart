@@ -50,6 +50,7 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 ### Text Formatting:
 - Alt + T: Format current line as Title / Cmd + Opt + T on macOS
 - Alt + E: Format current line as Header / Cmd + Opt + E on macOS
+- Alt + J: Format current line as Subheading (###) / Cmd + Opt + J on macOS
 - Alt + G: Format current line as Body text / Cmd + Opt + G on macOS
 - Alt + L: Format current line as Bullet point / Cmd + Opt + L on macOS
 - Ctrl + B: Toggle Bold on selection / Cmd + B on macOS

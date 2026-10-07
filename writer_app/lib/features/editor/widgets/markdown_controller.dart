@@ -449,15 +449,15 @@ class MarkdownEditingController extends TextEditingController {
 
   void toggleFormat(String tag) {
     final selection = this.selection;
-    if (selection.isCollapsed && !tag.endsWith(' ')) {
+    if (selection.isCollapsed && !tag.endsWith(' ') && tag != 'body') {
       // For selection-based tags like ** or *, do nothing if no selection
       return;
     }
 
     final selectedText = text.substring(selection.start, selection.end);
     
-    if (tag.endsWith(' ')) {
-      // Line-based formatting (Title, Heading, Bullet)
+    if (tag.endsWith(' ') || tag == 'body') {
+      // Line-based formatting (Title, Heading, Subheading, Bullet, Body)
       _toggleLineFormat(tag);
     } else {
       // Selection-based formatting (Bold, Italic)

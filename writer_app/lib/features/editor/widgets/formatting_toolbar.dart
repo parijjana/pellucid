@@ -26,6 +26,7 @@ class FormattingToolbar extends StatelessWidget {
         children: [
           _labelButton('TITLE', () => onApplyFormat('# ')),
           _labelButton('HEADING', () => onApplyFormat('## ')),
+          _labelButton('SUBHEAD', () => onApplyFormat('### ')),
           _labelButton('BODY', () => onApplyFormat('body')),
           _labelButton('BULLET', () => onApplyFormat('- ')),
           const SizedBox(width: 12),

@@ -41,4 +41,41 @@ void main() {
     expect(codex, lessThan(words ~/ 1000 * 2 + 50), reason: 'all layers on, $words words');
   });
   }
+
+  testWidgets('keystroke in a 100k-word manuscript: span rebuild, cached vs not', (tester) async {
+    final text = generateManuscript(100000);
+    final miss = [for (final m in RegExp(r'\b(Teh|recieved)\b').allMatches(text)) TextRange(start: m.start, end: m.end)];
+    final results = <String, int>{};
+    for (final cacheOn in [false, true]) {
+      final c = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+        ..lineCacheEnabled = cacheOn
+        ..codexTitles = const [CodexTitle(id: 'n1', title: 'Mira'), CodexTitle(id: 'n2', title: 'Ostrava')]
+        ..codexLinkingEnabled = true;
+      c.setMisspellings(miss);
+      late BuildContext ctx;
+      await tester.pumpWidget(Builder(builder: (context) {
+        ctx = context;
+        return const SizedBox();
+      }));
+      c.buildTextSpan(context: ctx, style: const TextStyle(), withComposing: false); // warm
+      int best = 1 << 30;
+      for (int i = 0; i < 5; i++) {
+        // Type one character in the middle, as a keystroke does.
+        final at = c.text.length ~/ 2 + i;
+        c.value = TextEditingValue(
+          text: c.text.replaceRange(at, at, 'x'),
+          selection: TextSelection.collapsed(offset: at + 1),
+        );
+        final sw = Stopwatch()..start();
+        c.buildTextSpan(context: ctx, style: const TextStyle(), withComposing: false);
+        if (sw.elapsedMicroseconds < best) best = sw.elapsedMicroseconds;
+      }
+      results[cacheOn ? 'cached' : 'uncached'] = best;
+    }
+
+    // ignore: avoid_print
+    print('KEYSTROKE 100k words: spans uncached=${results['uncached']! ~/ 1000}ms '
+        'cached=${results['cached']! ~/ 1000}ms (whole-frame timing: tool/perf/editor_perf_main.dart)');
+    expect(results['cached']!, lessThan(results['uncached']!));
+  });
 }

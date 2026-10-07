@@ -299,6 +299,19 @@ class MarkdownEditingController extends TextEditingController {
     }
   }
 
+  // Per-line span cache (backlog item 23). A line's spans depend only on its
+  // text, whether it is dimmed, and the ranges that fall inside it, measured
+  // from the line start; everything else that styles a line (theme, base
+  // style, search query) clears the cache when it changes. Relative keys keep
+  // lines after an edit cacheable even though their absolute offsets moved.
+  Map<String, List<_CachedLine>> _lineCache = {};
+  WriterTheme? _cacheTheme;
+  TextStyle? _cacheStyle;
+  String? _cacheQuery;
+
+  @visibleForTesting
+  bool lineCacheEnabled = true;
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -315,24 +328,63 @@ class MarkdownEditingController extends TextEditingController {
     if (_paragraphFocusEnabled && selection.baseOffset >= 0 && selection.baseOffset <= text.length) {
       focusRange = paragraphLineRange(lines, selection.baseOffset);
     }
-    final Color dimColor = theme.foregroundColor.withValues(alpha: 0.38);
+
+    if (!identical(theme, _cacheTheme) || style != _cacheStyle || searchQuery != _cacheQuery) {
+      _lineCache = {};
+      _cacheTheme = theme;
+      _cacheStyle = style;
+      _cacheQuery = searchQuery;
+    }
+    final Map<String, List<_CachedLine>> previous = _lineCache;
+    final Map<String, List<_CachedLine>> next = {};
+    final List<MentionRange> mentions =
+        _codexLinkingEnabled ? codexIndex.rangesFor(text) : const [];
+    int missIndex = 0;
+    int mentionIndex = 0;
 
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final isLastLine = i == lines.length - 1;
       final bool dim = focusRange != null && (i < focusRange.startLine || i > focusRange.endLine);
 
-      if (line.startsWith('# ')) {
-        _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
-      } else if (line.startsWith('## ')) {
-        _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
-      } else if (line.startsWith('### ')) {
-        _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
-      } else if (line.startsWith('- ')) {
-        _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, currentOffset, isBullet: true, contentColor: dim ? dimColor : null);
+      if (!lineCacheEnabled) {
+        _addLine(children, line, currentOffset, dim, style);
       } else {
-        final baseStyle = style ?? const TextStyle();
-        _addInlineStyledText(children, line, dim ? baseStyle.copyWith(color: dimColor) : baseStyle, currentOffset);
+        final int lineEnd = currentOffset + line.length;
+        final List<int> miss = [];
+        while (missIndex < _misspellings.length && _misspellings[missIndex].end <= currentOffset) {
+          missIndex++;
+        }
+        for (int m = missIndex; m < _misspellings.length && _misspellings[m].start < lineEnd; m++) {
+          miss..add(_misspellings[m].start - currentOffset)..add(_misspellings[m].end - currentOffset);
+        }
+        final List<int> marks = [];
+        while (mentionIndex < mentions.length && mentions[mentionIndex].end <= currentOffset) {
+          mentionIndex++;
+        }
+        for (int m = mentionIndex; m < mentions.length && mentions[m].start < lineEnd; m++) {
+          marks..add(mentions[m].start - currentOffset)..add(mentions[m].end - currentOffset);
+        }
+        final int active = _activeMatchOffset >= currentOffset && _activeMatchOffset < lineEnd
+            ? _activeMatchOffset - currentOffset
+            : -1;
+        final key = _CachedLine(dim, active, miss, marks);
+
+        _CachedLine? hit;
+        for (final c in previous[line] ?? const <_CachedLine>[]) {
+          if (c.sameKey(key)) {
+            hit = c;
+            break;
+          }
+        }
+        if (hit == null) {
+          final List<InlineSpan> lineSpans = [];
+          _addLine(lineSpans, line, currentOffset, dim, style);
+          hit = key..spans = lineSpans;
+        }
+        final bucket = next.putIfAbsent(line, () => []);
+        if (!bucket.contains(hit)) bucket.add(hit);
+        children.addAll(hit.spans);
       }
 
       currentOffset += line.length;
@@ -341,8 +393,25 @@ class MarkdownEditingController extends TextEditingController {
         currentOffset += 1;
       }
     }
+    if (lineCacheEnabled) _lineCache = next;
 
     return TextSpan(style: style, children: children);
+  }
+
+  void _addLine(List<InlineSpan> children, String line, int lineOffset, bool dim, TextStyle? style) {
+    final Color? contentColor = dim ? theme.foregroundColor.withValues(alpha: 0.38) : null;
+    if (line.startsWith('# ')) {
+      _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold, lineOffset, contentColor: contentColor);
+    } else if (line.startsWith('## ')) {
+      _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold, lineOffset, contentColor: contentColor);
+    } else if (line.startsWith('### ')) {
+      _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, lineOffset, contentColor: contentColor);
+    } else if (line.startsWith('- ')) {
+      _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, lineOffset, isBullet: true, contentColor: contentColor);
+    } else {
+      final baseStyle = style ?? const TextStyle();
+      _addInlineStyledText(children, line, contentColor != null ? baseStyle.copyWith(color: contentColor) : baseStyle, lineOffset);
+    }
   }
 
   void _addStyledBlock(List<InlineSpan> children, String line, String pattern, double fontSize, FontWeight weight, int lineOffset, {bool isBullet = false, Color? contentColor}) {
@@ -613,4 +682,32 @@ class _FormatRange {
   final int end;
   
   _FormatRange(this.tag, this.start, this.contentStart, this.contentEnd, this.end);
+}
+
+/// One line's spans plus the line-relative state they were built from:
+/// [misspellings] and [mentions] are flattened start/end pairs measured from
+/// the line start, [activeMatch] is the current Find match's line-relative
+/// start or -1.
+class _CachedLine {
+  final bool dim;
+  final int activeMatch;
+  final List<int> misspellings;
+  final List<int> mentions;
+  List<InlineSpan> spans = const [];
+
+  _CachedLine(this.dim, this.activeMatch, this.misspellings, this.mentions);
+
+  bool sameKey(_CachedLine other) =>
+      dim == other.dim &&
+      activeMatch == other.activeMatch &&
+      _sameInts(misspellings, other.misspellings) &&
+      _sameInts(mentions, other.mentions);
+
+  static bool _sameInts(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }

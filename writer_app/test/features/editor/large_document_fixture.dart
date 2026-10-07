@@ -17,17 +17,20 @@ const List<String> _malformed = [
   '**unclosed', 'trailing*', '* *', '<u></u>', '😀', '🧭 map', '#hashtag', '-dash',
 ];
 
-/// Roughly [words] words of manuscript. Same [seed] → same text.
-String generateManuscript(int words, {int seed = 7}) {
+/// Roughly [words] words of manuscript. Same [seed] → same text. The
+/// default [markupEvery] is markup-heavy (a stress case); a few hundred is
+/// closer to a novel draft.
+String generateManuscript(int words, {int seed = 7, int markupEvery = 40}) {
   final rnd = Random(seed);
   final buf = StringBuffer();
   int written = 0;
   String word() => _words[rnd.nextInt(_words.length)];
 
   String sentence(int n) {
+    // One word in [markupEvery] gets inline markup or a malformed marker.
     final parts = <String>[];
     for (int i = 0; i < n; i++) {
-      final roll = rnd.nextInt(40);
+      final roll = rnd.nextInt(markupEvery);
       final w = word();
       if (roll == 0) {
         parts.add('**$w ${word()}**');

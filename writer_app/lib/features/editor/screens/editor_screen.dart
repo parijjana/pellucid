@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../word_count.dart';
+import '../caret_formatting.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import '../providers/editor_provider.dart';
@@ -126,6 +127,7 @@ class _EditorScreenState extends State<EditorScreen> {
     if (!mounted) return;
     final sel = _editorController.selection;
     final text = _editorController.text;
+    caretFormatting.value = formattingAt(text, sel);
     int words = 0;
     if (sel.isValid && !sel.isCollapsed && sel.end <= text.length) {
       words = countWords(text.substring(sel.start, sel.end));

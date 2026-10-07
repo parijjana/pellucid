@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
 import '../providers/codex_index.dart';
 import '../../search/providers/text_replacer.dart';
+import '../utils/grammar_checker.dart';
+import '../utils/grammar_hint_style.dart';
+import '../utils/underline_spans.dart';
 
 class MarkdownEditingController extends TextEditingController {
   WriterTheme theme;
@@ -28,6 +31,14 @@ class MarkdownEditingController extends TextEditingController {
   void setMisspellings(List<TextRange> ranges) =>
       _misspellings = [...ranges]..sort((a, b) => a.start.compareTo(b.start));
 
+  List<GrammarIssue> _grammarIssues = const [];
+
+  /// Grammar hints (absolute offsets), drawn with a dotted underline. Set by
+  /// the grammar-hint driver; like [setMisspellings] it does not notify.
+  /// Query with `grammarIssueAt` (grammar_hints.dart).
+  List<GrammarIssue> get grammarIssues => _grammarIssues;
+  void setGrammarIssues(List<GrammarIssue> issues) => _grammarIssues = [...issues];
+
   /// Keeps underlines on the right words between checks: ranges before the
   /// edit stay, ranges after it move with it, ranges touching it are dropped
   /// until the next check.
@@ -36,8 +47,18 @@ class MarkdownEditingController extends TextEditingController {
     if (_misspellings.isNotEmpty && newValue.text != text) {
       _misspellings = shiftRangesForEdit(_misspellings, text, newValue.text);
     }
+    if (_grammarIssues.isNotEmpty && newValue.text != text) {
+      _grammarIssues = _shiftGrammarIssues(_grammarIssues, text, newValue.text);
+    }
     super.value = newValue;
   }
+
+  static List<GrammarIssue> _shiftGrammarIssues(List<GrammarIssue> issues, String oldText, String newText) => [
+        for (final i in issues)
+          if (shiftRangesForEdit([i.range, i.fixRange], oldText, newText) case [final r, final f])
+            GrammarIssue(
+                range: r, fixRange: f, replacement: i.replacement, ruleId: i.ruleId, message: i.message),
+      ];
 
   static List<TextRange> shiftRangesForEdit(List<TextRange> ranges, String oldText, String newText) {
     final int maxPrefix = oldText.length < newText.length ? oldText.length : newText.length;
@@ -131,7 +152,11 @@ class MarkdownEditingController extends TextEditingController {
   }
 
   List<InlineSpan> _highlightText(String text, TextStyle baseStyle, String query, int startOffset) {
-    final spans = _searchHighlight(text, baseStyle, query, startOffset);
+    var spans = _searchHighlight(text, baseStyle, query, startOffset);
+    if (_grammarIssues.isNotEmpty) {
+      spans = underlineRanges(spans, startOffset, [for (final i in _grammarIssues) i.range],
+          decorationStyle: TextDecorationStyle.dotted, color: grammarHintColor(theme));
+    }
     return _misspellings.isEmpty ? spans : _underlineMisspellings(spans, startOffset);
   }
 

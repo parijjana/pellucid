@@ -432,10 +432,7 @@ class MarkdownEditingController extends TextEditingController {
         children.add(TextSpan(text: '• ', style: contentStyle));
       } else {
         // Hide the markdown tag
-        children.add(TextSpan(
-          text: match.group(0),
-          style: const TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0),
-        ));
+        children.add(TextSpan(text: match.group(0), style: _hiddenMarkerStyle));
       }
       final String content = line.substring(match.end);
       final int blockOffset = lineOffset + match.end;
@@ -482,7 +479,12 @@ class MarkdownEditingController extends TextEditingController {
     }
   }
 
-  static const TextStyle _hiddenMarkerStyle = TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0);
+  /// Hidden markdown markers: transparent and 1 px tall, about half a pixel
+  /// wide per character. No negative letterSpacing to squeeze them to zero:
+  /// every run with letter spacing makes the engine's paragraph layout much
+  /// slower, and typing in a 100k-word manuscript went from about 2 s to
+  /// about 0.35 s per keystroke without it (Mac profile build).
+  static const TextStyle _hiddenMarkerStyle = TextStyle(color: Colors.transparent, fontSize: 1.0);
 
   /// Emits [run] as hidden opening marker, styled content, hidden closing
   /// marker. The markers are cut from [run] itself, so the span text always

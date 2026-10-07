@@ -327,24 +327,23 @@ class MarkdownEditingController extends TextEditingController {
     final match = regex.firstMatch(line);
     
     if (match != null) {
-      // Hide the markdown tag
-      children.add(TextSpan(
-        text: match.group(0),
-        style: const TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0),
-      ));
-      
-      // Add and style the content
       final TextStyle contentStyle = TextStyle(
         fontSize: fontSize,
         fontWeight: weight,
         color: contentColor ?? theme.foregroundColor,
       );
-      // The bullet glyph is a synthetic marker (not part of the document text),
-      // so it is emitted as its own span. This keeps the remaining content's
-      // character offsets aligned with the absolute manuscript offsets that
-      // Codex mention ranges and search highlighting rely on.
       if (isBullet) {
+        // The "- " marker is drawn as "• " in its place: same length, so the
+        // span text stays character-for-character aligned with the document
+        // text. EditableText maps caret, selection and taps through the
+        // span text; an extra glyph shifted every offset after each bullet.
         children.add(TextSpan(text: '• ', style: contentStyle));
+      } else {
+        // Hide the markdown tag
+        children.add(TextSpan(
+          text: match.group(0),
+          style: const TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0),
+        ));
       }
       final String content = line.substring(match.end);
       final int blockOffset = lineOffset + match.end;
@@ -366,46 +365,17 @@ class MarkdownEditingController extends TextEditingController {
       }
       
       final matchText = match.group(0)!;
-      if (matchText.startsWith('***') && matchText.length >= 6) {
-        // Bold + Italic: Hide tags
-        children.add(const TextSpan(text: '***', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(3, matchText.length - 3),
-          baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
-          lineOffset + match.start + 3,
-        );
-        children.add(const TextSpan(text: '***', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-      } else if (matchText.startsWith('**') && matchText.length >= 4) {
-        // Bold: Hide tags
-        children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(2, matchText.length - 2),
-          baseStyle.copyWith(fontWeight: FontWeight.bold),
-          lineOffset + match.start + 2,
-        );
-        children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-      } else if (matchText.startsWith('*') && matchText.length >= 2) {
-        // Italic: Hide tags
-        children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(1, matchText.length - 1),
-          baseStyle.copyWith(fontStyle: FontStyle.italic),
-          lineOffset + match.start + 1,
-        );
-        children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+      // Each run is checked at both ends: the bold alternative can match
+      // "***a**", whose closing marker is "**", not "***".
+      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
+        _addHiddenRun(children, matchText, 3, 3,
+            baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic), lineOffset + match.start);
+      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
+        _addHiddenRun(children, matchText, 2, 2, baseStyle.copyWith(fontWeight: FontWeight.bold), lineOffset + match.start);
+      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
+        _addHiddenRun(children, matchText, 1, 1, baseStyle.copyWith(fontStyle: FontStyle.italic), lineOffset + match.start);
       } else if (matchText.startsWith('<u>') && matchText.endsWith('</u>') && matchText.length >= 7) {
-        // Underline: Hide tags
-        children.add(const TextSpan(text: '<u>', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(3, matchText.length - 4),
-          baseStyle.copyWith(decoration: TextDecoration.underline),
-          lineOffset + match.start + 3,
-        );
-        children.add(const TextSpan(text: '</u>', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+        _addHiddenRun(children, matchText, 3, 4, baseStyle.copyWith(decoration: TextDecoration.underline), lineOffset + match.start);
       } else {
         // Fallback for malformed matches
         _emitStyled(children, matchText, baseStyle, lineOffset + match.start);
@@ -418,6 +388,17 @@ class MarkdownEditingController extends TextEditingController {
     if (lastMatchEnd < line.length) {
       _emitStyled(children, line.substring(lastMatchEnd), baseStyle, lineOffset + lastMatchEnd);
     }
+  }
+
+  static const TextStyle _hiddenMarkerStyle = TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0);
+
+  /// Emits [run] as hidden opening marker, styled content, hidden closing
+  /// marker. The markers are cut from [run] itself, so the span text always
+  /// equals the document text.
+  void _addHiddenRun(List<InlineSpan> children, String run, int openLen, int closeLen, TextStyle contentStyle, int runOffset) {
+    children.add(TextSpan(text: run.substring(0, openLen), style: _hiddenMarkerStyle));
+    _addInlineStyledText(children, run.substring(openLen, run.length - closeLen), contentStyle, runOffset + openLen);
+    children.add(TextSpan(text: run.substring(run.length - closeLen), style: _hiddenMarkerStyle));
   }
 
   /// Replace-one / Replace-All for the in-editor Search & Replace palette.
@@ -533,13 +514,13 @@ class MarkdownEditingController extends TextEditingController {
       final matchStart = offset + match.start;
       final matchEnd = offset + match.end;
       
-      if (matchText.startsWith('***') && matchText.length >= 6) {
+      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
         ranges.add(_FormatRange('***', matchStart, matchStart + 3, matchEnd - 3, matchEnd));
         _findRangesRecursive(matchText.substring(3, matchText.length - 3), matchStart + 3, ranges);
-      } else if (matchText.startsWith('**') && matchText.length >= 4) {
+      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
         ranges.add(_FormatRange('**', matchStart, matchStart + 2, matchEnd - 2, matchEnd));
         _findRangesRecursive(matchText.substring(2, matchText.length - 2), matchStart + 2, ranges);
-      } else if (matchText.startsWith('*') && matchText.length >= 2) {
+      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
         ranges.add(_FormatRange('*', matchStart, matchStart + 1, matchEnd - 1, matchEnd));
         _findRangesRecursive(matchText.substring(1, matchText.length - 1), matchStart + 1, ranges);
       } else if (matchText.startsWith('<u>') && matchText.endsWith('</u>') && matchText.length >= 7) {

@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:pellucid/features/editor/providers/editor_provider.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
+import 'package:pellucid/features/editor/widgets/shortcuts.dart';
 import 'package:pellucid/features/settings/providers/settings_provider.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/settings/providers/history_provider.dart';
@@ -125,5 +128,40 @@ void main() {
     expect(find.text('MASTER STORAGE FOLDER'), findsOneWidget);
     expect(find.text('FOCUS & PRODUCTIVITY'), findsOneWidget);
     expect(find.text('APPEARANCE'), findsOneWidget);
+  });
+
+  testWidgets('Spell Check row (macOS/Windows) fires the shared ToggleSpellCheckIntent', (WidgetTester tester) async {
+    var fired = 0;
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+        ],
+        child: Actions(
+          actions: {
+            ToggleSpellCheckIntent: CallbackAction<ToggleSpellCheckIntent>(onInvoke: (_) {
+              fired++;
+              return null;
+            }),
+          },
+          child: const MaterialApp(home: SettingsScreen()),
+        ),
+      ),
+    );
+
+    final row = find.widgetWithText(SwitchListTile, 'Spell Check', skipOffstage: false);
+    if (!(Platform.isMacOS || Platform.isWindows)) {
+      expect(row, findsNothing);
+      return;
+    }
+    expect(row, findsOneWidget);
+    tester.widget<SwitchListTile>(row).onChanged!(false);
+    expect(fired, 1);
+    verifyNever(() => mockSettings.toggleSpellCheck(any()));
   });
 }

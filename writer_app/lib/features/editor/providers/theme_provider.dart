@@ -27,7 +27,24 @@ class WriterTheme {
       ),
     ],
     this.noiseOpacity = 0.0,
-  });
+    Color? softAccentOverride,
+  }) : _softAccentOverride = softAccentOverride;
+
+  final Color? _softAccentOverride;
+
+  /// Soft, readable highlight for "look here" rows (duplicate attributions).
+  /// Opaque, so text contrast can be tested directly. Unless a theme sets it by
+  /// hand, it is a warm tint (hue shifted away from the page) blended into the
+  /// background at low alpha, so it works on every theme at once.
+  Color get softAccent => _softAccentOverride ?? deriveSoftAccent(backgroundColor);
+
+  /// Default [softAccent] for a page colour.
+  static Color deriveSoftAccent(Color background) {
+    final hsl = HSLColor.fromColor(background);
+    final dark = background.computeLuminance() < 0.4;
+    final tint = HSLColor.fromAHSL(1, (hsl.hue + 40) % 360, 0.85, dark ? 0.6 : 0.5).toColor();
+    return Color.alphaBlend(tint.withValues(alpha: dark ? 0.2 : 0.38), background);
+  }
 
   static final List<WriterTheme> presets = [
     WriterTheme(
@@ -119,6 +136,8 @@ class WriterTheme {
       backgroundColor: Color(0xFFFAF0E6),
       foregroundColor: Color(0xFF4E3629),
       sidebarColor: Color(0xFFFAF0E6),
+      // The derived tint was too close to this warm page colour (ratio 1.09).
+      softAccentOverride: Color(0xFFF0D2A6),
     ),
   ];
 

@@ -79,6 +79,18 @@ class MainFlutterWindow: NSWindow {
         }
         
         result(results)
+      } else if call.method == "learnWord" || call.method == "ignoreWord" {
+        guard let args = call.arguments as? [String: Any],
+              let word = args["word"] as? String, !word.isEmpty else {
+          result(false)
+          return
+        }
+        if call.method == "learnWord" {
+          NSSpellChecker.shared.learnWord(word)
+        } else {
+          NSSpellChecker.shared.ignoreWord(word, inSpellDocumentWithTag: 0)
+        }
+        result(true)
       } else {
         result(FlutterMethodNotImplemented)
       }

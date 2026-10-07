@@ -18,6 +18,9 @@ class NoteEditorAttributionListItem extends StatelessWidget {
   final Function(int index, String targetNoteId) onUnlinkNote;
   final ValueChanged<String> onNavigateToNote;
 
+  /// Another attribution says the same thing: row is tinted with [WriterTheme.softAccent].
+  final bool isDuplicate;
+
   const NoteEditorAttributionListItem({
     super.key,
     required this.item,
@@ -32,6 +35,7 @@ class NoteEditorAttributionListItem extends StatelessWidget {
     required this.onLinkNote,
     required this.onUnlinkNote,
     required this.onNavigateToNote,
+    this.isDuplicate = false,
   });
 
   String? _extractUrl(String text) {
@@ -49,8 +53,13 @@ class NoteEditorAttributionListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final textUrl = _extractUrl(item.text);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      padding: isDuplicate ? const EdgeInsets.symmetric(horizontal: 8) : EdgeInsets.zero,
+      decoration: BoxDecoration(
+        color: isDuplicate ? theme.softAccent : null,
+        borderRadius: BorderRadius.circular(6),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

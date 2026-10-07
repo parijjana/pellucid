@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'features/editor/providers/shortcuts_provider.dart';
 import 'features/editor/widgets/shortcuts.dart';
 import 'features/editor/widgets/status_notice.dart';
+import 'features/editor/widgets/editor_selection_actions.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'features/editor/widgets/glowing_border.dart';
 import 'features/sidebar/widgets/note_editor_dialog.dart';
@@ -231,6 +232,12 @@ class WriterApp extends StatelessWidget {
           }),
           AddNoteIntent: CallbackAction<AddNoteIntent>(onInvoke: (intent) {
             final ctx = navigatorKey.currentContext;
+            // With a selection active this is the menu's "Add to note > New note".
+            final selection = ActiveEditor.selectedText;
+            if (ctx != null && selection != null) {
+              EditorSelectionActions.addToNewNote(ctx, selection);
+              return null;
+            }
             if (ctx != null) {
               final notesProvider = ctx.read<NotesProvider>();
               final sync = ctx.read<SyncProvider>();
@@ -245,6 +252,12 @@ class WriterApp extends StatelessWidget {
           }),
           OpenAttributionIntent: CallbackAction<OpenAttributionIntent>(onInvoke: (intent) {
             final ctx = navigatorKey.currentContext;
+            // With a selection active this is the menu's "Add to attributions".
+            final selection = ActiveEditor.selectedText;
+            if (ctx != null && selection != null) {
+              EditorSelectionActions.addToAttributions(ctx, selection);
+              return null;
+            }
             if (ctx != null) {
               final notesProvider = ctx.read<NotesProvider>();
               final attributionCard = notesProvider.cards.cast<NoteCard?>().firstWhere(

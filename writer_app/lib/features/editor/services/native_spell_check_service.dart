@@ -9,7 +9,17 @@ import 'package:flutter/widgets.dart';
 /// Not handed to EditableText: its built-in spell-check drawing replaces the
 /// editor's markdown styling. EditorPaperArea drives this service itself and
 /// MarkdownEditingController draws the underlines.
-class NativeSpellCheckService implements SpellCheckService {
+///
+/// [EditorSpellService] adds the two write actions of the editor context menu.
+abstract class EditorSpellService implements SpellCheckService {
+  /// Adds [word] to the user dictionary (permanent).
+  Future<void> learnWord(String word, {Locale? locale});
+
+  /// Stops flagging [word] for this session.
+  Future<void> ignoreWord(String word, {Locale? locale});
+}
+
+class NativeSpellCheckService implements EditorSpellService {
   const NativeSpellCheckService();
 
   /// Platforms with a native handler for [_channel].
@@ -50,6 +60,25 @@ class NativeSpellCheckService implements SpellCheckService {
       }).toList();
     } catch (e) {
       return [];
+    }
+  }
+
+  @override
+  Future<void> learnWord(String word, {Locale? locale}) => _wordAction('learnWord', word, locale);
+
+  @override
+  Future<void> ignoreWord(String word, {Locale? locale}) => _wordAction('ignoreWord', word, locale);
+
+  Future<void> _wordAction(String method, String word, Locale? locale) async {
+    if (!isSupported || word.isEmpty) return;
+    try {
+      await _channel.invokeMethod(method, {
+        'word': word,
+        'language': (locale ?? const Locale('en')).languageCode,
+        'locale': (locale ?? const Locale('en', 'US')).toLanguageTag(),
+      });
+    } catch (_) {
+      // The driver also remembers the word itself, so the underline still goes.
     }
   }
 }

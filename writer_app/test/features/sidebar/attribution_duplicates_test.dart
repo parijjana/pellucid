@@ -98,4 +98,31 @@ void main() {
       }
     });
   });
+
+  testWidgets('switch off (item 26): no duplicate tint', (tester) async {
+    final theme = WriterTheme.presets.first;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: NoteEditorAttributionList(
+          titleController: TextEditingController(),
+          items: [AttributionItem(text: 'Photo by Anna'), AttributionItem(text: 'photo by anna')],
+          attributionType: 'bullet',
+          availableNotes: const [],
+          theme: theme,
+          highlightDuplicates: false,
+          onTypeChanged: (_) {},
+          onItemTextChanged: (_, _) {},
+          onItemAdded: (_, _) {},
+          onItemDeleted: (_) {},
+          onLinkNote: (_, _) {},
+          onUnlinkNote: (_, _) {},
+          onNavigateToNote: (_) {},
+        ),
+      ),
+    ));
+    final tinted = tester
+        .widgetList<Container>(find.byType(Container))
+        .where((c) => c.decoration is BoxDecoration && (c.decoration as BoxDecoration).color == theme.softAccent);
+    expect(tinted, isEmpty);
+  });
 }

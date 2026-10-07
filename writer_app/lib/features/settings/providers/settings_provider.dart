@@ -88,7 +88,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _smartPunctuationEnabled = true;
   // TODO(slice 5): the list auto-continue feature reads autoContinueListsEnabled.
   bool _autoContinueListsEnabled = true;
-  // TODO(slice 7): the attribution duplicate highlight reads attributionDuplicateHighlightEnabled.
+  // Read by the attribution list (note_editor_dialog.dart) for the duplicate tint.
   bool _attributionDuplicateHighlightEnabled = true;
 
   // Google OAuth Settings

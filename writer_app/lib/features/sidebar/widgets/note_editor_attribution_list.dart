@@ -75,6 +75,9 @@ class NoteEditorAttributionList extends StatefulWidget {
   final Function(int index, String targetNoteId) onUnlinkNote;
   final ValueChanged<String> onNavigateToNote;
 
+  /// Settings switch (item 26): tint lines that duplicate another line.
+  final bool highlightDuplicates;
+
   const NoteEditorAttributionList({
     super.key,
     required this.titleController,
@@ -89,6 +92,7 @@ class NoteEditorAttributionList extends StatefulWidget {
     required this.onLinkNote,
     required this.onUnlinkNote,
     required this.onNavigateToNote,
+    this.highlightDuplicates = true,
   });
 
   @override
@@ -356,9 +360,9 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
 
   Widget _buildItems() {
     // Rechecked on every build, so every edit updates the highlights.
-    final duplicates = duplicateAttributionIndexes([
-      for (final i in widget.items) i.text,
-    ]);
+    final duplicates = widget.highlightDuplicates
+        ? duplicateAttributionIndexes([for (final i in widget.items) i.text])
+        : const <int>{};
     return ListView.builder(
       itemCount: widget.items.length,
       itemBuilder: (context, index) {

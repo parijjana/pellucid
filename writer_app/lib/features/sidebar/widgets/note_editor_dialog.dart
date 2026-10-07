@@ -285,6 +285,7 @@ class _NoteEditorDialogState extends State<NoteEditorDialog> {
         attributionType: _controller.attributionType,
         availableNotes: availableNotes,
         theme: theme,
+        highlightDuplicates: context.watch<SettingsProvider>().attributionDuplicateHighlightEnabled,
         onTypeChanged: (type) {
           final notes = context.read<NotesProvider>();
           final sync = context.read<SyncProvider>();

@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../sidebar/providers/notes_provider.dart';
+import '../marker_aware_editing.dart';
 import 'editor_selection_actions.dart';
 import 'spell_check_driver.dart';
 
@@ -56,8 +57,9 @@ Widget buildEditorContextMenu(BuildContext context, EditableTextState editable) 
     ));
   }
 
-  // Cut / copy / paste / select all, as Flutter's default menu has them.
-  items.addAll(editable.contextMenuButtonItems);
+  // Cut / copy / paste / select all, with copy and paste keeping hidden
+  // markers balanced and putting rich text on the clipboard (item 24).
+  items.addAll(MarkerAwareEditing.routedButtonItems(editable));
 
   final selected = (sel.isValid && !sel.isCollapsed) ? sel.textInside(value.text) : '';
   if (selected.trim().isNotEmpty) {

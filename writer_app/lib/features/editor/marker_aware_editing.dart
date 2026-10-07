@@ -38,7 +38,15 @@ class MarkerAwareEditing extends StatelessWidget {
   /// The editor's right-click/long-press menu with copy, cut and paste routed
   /// through the same rules as the shortcuts.
   static Widget contextMenu(BuildContext context, EditableTextState state) {
-    final items = [
+    return AdaptiveTextSelectionToolbar.buttonItems(
+        anchors: state.contextMenuAnchors, buttonItems: routedButtonItems(state));
+  }
+
+  /// The field's default cut/copy/paste/select-all items, with cut, copy and
+  /// paste routed through [markerCopy] / [markerPaste]. The editor's own menu
+  /// (editor_context_menu.dart) builds on these.
+  static List<ContextMenuButtonItem> routedButtonItems(EditableTextState state) {
+    return [
       for (final item in state.contextMenuButtonItems)
         switch (item.type) {
           ContextMenuButtonType.copy => item.copyWith(onPressed: () {
@@ -56,7 +64,6 @@ class MarkerAwareEditing extends StatelessWidget {
           _ => item,
         },
     ];
-    return AdaptiveTextSelectionToolbar.buttonItems(anchors: state.contextMenuAnchors, buttonItems: items);
   }
 }
 

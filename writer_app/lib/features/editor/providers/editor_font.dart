@@ -28,6 +28,11 @@ enum EditorFont {
   /// Applies this family to [base]. Every editor text style (the TextField,
   /// typewriter and jump-to-header measurement) goes through here so they all
   /// agree on glyph widths.
+  /// CSS `font-family` value for HTML-based output (EPUB).
+  String get cssFamily => [family, ...fallback]
+      .map((n) => const {'serif', 'sans-serif', 'monospace'}.contains(n) ? n : "'$n'")
+      .join(', ');
+
   TextStyle apply([TextStyle base = const TextStyle()]) =>
       base.copyWith(fontFamily: family, fontFamilyFallback: fallback);
 }

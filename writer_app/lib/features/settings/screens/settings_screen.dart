@@ -98,6 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _exportPdf(BuildContext context, String content, String projectName, String? projectPath) async {
+    final font = context.read<SettingsProvider>().editorFont;
     final FileSaveLocation? result = await getSaveLocation(
       suggestedName: '$projectName.pdf',
       initialDirectory: projectPath,
@@ -105,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (result == null) return;
     try {
-      await _exportService.exportToPdf(content, result.path);
+      await _exportService.exportToPdf(content, result.path, font: font);
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to ${result.path}')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
@@ -113,6 +114,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _exportEpub(BuildContext context, String content, String projectName, String? projectPath) async {
+    final font = context.read<SettingsProvider>().editorFont;
     final FileSaveLocation? result = await getSaveLocation(
       suggestedName: '$projectName.epub',
       initialDirectory: projectPath,
@@ -125,6 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: projectName,
         author: 'Pellucid',
         filePath: result.path,
+        font: font,
       );
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to ${result.path}')));
     } catch (e) {

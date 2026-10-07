@@ -647,7 +647,7 @@ class MacMenuBarWrapper extends StatelessWidget {
     );
     if (result == null) return;
     try {
-      await ExportService().exportToPdf(content, result.path);
+      await ExportService().exportToPdf(content, result.path, font: settings.editorFont);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to ${result.path}')));
       }
@@ -677,6 +677,7 @@ class MacMenuBarWrapper extends StatelessWidget {
         title: projectName,
         author: 'Pellucid',
         filePath: result.path,
+        font: settings.editorFont,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to ${result.path}')));

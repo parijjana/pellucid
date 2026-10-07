@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import '../services/google_drive_sync_service.dart';
+import '../services/token_store.dart';
 import '../services/manuscript_migration.dart';
 import '../services/project_pull.dart';
 import '../models/logical_file.dart';
@@ -22,6 +23,12 @@ class SyncProvider with ChangeNotifier {
 
   bool _isLoggedIn = false;
   bool get isLoggedIn => _isLoggedIn;
+
+  /// User-facing message when the OS secret store failed; null otherwise.
+  String? _storageError;
+  String? get storageError => _storageError;
+  static const String storageErrorMessage =
+      'Could not reach secure storage. Connect again to resume syncing.';
 
   DateTime? _lastSynced;
   DateTime? get lastSynced => _lastSynced;
@@ -44,6 +51,7 @@ class SyncProvider with ChangeNotifier {
 
   Future<void> _checkLoginStatus() async {
     _isLoggedIn = await _service.isLoggedIn;
+    _storageError = _service.lastStorageError == null ? null : storageErrorMessage;
     final settings = await _db.getSettings();
     final lastSyncedStr = settings['last_synced_time'];
     if (lastSyncedStr != null) {
@@ -58,6 +66,10 @@ class SyncProvider with ChangeNotifier {
       await _checkLoginStatus();
       return _isLoggedIn;
     } catch (e) {
+      if (e is TokenStorageException) {
+        _storageError = storageErrorMessage;
+        notifyListeners();
+      }
       return false;
     }
   }

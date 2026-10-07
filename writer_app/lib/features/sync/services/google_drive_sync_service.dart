@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'oauth_helper_factory.dart';
+import 'token_store.dart';
 import '../models/logical_file.dart';
 
 class GoogleAuthClient extends http.BaseClient {
@@ -22,11 +22,12 @@ class GoogleAuthClient extends http.BaseClient {
 
 class GoogleDriveSyncService {
   static const String _vaultFolderName = 'Pellucid Vault';
-  static const String _tokenKey = 'google_drive_token';
-  static const String _refreshTokenKey = 'google_drive_refresh_token';
-  static const String _expiryKey = 'google_drive_token_expiry';
-  static const String _clientIdKey = 'google_client_id_pref';
-  static const String _clientSecretKey = 'google_client_secret_pref';
+  // OAuth credentials live in the OS secret store, never SharedPreferences.
+  static const String _tokenKey = TokenStore.accessTokenKey;
+  static const String _refreshTokenKey = TokenStore.refreshTokenKey;
+  static const String _expiryKey = TokenStore.expiryKey;
+  static const String _clientIdKey = TokenStore.clientIdKey;
+  static const String _clientSecretKey = TokenStore.clientSecretKey;
 
   static const String _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: 'YOUR_GOOGLE_CLIENT_ID');
   static const String _clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET', defaultValue: 'YOUR_GOOGLE_CLIENT_SECRET');
@@ -47,14 +48,27 @@ class GoogleDriveSyncService {
 
   drive.DriveApi? _driveApi;
 
+  final TokenStore _tokens;
+
+  /// Set when the secret store could not be read or written; the app then
+  /// reports "not connected" so the user can reconnect. Cleared on success.
+  TokenStorageException? lastStorageError;
+
+  GoogleDriveSyncService({TokenStore? tokenStore}) : _tokens = tokenStore ?? TokenStore();
+
   Future<bool> get isLoggedIn async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey) != null;
+    try {
+      final token = await _tokens.getString(_tokenKey);
+      lastStorageError = null;
+      return token != null;
+    } on TokenStorageException catch (e) {
+      lastStorageError = e;
+      if (kDebugMode) print('Token storage unavailable: $e');
+      return false;
+    }
   }
 
   Future<void> login({String? customClientId, String? customClientSecret}) async {
-    final prefs = await SharedPreferences.getInstance();
-
     // Apple platforms use the secret-less public client; Windows/Linux keep
     // the client id/secret pair they always have.
     final clientId =
@@ -68,11 +82,11 @@ class GoogleDriveSyncService {
     // desktop id+secret, which Google rejects for a token minted by the public
     // client. An install that logged in before this change has neither key
     // set, and its fallback to the desktop pair is still correct for it.
-    await prefs.setString(_clientIdKey, clientId);
+    await _tokens.setString(_clientIdKey, clientId);
     if (clientSecret.isEmpty) {
-      await prefs.remove(_clientSecretKey);
+      await _tokens.remove(_clientSecretKey);
     } else {
-      await prefs.setString(_clientSecretKey, clientSecret);
+      await _tokens.setString(_clientSecretKey, clientSecret);
     }
 
     // drive.file ONLY, deliberately. Three reasons to keep it this way:
@@ -98,12 +112,12 @@ class GoogleDriveSyncService {
 
     final tokens = await helper.authenticate();
     if (tokens != null && tokens['access_token'] != null) {
-      await prefs.setString(_tokenKey, tokens['access_token']);
+      await _tokens.setString(_tokenKey, tokens['access_token']);
       if (tokens['refresh_token'] != null) {
-        await prefs.setString(_refreshTokenKey, tokens['refresh_token']);
+        await _tokens.setString(_refreshTokenKey, tokens['refresh_token']);
       }
       final expiresIn = tokens['expires_in'] ?? 3600;
-      await prefs.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
+      await _tokens.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
 
       _driveApi = drive.DriveApi(GoogleAuthClient(tokens['access_token']));
     }
@@ -114,8 +128,12 @@ class GoogleDriveSyncService {
 
     // Best-effort revoke of the refresh token at Google before clearing it
     // locally, so the grant is invalidated server-side too. Failures ignored.
-    final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString(_refreshTokenKey);
+    String? refreshToken;
+    try {
+      refreshToken = await _tokens.getString(_refreshTokenKey);
+    } on TokenStorageException catch (e) {
+      if (kDebugMode) print('Could not read refresh token to revoke: $e');
+    }
     if (refreshToken != null) {
       try {
         await http.post(
@@ -127,35 +145,35 @@ class GoogleDriveSyncService {
       }
     }
 
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_refreshTokenKey);
-    await prefs.remove(_expiryKey);
-    await prefs.remove(_clientIdKey);
-    await prefs.remove(_clientSecretKey);
+    try {
+      await _tokens.clearAll();
+      lastStorageError = null;
+    } on TokenStorageException catch (e) {
+      lastStorageError = e;
+      if (kDebugMode) print('Failed to clear stored credentials: $e');
+    }
   }
 
   Future<bool> _isTokenExpired() async {
-    final prefs = await SharedPreferences.getInstance();
-    final expiry = prefs.getInt(_expiryKey);
+    final expiry = await _tokens.getInt(_expiryKey);
     if (expiry == null) return true;
     // 1-minute buffer before actual expiry
     return DateTime.now().millisecondsSinceEpoch > (expiry - 60000);
   }
 
   Future<bool> refreshAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString(_refreshTokenKey);
+    final refreshToken = await _tokens.getString(_refreshTokenKey);
     if (refreshToken == null) return false;
 
     // An install that logged in before login() started recording the effective
     // client has neither key, and its tokens came from the desktop pair — so
     // fall back to *both* halves together. Never mix a stored id with the
     // compiled-in secret, or vice versa.
-    final storedClientId = prefs.getString(_clientIdKey);
+    final storedClientId = await _tokens.getString(_clientIdKey);
     final String clientId = storedClientId ?? _clientId;
     final String? clientSecret = storedClientId == null
         ? _clientSecret
-        : prefs.getString(_clientSecretKey);
+        : await _tokens.getString(_clientSecretKey);
 
     try {
       final response = await http.post(
@@ -175,11 +193,11 @@ class GoogleDriveSyncService {
         final newAccessToken = data['access_token'];
         final expiresIn = data['expires_in'] ?? 3600;
 
-        await prefs.setString(_tokenKey, newAccessToken);
-        await prefs.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
+        await _tokens.setString(_tokenKey, newAccessToken);
+        await _tokens.setInt(_expiryKey, DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000) as int);
 
         if (data['refresh_token'] != null) {
-          await prefs.setString(_refreshTokenKey, data['refresh_token']);
+          await _tokens.setString(_refreshTokenKey, data['refresh_token']);
         }
         return true;
       }
@@ -412,18 +430,24 @@ class GoogleDriveSyncService {
       if (!isExpired) return _driveApi;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenKey);
-    if (token != null) {
-      final isExpired = await _isTokenExpired();
-      if (isExpired) {
-        final success = await refreshAccessToken();
-        if (!success) return null;
-      }
+    try {
+      final token = await _tokens.getString(_tokenKey);
+      if (token != null) {
+        final isExpired = await _isTokenExpired();
+        if (isExpired) {
+          final success = await refreshAccessToken();
+          if (!success) return null;
+        }
 
-      final freshToken = prefs.getString(_tokenKey);
-      _driveApi = drive.DriveApi(GoogleAuthClient(freshToken!));
-      return _driveApi;
+        final freshToken = await _tokens.getString(_tokenKey);
+        _driveApi = drive.DriveApi(GoogleAuthClient(freshToken!));
+        return _driveApi;
+      }
+    } on TokenStorageException catch (e) {
+      // No plaintext fallback: report not-connected so the user can reconnect.
+      lastStorageError = e;
+      _driveApi = null;
+      if (kDebugMode) print('Token storage unavailable: $e');
     }
     return null;
   }

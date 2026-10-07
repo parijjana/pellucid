@@ -766,6 +766,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: theme.foregroundColor, fontWeight: FontWeight.bold, fontSize: 14)),
                 Text(!isFolderSelected ? 'Select Master Folder first.' : 'Automated backups to Pellucid Vault.',
                   style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.4), fontSize: 11)),
+                if (sync.storageError != null)
+                  Text(sync.storageError!,
+                    style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.7), fontSize: 11)),
               ],
             ),
           ),

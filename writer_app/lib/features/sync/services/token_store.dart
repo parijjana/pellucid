@@ -57,6 +57,10 @@ class TokenStore {
   static const String clientIdKey = 'google_client_id_pref';
   static const String clientSecretKey = 'google_client_secret_pref';
 
+  /// A user-entered custom OAuth client secret (Settings). Kept apart from
+  /// [allKeys] so Drive logout does not wipe the user's own configuration.
+  static const String customClientSecretKey = 'google_custom_client_secret';
+
   static const List<String> allKeys = [
     accessTokenKey,
     refreshTokenKey,
@@ -98,7 +102,7 @@ class TokenStore {
   /// Logout: clears every credential from both the secret store and any
   /// plaintext leftovers, whether or not migration ever completed.
   Future<void> clearAll() async {
-    final prefs = await _prefs();
+    final prefs = await _guard('open prefs', _prefs);
     for (final key in allKeys) {
       await prefs.remove(key);
     }
@@ -117,7 +121,7 @@ class TokenStore {
   }
 
   Future<void> _migrate() async {
-    final prefs = await _prefs();
+    final prefs = await _guard('open prefs', _prefs);
     for (final key in allKeys) {
       final Object? legacy = prefs.get(key);
       if (legacy == null) continue;

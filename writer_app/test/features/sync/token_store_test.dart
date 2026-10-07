@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pellucid/features/sync/services/google_drive_sync_service.dart';
 import 'package:pellucid/features/sync/services/token_store.dart';
 
 class FakeSecretStore implements SecretStore {
@@ -126,5 +127,26 @@ void main() {
     expect(secrets.data, isEmpty);
     expect((await prefs()).getKeys(), isEmpty);
     expect(await store.getString(TokenStore.refreshTokenKey), isNull);
+  });
+
+  test('sync service: unreadable secret store reads as not connected, error recorded', () async {
+    SharedPreferences.setMockInitialValues({});
+    secrets.failReads = true;
+    final service = GoogleDriveSyncService(tokenStore: store);
+    expect(await service.isLoggedIn, isFalse);
+    expect(service.lastStorageError, isA<TokenStorageException>());
+    secrets.failReads = false;
+    await store.setString(TokenStore.accessTokenKey, 'a');
+    expect(await service.isLoggedIn, isTrue);
+    expect(service.lastStorageError, isNull);
+  });
+
+  test('sync service: logout clears secrets even when nothing was migrated', () async {
+    SharedPreferences.setMockInitialValues({TokenStore.accessTokenKey: 'legacy'});
+    secrets.data[TokenStore.clientIdKey] = 'cid';
+    final service = GoogleDriveSyncService(tokenStore: store);
+    await service.logout();
+    expect(secrets.data, isEmpty);
+    expect((await prefs()).getKeys(), isEmpty);
   });
 }

@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/sync/services/google_drive_sync_service.dart';
+import 'package:pellucid/features/sync/services/token_store.dart';
 import 'package:pellucid/features/sync/models/logical_file.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
@@ -36,6 +37,23 @@ void main() {
   test('Initial status is idle and not logged in', () async {
     expect(syncProvider.status, SyncStatus.idle);
     expect(syncProvider.isLoggedIn, false);
+  });
+
+  test('secret-store failure surfaces a reconnect message', () async {
+    when(() => mockService.lastStorageError).thenReturn(TokenStorageException('read'));
+    when(() => mockService.login()).thenAnswer((_) async {});
+
+    await syncProvider.login();
+
+    expect(syncProvider.isLoggedIn, false);
+    expect(syncProvider.storageError, SyncProvider.storageErrorMessage);
+  });
+
+  test('login that throws TokenStorageException surfaces the message', () async {
+    when(() => mockService.login()).thenThrow(TokenStorageException('write'));
+
+    expect(await syncProvider.login(), false);
+    expect(syncProvider.storageError, SyncProvider.storageErrorMessage);
   });
 
   test('login updates login status', () async {

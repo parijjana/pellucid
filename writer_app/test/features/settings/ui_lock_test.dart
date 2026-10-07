@@ -97,10 +97,18 @@ void main() {
     // 3. Verify 'STATISTICS' section exists
     expect(find.text('STATISTICS'), findsOneWidget);
 
+    // Projects comes first, then Setup, then Statistics.
+    final projectsY = tester.getTopLeft(find.text('PROJECTS')).dy;
+    expect(projectsY, lessThan(tester.getTopLeft(find.text('SETUP')).dy));
+    expect(tester.getTopLeft(find.text('SETUP')).dy,
+        lessThan(tester.getTopLeft(find.text('STATISTICS')).dy));
+
     // 4. Verify low-contrast model: Check for presence of collapsible icons
     expect(find.byIcon(Icons.expand_less), findsNWidgets(3));
 
     // 5. Test Collapsibility
+    await tester.ensureVisible(find.text('SETUP'));
+    await tester.pump();
     await tester.tap(find.text('SETUP'));
     await tester.pump();
     expect(find.byIcon(Icons.expand_more), findsOneWidget); // Setup is now collapsed

@@ -24,6 +24,10 @@ const fixtures = <String>[
   '***',
   'emoji 😀 **b😀d**',
   '<u></u>x<u>y',
+  // Slice 6 formats.
+  'a ~~gone~~ b ~~~~ c',
+  '> quoted **b** ~~s~~',
+  '>not a quote',
   '',
 ];
 
@@ -40,19 +44,18 @@ void main() {
     }));
     final out = <TextRange>[];
     int offset = 0;
-    bool lastWasBulletMarker = false;
     void walk(InlineSpan span) {
       if (span is! TextSpan) return;
       final t = span.text;
       if (t != null && t.isNotEmpty) {
-        if (t == '• ' && lastWasBulletMarker) {
-          lastWasBulletMarker = false; // synthetic glyph, not document text
-        } else {
-          final hidden = span.style?.color == Colors.transparent;
-          if (hidden) out.add(TextRange(start: offset, end: offset + t.length));
-          lastWasBulletMarker = hidden && t == '- ';
-          offset += t.length;
-        }
+        // Since slice 3 the bullet's "- " is drawn as "• " in its place (same
+        // length, so offsets stay aligned). It is still a marker the caret
+        // must not land inside, so it counts as hidden here.
+        final atLineStart = offset == 0 || text.codeUnitAt(offset - 1) == 0x0A;
+        final bulletGlyph = t == '• ' && atLineStart && text.startsWith('- ', offset);
+        final hidden = bulletGlyph || span.style?.color == Colors.transparent;
+        if (hidden) out.add(TextRange(start: offset, end: offset + t.length));
+        offset += t.length;
       }
       span.children?.forEach(walk);
     }

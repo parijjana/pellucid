@@ -41,7 +41,8 @@ class MarkdownEditingController extends TextEditingController {
   /// the grammar-hint driver; like [setMisspellings] it does not notify.
   /// Query with `grammarIssueAt` (grammar_hints.dart).
   List<GrammarIssue> get grammarIssues => _grammarIssues;
-  void setGrammarIssues(List<GrammarIssue> issues) => _grammarIssues = [...issues];
+  void setGrammarIssues(List<GrammarIssue> issues) =>
+      _grammarIssues = [...issues]..sort((a, b) => a.range.start.compareTo(b.range.start));
 
   /// Keeps underlines on the right words between checks: ranges before the
   /// edit stay, ranges after it move with it, ranges touching it are dropped
@@ -88,6 +89,24 @@ class MarkdownEditingController extends TextEditingController {
         else if (r.start >= editEnd)
           TextRange(start: r.start + delta, end: r.end + delta),
     ];
+  }
+
+  /// Index of the first range in [ranges] whose end is past [offset].
+  /// [ranges] must be sorted and non-overlapping (spell-check results and
+  /// Codex mentions both are), so their ends ascend and binary search works.
+  @visibleForTesting
+  static int firstRangeEndingAfter<T>(List<T> ranges, int offset, int Function(T) endOf) {
+    int lo = 0;
+    int hi = ranges.length;
+    while (lo < hi) {
+      final int mid = (lo + hi) >> 1;
+      if (endOf(ranges[mid]) <= offset) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
   }
 
   bool get codexLinkingEnabled => _codexLinkingEnabled;
@@ -173,12 +192,16 @@ class MarkdownEditingController extends TextEditingController {
   List<InlineSpan> _underlineMisspellings(List<InlineSpan> spans, int startOffset) {
     final List<InlineSpan> out = [];
     int offset = startOffset;
+    // Skip straight to the first range that can reach this segment: scanning
+    // from the start for every segment was quadratic on long manuscripts.
+    final int first = firstRangeEndingAfter(_misspellings, startOffset, (r) => r.end);
     for (final span in spans) {
       final textSpan = span as TextSpan;
       final String run = textSpan.text ?? '';
       final int runEnd = offset + run.length;
       int cursor = 0;
-      for (final r in _misspellings) {
+      for (int i = first; i < _misspellings.length; i++) {
+        final r = _misspellings[i];
         if (r.end <= offset + cursor) continue;
         if (r.start >= runEnd) break;
         final int mStart = (r.start < offset ? offset : r.start) - offset;
@@ -290,7 +313,8 @@ class MarkdownEditingController extends TextEditingController {
     final int segEnd = absOffset + segment.length;
     int cursor = 0; // local index into segment
 
-    for (final r in ranges) {
+    for (int i = firstRangeEndingAfter(ranges, absOffset, (r) => r.end); i < ranges.length; i++) {
+      final r = ranges[i];
       if (r.end <= absOffset) continue;
       if (r.start >= segEnd) break;
       final int mStart = (r.start < absOffset ? absOffset : r.start) - absOffset;
@@ -309,6 +333,20 @@ class MarkdownEditingController extends TextEditingController {
     }
   }
 
+  // Per-line span cache (backlog item 23). A line's spans depend only on its
+  // text, whether it is dimmed, and the ranges that fall inside it (spelling,
+  // grammar, codex mentions, the current Find match), measured
+  // from the line start; everything else that styles a line (theme, base
+  // style, search query) clears the cache when it changes. Relative keys keep
+  // lines after an edit cacheable even though their absolute offsets moved.
+  Map<String, List<_CachedLine>> _lineCache = {};
+  WriterTheme? _cacheTheme;
+  TextStyle? _cacheStyle;
+  String? _cacheQuery;
+
+  @visibleForTesting
+  bool lineCacheEnabled = true;
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -325,26 +363,71 @@ class MarkdownEditingController extends TextEditingController {
     if (_paragraphFocusEnabled && selection.baseOffset >= 0 && selection.baseOffset <= text.length) {
       focusRange = paragraphLineRange(lines, selection.baseOffset);
     }
-    final Color dimColor = theme.foregroundColor.withValues(alpha: 0.38);
+
+    if (!identical(theme, _cacheTheme) || style != _cacheStyle || searchQuery != _cacheQuery) {
+      _lineCache = {};
+      _cacheTheme = theme;
+      _cacheStyle = style;
+      _cacheQuery = searchQuery;
+    }
+    final Map<String, List<_CachedLine>> previous = _lineCache;
+    final Map<String, List<_CachedLine>> next = {};
+    final List<MentionRange> mentions =
+        _codexLinkingEnabled ? codexIndex.rangesFor(text) : const [];
+    int missIndex = 0;
+    int grammarIndex = 0;
+    int mentionIndex = 0;
 
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final isLastLine = i == lines.length - 1;
       final bool dim = focusRange != null && (i < focusRange.startLine || i > focusRange.endLine);
 
-      if (line.startsWith('# ')) {
-        _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
-      } else if (line.startsWith('## ')) {
-        _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
-      } else if (line.startsWith('### ')) {
-        _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
-      } else if (line.startsWith(blockQuoteMarker)) {
-        _addBlockQuote(children, line, currentOffset, style ?? const TextStyle(), dim ? dimColor : null);
-      } else if (line.startsWith('- ')) {
-        _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, currentOffset, isBullet: true, contentColor: dim ? dimColor : null);
+      if (!lineCacheEnabled) {
+        _addLine(children, line, currentOffset, dim, style);
       } else {
-        final baseStyle = style ?? const TextStyle();
-        _addInlineStyledText(children, line, dim ? baseStyle.copyWith(color: dimColor) : baseStyle, currentOffset);
+        final int lineEnd = currentOffset + line.length;
+        final List<int> miss = [];
+        while (missIndex < _misspellings.length && _misspellings[missIndex].end <= currentOffset) {
+          missIndex++;
+        }
+        for (int m = missIndex; m < _misspellings.length && _misspellings[m].start < lineEnd; m++) {
+          miss..add(_misspellings[m].start - currentOffset)..add(_misspellings[m].end - currentOffset);
+        }
+        final List<int> grammar = [];
+        while (grammarIndex < _grammarIssues.length && _grammarIssues[grammarIndex].range.end <= currentOffset) {
+          grammarIndex++;
+        }
+        for (int g = grammarIndex; g < _grammarIssues.length && _grammarIssues[g].range.start < lineEnd; g++) {
+          grammar..add(_grammarIssues[g].range.start - currentOffset)..add(_grammarIssues[g].range.end - currentOffset);
+        }
+        final List<int> marks = [];
+        while (mentionIndex < mentions.length && mentions[mentionIndex].end <= currentOffset) {
+          mentionIndex++;
+        }
+        for (int m = mentionIndex; m < mentions.length && mentions[m].start < lineEnd; m++) {
+          marks..add(mentions[m].start - currentOffset)..add(mentions[m].end - currentOffset);
+        }
+        final int active = _activeMatchOffset >= currentOffset && _activeMatchOffset < lineEnd
+            ? _activeMatchOffset - currentOffset
+            : -1;
+        final key = _CachedLine(dim, active, miss, grammar, marks);
+
+        _CachedLine? hit;
+        for (final c in previous[line] ?? const <_CachedLine>[]) {
+          if (c.sameKey(key)) {
+            hit = c;
+            break;
+          }
+        }
+        if (hit == null) {
+          final List<InlineSpan> lineSpans = [];
+          _addLine(lineSpans, line, currentOffset, dim, style);
+          hit = key..spans = lineSpans;
+        }
+        final bucket = next.putIfAbsent(line, () => []);
+        if (!bucket.contains(hit)) bucket.add(hit);
+        children.addAll(hit.spans);
       }
 
       currentOffset += line.length;
@@ -353,14 +436,33 @@ class MarkdownEditingController extends TextEditingController {
         currentOffset += 1;
       }
     }
+    if (lineCacheEnabled) _lineCache = next;
 
     return TextSpan(style: style, children: children);
+  }
+
+  void _addLine(List<InlineSpan> children, String line, int lineOffset, bool dim, TextStyle? style) {
+    final Color? contentColor = dim ? theme.foregroundColor.withValues(alpha: 0.38) : null;
+    if (line.startsWith('# ')) {
+      _addStyledBlock(children, line, r'^# ', 32.0, FontWeight.bold, lineOffset, contentColor: contentColor);
+    } else if (line.startsWith('## ')) {
+      _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold, lineOffset, contentColor: contentColor);
+    } else if (line.startsWith('### ')) {
+      _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, lineOffset, contentColor: contentColor);
+    } else if (line.startsWith(blockQuoteMarker)) {
+      _addBlockQuote(children, line, lineOffset, style ?? const TextStyle(), contentColor);
+    } else if (line.startsWith('- ')) {
+      _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, lineOffset, isBullet: true, contentColor: contentColor);
+    } else {
+      final baseStyle = style ?? const TextStyle();
+      _addInlineStyledText(children, line, contentColor != null ? baseStyle.copyWith(color: contentColor) : baseStyle, lineOffset);
+    }
   }
 
   /// Block quote (`> text`): marker hidden, content italic and slightly muted.
   /// Inline formatting inside the quote is still rendered.
   void _addBlockQuote(List<InlineSpan> children, String line, int lineOffset, TextStyle base, Color? dimColor) {
-    children.add(const TextSpan(text: blockQuoteMarker, style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+    children.add(const TextSpan(text: blockQuoteMarker, style: _hiddenMarkerStyle));
     _addInlineStyledText(
       children,
       line.substring(blockQuoteMarker.length),
@@ -377,24 +479,20 @@ class MarkdownEditingController extends TextEditingController {
     final match = regex.firstMatch(line);
     
     if (match != null) {
-      // Hide the markdown tag
-      children.add(TextSpan(
-        text: match.group(0),
-        style: const TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0),
-      ));
-      
-      // Add and style the content
       final TextStyle contentStyle = TextStyle(
         fontSize: fontSize,
         fontWeight: weight,
         color: contentColor ?? theme.foregroundColor,
       );
-      // The bullet glyph is a synthetic marker (not part of the document text),
-      // so it is emitted as its own span. This keeps the remaining content's
-      // character offsets aligned with the absolute manuscript offsets that
-      // Codex mention ranges and search highlighting rely on.
       if (isBullet) {
+        // The "- " marker is drawn as "• " in its place: same length, so the
+        // span text stays character-for-character aligned with the document
+        // text. EditableText maps caret, selection and taps through the
+        // span text; an extra glyph shifted every offset after each bullet.
         children.add(TextSpan(text: '• ', style: contentStyle));
+      } else {
+        // Hide the markdown tag
+        children.add(TextSpan(text: match.group(0), style: _hiddenMarkerStyle));
       }
       final String content = line.substring(match.end);
       final int blockOffset = lineOffset + match.end;
@@ -416,59 +514,29 @@ class MarkdownEditingController extends TextEditingController {
       }
       
       final matchText = match.group(0)!;
-      if (matchText.startsWith('***') && matchText.length >= 6) {
-        // Bold + Italic: Hide tags
-        children.add(const TextSpan(text: '***', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(3, matchText.length - 3),
-          baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
-          lineOffset + match.start + 3,
-        );
-        children.add(const TextSpan(text: '***', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-      } else if (matchText.startsWith('**') && matchText.length >= 4) {
-        // Bold: Hide tags
-        children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(2, matchText.length - 2),
-          baseStyle.copyWith(fontWeight: FontWeight.bold),
-          lineOffset + match.start + 2,
-        );
-        children.add(const TextSpan(text: '**', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-      } else if (matchText.startsWith('*') && matchText.length >= 2) {
-        // Italic: Hide tags
-        children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(1, matchText.length - 1),
-          baseStyle.copyWith(fontStyle: FontStyle.italic),
-          lineOffset + match.start + 1,
-        );
-        children.add(const TextSpan(text: '*', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+      // Each run is checked at both ends: the bold alternative can match
+      // "***a**", whose closing marker is "**", not "***".
+      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
+        _addHiddenRun(children, matchText, 3, 3,
+            baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic), lineOffset + match.start);
+      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
+        _addHiddenRun(children, matchText, 2, 2, baseStyle.copyWith(fontWeight: FontWeight.bold), lineOffset + match.start);
+      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
+        _addHiddenRun(children, matchText, 1, 1, baseStyle.copyWith(fontStyle: FontStyle.italic), lineOffset + match.start);
       } else if (matchText.startsWith('<u>') && matchText.endsWith('</u>') && matchText.length >= 7) {
-        // Underline: Hide tags
-        children.add(const TextSpan(text: '<u>', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
-          children,
-          matchText.substring(3, matchText.length - 4),
-          baseStyle.copyWith(decoration: TextDecoration.underline),
-          lineOffset + match.start + 3,
-        );
-        children.add(const TextSpan(text: '</u>', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+        _addHiddenRun(children, matchText, 3, 4, baseStyle.copyWith(decoration: TextDecoration.underline), lineOffset + match.start);
       } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
-        // Strikethrough: Hide tags
-        children.add(const TextSpan(text: '~~', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-        _addInlineStyledText(
+        _addHiddenRun(
           children,
-          matchText.substring(2, matchText.length - 2),
+          matchText,
+          2,
+          2,
           baseStyle.copyWith(decoration: TextDecoration.combine([
             if (baseStyle.decoration != null) baseStyle.decoration!,
             TextDecoration.lineThrough,
           ])),
-          lineOffset + match.start + 2,
+          lineOffset + match.start,
         );
-        children.add(const TextSpan(text: '~~', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
       } else {
         // Fallback for malformed matches
         _emitStyled(children, matchText, baseStyle, lineOffset + match.start);
@@ -481,6 +549,22 @@ class MarkdownEditingController extends TextEditingController {
     if (lastMatchEnd < line.length) {
       _emitStyled(children, line.substring(lastMatchEnd), baseStyle, lineOffset + lastMatchEnd);
     }
+  }
+
+  /// Hidden markdown markers: transparent and 1 px tall, about half a pixel
+  /// wide per character. No negative letterSpacing to squeeze them to zero:
+  /// every run with letter spacing makes the engine's paragraph layout much
+  /// slower, and typing in a 100k-word manuscript went from about 2 s to
+  /// about 0.35 s per keystroke without it (Mac profile build).
+  static const TextStyle _hiddenMarkerStyle = TextStyle(color: Colors.transparent, fontSize: 1.0);
+
+  /// Emits [run] as hidden opening marker, styled content, hidden closing
+  /// marker. The markers are cut from [run] itself, so the span text always
+  /// equals the document text.
+  void _addHiddenRun(List<InlineSpan> children, String run, int openLen, int closeLen, TextStyle contentStyle, int runOffset) {
+    children.add(TextSpan(text: run.substring(0, openLen), style: _hiddenMarkerStyle));
+    _addInlineStyledText(children, run.substring(openLen, run.length - closeLen), contentStyle, runOffset + openLen);
+    children.add(TextSpan(text: run.substring(run.length - closeLen), style: _hiddenMarkerStyle));
   }
 
   /// Replace-one / Replace-All for the in-editor Search & Replace palette.
@@ -606,13 +690,13 @@ class MarkdownEditingController extends TextEditingController {
       final matchStart = offset + match.start;
       final matchEnd = offset + match.end;
       
-      if (matchText.startsWith('***') && matchText.length >= 6) {
+      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
         ranges.add(_FormatRange('***', matchStart, matchStart + 3, matchEnd - 3, matchEnd));
         _findRangesRecursive(matchText.substring(3, matchText.length - 3), matchStart + 3, ranges);
-      } else if (matchText.startsWith('**') && matchText.length >= 4) {
+      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
         ranges.add(_FormatRange('**', matchStart, matchStart + 2, matchEnd - 2, matchEnd));
         _findRangesRecursive(matchText.substring(2, matchText.length - 2), matchStart + 2, ranges);
-      } else if (matchText.startsWith('*') && matchText.length >= 2) {
+      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
         ranges.add(_FormatRange('*', matchStart, matchStart + 1, matchEnd - 1, matchEnd));
         _findRangesRecursive(matchText.substring(1, matchText.length - 1), matchStart + 1, ranges);
       } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
@@ -685,4 +769,34 @@ class _FormatRange {
   final int end;
   
   _FormatRange(this.tag, this.start, this.contentStart, this.contentEnd, this.end);
+}
+
+/// One line's spans plus the line-relative state they were built from:
+/// [misspellings], [grammar] and [mentions] are flattened start/end pairs measured from
+/// the line start, [activeMatch] is the current Find match's line-relative
+/// start or -1.
+class _CachedLine {
+  final bool dim;
+  final int activeMatch;
+  final List<int> misspellings;
+  final List<int> grammar;
+  final List<int> mentions;
+  List<InlineSpan> spans = const [];
+
+  _CachedLine(this.dim, this.activeMatch, this.misspellings, this.grammar, this.mentions);
+
+  bool sameKey(_CachedLine other) =>
+      dim == other.dim &&
+      activeMatch == other.activeMatch &&
+      _sameInts(misspellings, other.misspellings) &&
+      _sameInts(grammar, other.grammar) &&
+      _sameInts(mentions, other.mentions);
+
+  static bool _sameInts(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }

@@ -9,14 +9,27 @@ import 'package:pellucid/features/settings/providers/settings_provider.dart';
 import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/settings/providers/project_stats.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
+import 'package:pellucid/features/sync/services/token_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MockSettingsDatabase extends Mock implements SettingsDatabase {}
 class MockStorageService extends Mock implements StorageService {}
+
+class _MemorySecretStore implements SecretStore {
+  final Map<String, String> data = {};
+  @override
+  Future<String?> read(String key) async => data[key];
+  @override
+  Future<void> write(String key, String value) async => data[key] = value;
+  @override
+  Future<void> delete(String key) async => data.remove(key);
+}
 
 void main() {
   late SettingsProvider settingsProvider;
   late MockSettingsDatabase mockSettingsDatabase;
   late MockStorageService mockStorageService;
+  late _MemorySecretStore secretStore;
 
   setUp(() {
     mockSettingsDatabase = MockSettingsDatabase();
@@ -24,9 +37,12 @@ void main() {
     mockStorageService = MockStorageService();
     
     // Will fail to compile initially.
+    SharedPreferences.setMockInitialValues({});
+    secretStore = _MemorySecretStore();
     settingsProvider = SettingsProvider(
       settingsDatabase: mockSettingsDatabase,
       storageService: mockStorageService,
+      tokenStore: TokenStore(secrets: secretStore, prefs: SharedPreferences.getInstance),
     );
   });
 
@@ -223,7 +239,22 @@ void main() {
       expect(settingsProvider.googleClientId, 'my-client-id');
       expect(settingsProvider.googleClientSecret, 'my-client-secret');
       verify(() => mockSettingsDatabase.updateSetting('google_client_id', 'my-client-id')).called(1);
-      verify(() => mockSettingsDatabase.updateSetting('google_client_secret', 'my-client-secret')).called(1);
+      // The secret goes to the OS secret store; the SQLite column is cleared.
+      expect(secretStore.data[TokenStore.customClientSecretKey], 'my-client-secret');
+      verify(() => mockSettingsDatabase.updateSetting('google_client_secret', null)).called(1);
+      verifyNever(() => mockSettingsDatabase.updateSetting('google_client_secret', 'my-client-secret'));
+    });
+
+    test('loadSettings moves a legacy plaintext client secret out of SQLite', () async {
+      when(() => mockSettingsDatabase.getSettings())
+          .thenAnswer((_) async => {'google_client_id': 'cid', 'google_client_secret': 'legacy-secret'});
+      when(() => mockSettingsDatabase.updateSetting(any(), any())).thenAnswer((_) async {});
+
+      await settingsProvider.loadSettings();
+
+      expect(settingsProvider.googleClientSecret, 'legacy-secret');
+      expect(secretStore.data[TokenStore.customClientSecretKey], 'legacy-secret');
+      verify(() => mockSettingsDatabase.updateSetting('google_client_secret', null)).called(1);
     });
 
     test('updateSyncInterval should update state and database', () async {

@@ -14,6 +14,7 @@ import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../sidebar/providers/note_card.dart';
 import '../../sync/services/project_fork.dart';
+import '../../sync/services/token_store.dart';
 
 class ProjectInfo {
   final String name;
@@ -101,8 +102,12 @@ class SettingsProvider extends ChangeNotifier {
   String? _currentProjectName;
   List<ProjectInfo> _availableProjects = [];
 
-  SettingsProvider({SettingsDatabase? settingsDatabase, StorageService? storageService}) 
+  // The custom client secret lives in the OS secret store, not SQLite.
+  final TokenStore _tokens;
+
+  SettingsProvider({SettingsDatabase? settingsDatabase, StorageService? storageService, TokenStore? tokenStore})
       : _db = settingsDatabase ?? SettingsDatabase.instance,
+        _tokens = tokenStore ?? TokenStore(),
         _storageService = storageService ?? (kIsWeb ? StorageService(fileSystem: MemoryFileSystem()) : StorageService()) {
     _startSessionTracker();
     _startAlarmChecker();
@@ -131,7 +136,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoContinueListsEnabled = (settings['auto_continue_lists_enabled'] ?? 1) == 1;
     _attributionDuplicateHighlightEnabled = (settings['attribution_duplicate_highlight_enabled'] ?? 1) == 1;
     _googleClientId = settings['google_client_id'];
-    _googleClientSecret = settings['google_client_secret'];
+    _googleClientSecret = await _loadCustomClientSecret(settings['google_client_secret']);
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
     _masterDirectoryPath = settings['master_directory_path'];
     _currentProjectName = settings['current_project_name'];
@@ -344,8 +349,36 @@ class SettingsProvider extends ChangeNotifier {
     _googleClientId = clientId;
     _googleClientSecret = clientSecret;
     await _db.updateSetting('google_client_id', clientId);
-    await _db.updateSetting('google_client_secret', clientSecret);
+    try {
+      if (clientSecret == null) {
+        await _tokens.remove(TokenStore.customClientSecretKey);
+      } else {
+        await _tokens.setString(TokenStore.customClientSecretKey, clientSecret);
+      }
+    } on TokenStorageException catch (e) {
+      // Kept in memory for this session only; never written in plaintext.
+      if (kDebugMode) print('Could not store custom client secret: $e');
+    }
+    await _db.updateSetting('google_client_secret', null);
     notifyListeners();
+  }
+
+  /// Reads the custom client secret from the secret store, first moving a
+  /// legacy plaintext copy out of the SQLite settings row if there is one.
+  Future<String?> _loadCustomClientSecret(String? legacy) async {
+    try {
+      if (legacy != null) {
+        await _tokens.setString(TokenStore.customClientSecretKey, legacy);
+        if (await _tokens.getString(TokenStore.customClientSecretKey) == legacy) {
+          await _db.updateSetting('google_client_secret', null);
+        }
+        return legacy;
+      }
+      return await _tokens.getString(TokenStore.customClientSecretKey);
+    } on TokenStorageException catch (e) {
+      if (kDebugMode) print('Could not read custom client secret: $e');
+      return legacy;
+    }
   }
 
   Future<void> setMasterDirectory(String? path) async {

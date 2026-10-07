@@ -11,6 +11,7 @@ import 'package:pellucid/features/editor/marker_aware_editing.dart';
 import 'package:pellucid/features/editor/caret_formatting.dart';
 import 'package:pellucid/features/editor/hidden_markers.dart';
 import 'package:pellucid/features/editor/marker_edit_rules.dart';
+import 'package:pellucid/features/editor/utils/smart_punctuation.dart';
 import 'package:pellucid/features/editor/widgets/format_menu.dart';
 import 'package:pellucid/features/editor/widgets/editor_context_menu.dart';
 import 'package:pellucid/features/editor/widgets/editor_selection_actions.dart';
@@ -189,6 +190,34 @@ void main() {
       expect(markdownFor('a ~~gone~~ b', 0, 7), 'a ~~gon~~');
       expect(plainTextFor('> a ~~gone~~', 0, 12), 'a gone');
       expect(htmlFor('> a ~~gone~~', 0, 12), contains('<blockquote>a <s>gone</s></blockquote>'));
+    });
+  });
+
+  group('slice 8 smart punctuation runs after slice 4 marker rules', () {
+    // The editor's formatter order: [MarkerEditFormatter, SmartPunctuationFormatter].
+    TextEditingValue typeAt(String t, int at, String ins) {
+      var old = TextEditingValue(text: t, selection: TextSelection.collapsed(offset: at));
+      var proposed = TextEditingValue(
+          text: t.replaceRange(at, at, ins), selection: TextSelection.collapsed(offset: at + ins.length));
+      final afterMarkers = const MarkerEditFormatter().formatEditUpdate(old, proposed);
+      return SmartPunctuationFormatter().formatEditUpdate(old, afterMarkers);
+    }
+
+    test('an apostrophe typed at the end of a bold run is curly and stays in the run', () {
+      final out = typeAt('**dog**', 5, "'");
+      expect(out.text, '**dog’**');
+      expect(out.selection.baseOffset, 6);
+    });
+
+    test('-- inside struck text becomes an em dash and the markers stay balanced', () {
+      final out = typeAt('~~a-b~~', 4, '-');
+      expect(out.text, '~~a—b~~');
+      expect(visibleText(out.text), 'a—b');
+    });
+
+    test('an opening quote at the start of a quote line is curly', () {
+      final out = typeAt('> ', 2, '"');
+      expect(out.text, '> “');
     });
   });
 }

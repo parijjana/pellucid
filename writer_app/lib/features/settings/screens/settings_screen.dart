@@ -1,5 +1,5 @@
 // @trace FEAT-20260517-115000-0004
-// Description: Unified Settings Dashboard (Setup, Projects, Statistics).
+// Description: Unified Settings Dashboard (Projects, Setup, Statistics).
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -251,7 +251,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // --- PART 1: SETUP ---
+                        // --- PART 1: PROJECTS ---
+                        _collapsibleHeader(
+                          title: 'Projects',
+                          theme: theme,
+                          isExpanded: _isProjectsExpanded,
+                          onToggle: () => setState(() => _isProjectsExpanded = !_isProjectsExpanded),
+                        ),
+                        if (_isProjectsExpanded) ...[
+                          const SizedBox(height: 24),
+                          if (settings.masterDirectoryPath != null) ...[
+                            _buildProjectControls(theme),
+                            const SizedBox(height: 16),
+                            _buildProjectArea(settings, history, theme),
+                            const SizedBox(height: 32),
+                            _subHeader('In your Drive', theme),
+                            const SizedBox(height: 12),
+                            DriveProjectsSection(theme: theme),
+                            const SizedBox(height: 40),
+                            _subHeader('Publish & Export', theme),
+                            const SizedBox(height: 16),
+                            _buildExportOptions(context, theme, editor.content, settings.currentProjectName ?? 'Untitled', settings.currentProjectPath),
+                          ] else ...[
+                            _buildPlaceholderTile('Please select a Master Storage Folder to view projects.', theme),
+                          ],
+                        ],
+
+                        const SizedBox(height: 60),
+
+                        // --- PART 2: SETUP ---
                         _collapsibleHeader(
                           title: 'Setup',
                           theme: theme,
@@ -288,34 +316,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 context.read<ThemeProvider>().setTheme(newTheme);
                               },
                             ),
-                          ],
-                        ],
-
-                        const SizedBox(height: 60),
-
-                        // --- PART 2: PROJECTS ---
-                        _collapsibleHeader(
-                          title: 'Projects',
-                          theme: theme,
-                          isExpanded: _isProjectsExpanded,
-                          onToggle: () => setState(() => _isProjectsExpanded = !_isProjectsExpanded),
-                        ),
-                        if (_isProjectsExpanded) ...[
-                          const SizedBox(height: 24),
-                          if (settings.masterDirectoryPath != null) ...[
-                            _buildProjectControls(theme),
-                            const SizedBox(height: 16),
-                            _buildProjectArea(settings, history, theme),
-                            const SizedBox(height: 32),
-                            _subHeader('In your Drive', theme),
-                            const SizedBox(height: 12),
-                            DriveProjectsSection(theme: theme),
-                            const SizedBox(height: 40),
-                            _subHeader('Publish & Export', theme),
-                            const SizedBox(height: 16),
-                            _buildExportOptions(context, theme, editor.content, settings.currentProjectName ?? 'Untitled', settings.currentProjectPath),
-                          ] else ...[
-                            _buildPlaceholderTile('Please select a Master Storage Folder to view projects.', theme),
                           ],
                         ],
 

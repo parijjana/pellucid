@@ -179,6 +179,18 @@ class MarkdownEditingController extends TextEditingController {
   Color get _misspellingColor =>
       theme.backgroundColor.computeLuminance() < 0.2 ? const Color(0xFFFF5370) : const Color(0xFFD32F2F);
 
+  /// Tint for every Find match. Amber disappears on the yellow/cream pages
+  /// (Citrus, Sepia, Solarized Light), so light themes get blue and dark
+  /// themes amber.
+  static Color matchColor(WriterTheme theme) => theme.backgroundColor.computeLuminance() < 0.4
+      ? const Color(0xFFFFC107).withValues(alpha: 0.40)
+      : const Color(0xFF1E88E5).withValues(alpha: 0.35);
+
+  /// The current Find match: opaque orange with black text, readable on every
+  /// theme whatever the theme's text colour is. No bold: a heavier weight
+  /// would reflow the line each time Next/Previous moves the match.
+  static Color currentMatchColor(WriterTheme theme) => const Color(0xFFFF9800);
+
   List<InlineSpan> _searchHighlight(String text, TextStyle baseStyle, String query, int startOffset) {
     if (query.isEmpty) {
       return [TextSpan(text: text, style: baseStyle)];
@@ -204,12 +216,12 @@ class MarkdownEditingController extends TextEditingController {
 
       spans.add(TextSpan(
         text: text.substring(match.start, match.end),
-        style: baseStyle.copyWith(
-          backgroundColor: isCurrentActiveMatch
-              ? Colors.orange.withValues(alpha: 0.75)
-              : Colors.amber.withValues(alpha: 0.35),
-          fontWeight: isCurrentActiveMatch ? FontWeight.bold : baseStyle.fontWeight,
-        ),
+        style: isCurrentActiveMatch
+            ? baseStyle.copyWith(
+                backgroundColor: currentMatchColor(theme),
+                color: Colors.black,
+              )
+            : baseStyle.copyWith(backgroundColor: matchColor(theme)),
       ));
       lastEnd = match.end;
     }

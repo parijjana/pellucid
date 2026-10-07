@@ -177,13 +177,13 @@ void main() {
       final dimmedMatch = spans.firstWhere(
           (s) => s.text == 'paragraph' && s.style!.color == dim);
       expect(dimmedMatch.style!.backgroundColor,
-          equals(Colors.amber.withValues(alpha: 0.35)));
+          equals(MarkdownEditingController.matchColor(theme)));
 
       // A match inside the focused paragraph keeps full contrast + highlight.
       final focusedMatch = spans.firstWhere(
           (s) => s.text == 'paragraph' && s.style!.color == fg);
       expect(focusedMatch.style!.backgroundColor,
-          equals(Colors.amber.withValues(alpha: 0.35)));
+          equals(MarkdownEditingController.matchColor(theme)));
 
       controller.dispose();
     });

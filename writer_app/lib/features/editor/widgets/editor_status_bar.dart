@@ -9,6 +9,7 @@ import '../providers/sprint_controller.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../sync/providers/sync_provider.dart';
 import '../providers/shortcuts_provider.dart';
+import '../word_count.dart';
 import 'low_contrast_widgets.dart';
 import 'sync_status_cloud.dart';
 import 'clock_widget.dart';
@@ -21,6 +22,9 @@ import '../../../core/platform_context.dart';
 class EditorStatusBar extends StatefulWidget {
   final WriterTheme theme;
   final int wordCount;
+
+  /// Words in the current selection; 0 shows just the total.
+  final int selectedWordCount;
   final bool isLeftSidebarOpen;
   final bool isRightSidebarOpen;
   final bool isFullscreen;
@@ -35,6 +39,7 @@ class EditorStatusBar extends StatefulWidget {
     super.key,
     required this.theme,
     required this.wordCount,
+    this.selectedWordCount = 0,
     required this.isLeftSidebarOpen,
     required this.isRightSidebarOpen,
     required this.isFullscreen,
@@ -90,7 +95,7 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
         ),
         child: Center(
           child: LowContrastText(
-            label: '${widget.wordCount} words',
+            label: wordCountLabel(widget.wordCount, selected: widget.selectedWordCount),
             theme: widget.theme,
           ),
         ),
@@ -139,7 +144,7 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
                 _buildSyncPulse(sync, widget.theme),
                 const SizedBox(width: 12),
                 LowContrastText(
-                  label: '${widget.wordCount} words',
+                  label: wordCountLabel(widget.wordCount, selected: widget.selectedWordCount),
                   theme: widget.theme,
                 ),
                 if (settings.currentSessionEnabled) ...[
@@ -270,7 +275,7 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
               _buildSyncPulse(sync, widget.theme),
               const SizedBox(width: 12),
               LowContrastText(
-                label: '${widget.wordCount} words',
+                label: wordCountLabel(widget.wordCount, selected: widget.selectedWordCount),
                 theme: widget.theme,
               ),
               const Spacer(),

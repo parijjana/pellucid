@@ -11,6 +11,15 @@ import '../../sidebar/providers/note_card.dart';
 import 'codex_mention_detector.dart';
 import 'markdown_controller.dart';
 
+/// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
+Map<ShortcutActivator, Intent> get _redoShortcuts =>
+    (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS)
+        ? const <ShortcutActivator, Intent>{}
+        : const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.keyY, control: true):
+                RedoTextIntent(SelectionChangedCause.keyboard),
+          };
+
 class EditorPaperArea extends StatelessWidget {
   final WriterTheme theme;
   final EditorProvider provider;
@@ -83,7 +92,11 @@ class EditorPaperArea extends StatelessWidget {
                 }
               },
             },
-            child: CodexMentionDetector(
+            // Ctrl+Y is the other Redo on Windows/Linux; Flutter's defaults
+            // only bind Ctrl+Shift+Z (and Cmd+Shift+Z on macOS).
+            child: Shortcuts(
+              shortcuts: _redoShortcuts,
+              child: CodexMentionDetector(
               enabled: codexEnabled,
               theme: theme,
               index: codexIndex,
@@ -125,6 +138,7 @@ class EditorPaperArea extends StatelessWidget {
                 onChanged: onChanged,
               ),
               ),
+            ),
             ),
           ),
         ),

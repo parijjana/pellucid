@@ -26,6 +26,7 @@ import '../../settings/providers/history_provider.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../../sidebar/widgets/note_editor_dialog.dart';
 import '../providers/codex_index.dart';
+import '../widgets/editor_selection_actions.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../../search/providers/search_provider.dart';
@@ -333,6 +334,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _tocHeaders = parseTocHeaders(editorProvider.content);
     _lastProcessedText = editorProvider.content;
     _editorFocusNode.addListener(_onEditorFocusChange);
+    ActiveEditor.controller = _editorController;
     _editorController.addListener(_onEditorTextChanged);
     _editorController.addListener(_onSelectionChanged);
     _editorController.addListener(_onTypewriterUpdate);
@@ -355,6 +357,7 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void dispose() {
     _editorFocusNode.removeListener(_onEditorFocusChange);
+    if (ActiveEditor.controller == _editorController) ActiveEditor.controller = null;
     _editorController.removeListener(_onEditorTextChanged);
     _editorController.removeListener(_onSelectionChanged);
     _editorController.removeListener(_onTypewriterUpdate);

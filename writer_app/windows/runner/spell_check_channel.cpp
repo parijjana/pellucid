@@ -90,6 +90,17 @@ class WindowsSpellChecker {
     return results;
   }
 
+  // UNTESTED ON WINDOWS (written on a Mac): adds the word to the user
+  // dictionary (ISpellChecker::Add) or ignores it for this session
+  // (ISpellChecker::Ignore).
+  bool WordAction(const std::wstring& word,
+                  const std::vector<std::wstring>& languages, bool learn) {
+    ISpellChecker* checker = CheckerFor(languages);
+    if (!checker || word.empty()) return false;
+    return SUCCEEDED(learn ? checker->Add(word.c_str())
+                           : checker->Ignore(word.c_str()));
+  }
+
  private:
   // First supported tag wins: the Flutter locale ("en-US"), then the bare
   // language ("en"), then the Windows display language, then en-US.
@@ -162,11 +173,29 @@ RegisterSpellCheckChannel(flutter::BinaryMessenger* messenger) {
   channel->SetMethodCallHandler(
       [checker](const flutter::MethodCall<EncodableValue>& call,
                 std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
-        if (call.method_name() != "checkSpelling") {
+        const bool is_word_action =
+            call.method_name() == "learnWord" || call.method_name() == "ignoreWord";
+        if (call.method_name() != "checkSpelling" && !is_word_action) {
           result->NotImplemented();
           return;
         }
         const auto* args = std::get_if<EncodableMap>(call.arguments());
+        if (is_word_action) {  // untested on Windows
+          const std::string* word = args ? StringArg(*args, "word") : nullptr;
+          std::vector<std::wstring> langs;
+          if (args) {
+            if (const auto* locale = StringArg(*args, "locale")) {
+              langs.push_back(Utf16FromUtf8(*locale));
+            }
+            if (const auto* language = StringArg(*args, "language")) {
+              langs.push_back(Utf16FromUtf8(*language));
+            }
+          }
+          result->Success(EncodableValue(
+              word && checker->WordAction(Utf16FromUtf8(*word), langs,
+                                          call.method_name() == "learnWord")));
+          return;
+        }
         const std::string* text = args ? StringArg(*args, "text") : nullptr;
         if (!text) {
           result->Success(EncodableValue(EncodableList()));

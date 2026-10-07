@@ -90,6 +90,49 @@ class NotesProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Adds a note holding [selection] (editor context menu, "Add to note > New
+  /// note"). A single word becomes the title and the body stays empty; anything
+  /// longer goes into the body. Returns the new note's id.
+  String addNoteFromSelection(String selection, {SyncProvider? syncProvider}) {
+    final text = selection.trim();
+    final isWord = text.isNotEmpty && !RegExp(r'\s').hasMatch(text);
+    final card = NoteCard(
+      title: isWord ? text : 'New Note',
+      content: isWord ? '' : text,
+      category: 'general',
+    );
+    _cards.add(card);
+    _save(syncProvider: syncProvider);
+    notifyListeners();
+    return card.id;
+  }
+
+  /// Appends [selection] to the end of note [id] as a new paragraph. Existing
+  /// text is never replaced. Returns false when the note does not exist.
+  bool appendToNote(String id, String selection, {SyncProvider? syncProvider}) {
+    final index = _cards.indexWhere((c) => c.id == id && !c.isAttribution);
+    if (index == -1) return false;
+    final old = _cards[index].content;
+    final gap = old.isEmpty ? '' : old.endsWith('\n\n') ? '' : old.endsWith('\n') ? '\n' : '\n\n';
+    _cards[index] = _cards[index].copyWith(content: '$old$gap${selection.trim()}');
+    _save(syncProvider: syncProvider);
+    notifyListeners();
+    return true;
+  }
+
+  /// Always appends [text] as a new attribution item, creating the attribution
+  /// card first when the project has none. Returns the attribution card.
+  NoteCard addAttributionItem(String text, {SyncProvider? syncProvider}) {
+    addAttributionCard(syncProvider: syncProvider);
+    final card = _cards.firstWhere((c) => c.isAttribution);
+    updateCard(
+      card.id,
+      attributionItems: [...?card.attributionItems, AttributionItem(text: text.trim())],
+      syncProvider: syncProvider,
+    );
+    return _cards.firstWhere((c) => c.id == card.id);
+  }
+
   void updateCard(
     String id, {
     String? title,

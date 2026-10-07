@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'hidden_markers.dart';
 
-enum BlockStyle { title, heading, subheading, body }
+enum BlockStyle { title, heading, subheading, quote, body }
 
 /// List kind of the caret's line. Numbered lists and checklists arrive with
 /// their own backlog items; the renderer only knows bullets today.
@@ -18,7 +18,6 @@ class FormattingState {
   final bool italic;
   final bool underline;
 
-  /// Always false until strikethrough rendering lands (item 15).
   final bool strikethrough;
   final BlockStyle block;
   final ListStyle list;
@@ -64,23 +63,25 @@ FormattingState formattingAt(String text, TextSelection selection) {
     '# ' => BlockStyle.title,
     '## ' => BlockStyle.heading,
     '### ' => BlockStyle.subheading,
+    '> ' => BlockStyle.quote,
     _ => BlockStyle.body,
   };
   final ListStyle list = first.prefix == '- ' ? ListStyle.bullet : ListStyle.none;
 
   if (selection.isCollapsed) {
-    bool b = false, i = false, u = false;
+    bool b = false, i = false, u = false, st = false;
     for (final r in first.runs) {
       if (r.contentStart <= s && s <= r.contentEnd) {
         b |= r.bold;
         i |= r.italic;
         u |= r.underline;
+        st |= r.strikethrough;
       }
     }
-    return FormattingState(bold: b, italic: i, underline: u, block: block, list: list);
+    return FormattingState(bold: b, italic: i, underline: u, strikethrough: st, block: block, list: list);
   }
 
-  bool b = true, i = true, u = true;
+  bool b = true, i = true, u = true, st = true;
   bool anyVisible = false;
   int ls = first.lineStart;
   LineMarkers line = first;
@@ -90,25 +91,27 @@ FormattingState formattingAt(String text, TextSelection selection) {
     for (int k = from; k < to; k++) {
       if (line.isHidden(k)) continue;
       anyVisible = true;
-      bool cb = false, ci = false, cu = false;
+      bool cb = false, ci = false, cu = false, cs = false;
       for (final r in line.runs) {
         if (r.contentStart <= k && k < r.contentEnd) {
           cb |= r.bold;
           ci |= r.italic;
           cu |= r.underline;
+          cs |= r.strikethrough;
         }
       }
       b &= cb;
       i &= ci;
       u &= cu;
-      if (!b && !i && !u) break;
+      st &= cs;
+      if (!b && !i && !u && !st) break;
     }
-    if ((!b && !i && !u) || line.lineEnd >= selection.end || line.lineEnd >= text.length) break;
+    if ((!b && !i && !u && !st) || line.lineEnd >= selection.end || line.lineEnd >= text.length) break;
     ls = line.lineEnd + 1;
     line = scanLine(text, ls, lineEndOf(text, ls));
   }
   if (!anyVisible) return formattingAt(text, TextSelection.collapsed(offset: s));
-  return FormattingState(bold: b, italic: i, underline: u, block: block, list: list);
+  return FormattingState(bold: b, italic: i, underline: u, strikethrough: st, block: block, list: list);
 }
 
 /// The caret formatting of the open editor, shared with the toolbars and the

@@ -2,16 +2,20 @@
 // caret rules that follow from it (backlog item 24).
 //
 // The scan mirrors MarkdownEditingController.buildTextSpan line by line: block
-// prefixes (`# `, `## `, `### `, `- `) on block lines, inline runs (`***`,
-// `**`, `*`, `<u>`) on every other line. test/features/editor/hidden_markers_test.dart
+// prefixes (`# `, `## `, `### `, `> `, `- `) on block lines, inline runs (`***`,
+// `**`, `*`, `<u>`, `~~`) on every other line and inside block quotes. test/features/editor/hidden_markers_test.dart
 // checks the two agree, so a change to the renderer that is not made here fails.
 
 import 'package:flutter/services.dart';
 
 /// Block-line markers the renderer hides, longest first so `### ` wins over
 /// `# `-style prefixes. A line starting with one is styled as a block and its
-/// inline markers are left as typed (the renderer does not parse them).
-const List<String> hiddenBlockPrefixes = ['# ', '## ', '### ', '- '];
+/// inline markers are left as typed (the renderer does not parse them), except
+/// in a block quote, whose text is rendered inline.
+const List<String> hiddenBlockPrefixes = ['# ', '## ', '### ', '> ', '- '];
+
+/// Block prefixes whose text keeps inline formatting (rendered and hidden).
+const Set<String> inlineBlockPrefixes = {'> '};
 
 /// An inline formatting run: `[start, contentStart)` is the opening marker,
 /// `[contentEnd, end)` the closing one. Absolute offsets.
@@ -29,6 +33,7 @@ class InlineRun {
   bool get bold => tag == '**' || tag == '***';
   bool get italic => tag == '*' || tag == '***';
   bool get underline => tag == '<u>';
+  bool get strikethrough => tag == '~~';
 
   @override
   String toString() => 'InlineRun($tag, $start, $contentStart, $contentEnd, $end)';
@@ -61,7 +66,7 @@ class LineMarkers {
   }
 }
 
-final RegExp _inlineRegex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>)');
+final RegExp _inlineRegex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>|~~.*?~~)');
 
 /// Start of the line containing [offset] (an offset at a newline belongs to
 /// the line that newline ends).
@@ -90,8 +95,12 @@ LineMarkers scanLine(String text, int lineStart, int lineEnd) {
   final String line = text.substring(lineStart, lineEnd);
   for (final p in _prefixCheckOrder) {
     if (line.startsWith(p)) {
-      return LineMarkers(lineStart, lineEnd, p, const [],
-          [TextRange(start: lineStart, end: lineStart + p.length)]);
+      final hidden = [TextRange(start: lineStart, end: lineStart + p.length)];
+      if (!inlineBlockPrefixes.contains(p)) return LineMarkers(lineStart, lineEnd, p, const [], hidden);
+      final runs = <InlineRun>[];
+      _scanInline(line.substring(p.length), lineStart + p.length, runs, hidden);
+      hidden.sort((a, b) => a.start.compareTo(b.start));
+      return LineMarkers(lineStart, lineEnd, p, runs, hidden);
     }
   }
   final runs = <InlineRun>[];
@@ -102,7 +111,7 @@ LineMarkers scanLine(String text, int lineStart, int lineEnd) {
 }
 
 // Same order as buildTextSpan's if/else chain.
-const List<String> _prefixCheckOrder = ['# ', '## ', '### ', '- '];
+const List<String> _prefixCheckOrder = ['# ', '## ', '### ', '> ', '- '];
 
 void _scanInline(String s, int offset, List<InlineRun> runs, List<TextRange> hidden) {
   for (final m in _inlineRegex.allMatches(s)) {
@@ -128,6 +137,10 @@ void _scanInline(String s, int offset, List<InlineRun> runs, List<TextRange> hid
       tag = '<u>';
       open = 3;
       close = 4;
+    } else if (t.startsWith('~~') && t.endsWith('~~') && t.length >= 4) {
+      tag = '~~';
+      open = 2;
+      close = 2;
     } else {
       continue; // malformed: rendered as typed
     }

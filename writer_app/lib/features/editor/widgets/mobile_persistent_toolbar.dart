@@ -60,6 +60,7 @@ class MobilePersistentToolbar extends StatelessWidget {
                   _ToolbarTextButton(
                     label: 'SUBHEAD',
                     theme: theme,
+                    active: f.block == BlockStyle.subheading,
                     onPressed: () => onApplyFormat('### '),
                   ),
                   _ToolbarTextButton(
@@ -77,6 +78,7 @@ class MobilePersistentToolbar extends StatelessWidget {
                   _ToolbarTextButton(
                     label: 'QUOTE',
                     theme: theme,
+                    active: f.block == BlockStyle.quote,
                     onPressed: () => onApplyFormat('> '),
                   ),
                   _ToolbarTextButton(
@@ -94,6 +96,7 @@ class MobilePersistentToolbar extends StatelessWidget {
                   _ToolbarTextButton(
                     label: 'STRIKE',
                     theme: theme,
+                    active: f.strikethrough,
                     onPressed: () => onApplyFormat('~~'),
                   ),
                 ],

@@ -18,23 +18,25 @@ class _Attrs {
   final bool b;
   final bool i;
   final bool u;
-  const _Attrs(this.b, this.i, this.u);
+  final bool s;
+  const _Attrs(this.b, this.i, this.u, this.s);
   @override
-  bool operator ==(Object o) => o is _Attrs && o.b == b && o.i == i && o.u == u;
+  bool operator ==(Object o) => o is _Attrs && o.b == b && o.i == i && o.u == u && o.s == s;
   @override
-  int get hashCode => Object.hash(b, i, u);
+  int get hashCode => Object.hash(b, i, u, s);
 }
 
 _Attrs _attrsAt(LineMarkers line, int k) {
-  bool b = false, i = false, u = false;
+  bool b = false, i = false, u = false, s = false;
   for (final r in line.runs) {
     if (r.contentStart <= k && k < r.contentEnd) {
       b |= r.bold;
       i |= r.italic;
       u |= r.underline;
+      s |= r.strikethrough;
     }
   }
-  return _Attrs(b, i, u);
+  return _Attrs(b, i, u, s);
 }
 
 /// One line of a copied range, as styled segments of visible text.
@@ -86,11 +88,13 @@ String markdownFor(String text, int start, int end) => _copiedLines(text, start,
       for (final (s, a) in l.segments) {
         final stars = a.b && a.i ? '***' : (a.b ? '**' : (a.i ? '*' : ''));
         sb
+          ..write(a.s ? '~~' : '')
           ..write(stars)
           ..write(a.u ? '<u>' : '')
           ..write(s)
           ..write(a.u ? '</u>' : '')
-          ..write(stars);
+          ..write(stars)
+          ..write(a.s ? '~~' : '');
       }
       return sb.toString();
     }).join('\n');
@@ -109,6 +113,7 @@ String htmlFor(String text, int start, int end) {
       if (a.u) h = '<u>$h</u>';
       if (a.i) h = '<em>$h</em>';
       if (a.b) h = '<strong>$h</strong>';
+      if (a.s) h = '<s>$h</s>';
       inline.write(h);
     }
     final isItem = l.prefix == '- ';
@@ -119,6 +124,7 @@ String htmlFor(String text, int start, int end) {
       '# ' => 'h1',
       '## ' => 'h2',
       '### ' => 'h3',
+      '> ' => 'blockquote',
       '- ' => 'li',
       _ => 'p',
     };

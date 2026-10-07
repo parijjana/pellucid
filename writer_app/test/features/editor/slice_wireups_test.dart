@@ -8,6 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/editor/rich_clipboard.dart';
 import 'package:pellucid/features/editor/marker_aware_editing.dart';
+import 'package:pellucid/features/editor/caret_formatting.dart';
+import 'package:pellucid/features/editor/hidden_markers.dart';
+import 'package:pellucid/features/editor/marker_edit_rules.dart';
+import 'package:pellucid/features/editor/widgets/format_menu.dart';
 import 'package:pellucid/features/editor/widgets/editor_context_menu.dart';
 import 'package:pellucid/features/editor/widgets/editor_selection_actions.dart';
 import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
@@ -119,5 +123,72 @@ void main() {
       expect(find.textContaining('Use “'), findsNothing);
       expect(find.text('Remove repeated word'), findsNothing);
     }, variant: macOnly);
+  });
+
+  group('slice 4 rules cover slice 6 strikethrough and block quotes', () {
+    TextEditingValue v(String t, int b, [int? e]) =>
+        TextEditingValue(text: t, selection: TextSelection(baseOffset: b, extentOffset: e ?? b));
+    TextEditingValue backspace(String t, int p) =>
+        applyMarkerEditRules(v(t, p), v(t.substring(0, p - 1) + t.substring(p), p - 1));
+
+    test('quote prefix and ~~ are hidden; quote text keeps inline runs', () {
+      final line = scanLine('> a **b** ~~c~~', 0, 15);
+      expect(line.prefix, '> ');
+      expect(line.isHidden(0), isTrue);
+      expect(line.isHidden(1), isTrue);
+      expect(line.runs.map((r) => r.tag), ['**', '~~']);
+      expect(visibleText('> a **b** ~~c~~'), 'a b c');
+    });
+
+    test('caret steps over ~~ in one press', () {
+      //         0123456789
+      const t = 'x ~~gone~~ y';
+      expect(stepRight(t, 2), 5); // before ~~ -> after the g
+      expect(stepLeft(t, 10), 7);  // after closing ~~ -> before the e
+    });
+
+    test('formatting at the caret reports quote and strikethrough', () {
+      final q = formattingAt('> a **b**', const TextSelection.collapsed(offset: 7));
+      expect(q.block, BlockStyle.quote);
+      expect(q.bold, isTrue);
+      final s = formattingAt('x ~~gone~~', const TextSelection.collapsed(offset: 6));
+      expect(s.strikethrough, isTrue);
+      final sel = formattingAt('x ~~gone~~', const TextSelection(baseOffset: 4, extentOffset: 8));
+      expect(sel.strikethrough, isTrue);
+    });
+
+    test('Format menu ticks Subheading, Quote and Strikethrough', () {
+      String label(FormattingState f, String name) => formatMenuItems(f)
+          .whereType<PlatformMenuItem>()
+          .map((i) => i.label)
+          .firstWhere((l) => l.endsWith(name));
+      expect(label(const FormattingState(block: BlockStyle.subheading), 'Subheading'), '✓ Subheading');
+      expect(label(const FormattingState(block: BlockStyle.quote), 'Quote'), '✓ Quote');
+      expect(label(const FormattingState(strikethrough: true), 'Strikethrough'), '✓ Strikethrough');
+    });
+
+    test('Backspace at the start of a quote line removes the quote first', () {
+      final once = backspace('ab\n> Quote', 5);
+      expect(once.text, 'ab\nQuote');
+    });
+
+    test('deleting the last struck letter leaves no stray ~~~~', () {
+      final out = backspace('a ~~x~~ b', 5);
+      expect(out.text, 'a  b');
+    });
+
+    test('strikethrough toggled on at a bare caret opens a hidden empty run', () {
+      final toggle = toggleInlineAtCaret('a b', 2, '~~');
+      expect(toggle, isNotNull);
+      expect(toggle!.text, 'a ~~~~b');
+      expect(visibleText(toggle.text), 'a b');
+    });
+
+    test('rich copy keeps strikethrough and quotes', () {
+      expect(markdownFor('a ~~gone~~ b', 0, 12), 'a ~~gone~~ b');
+      expect(markdownFor('a ~~gone~~ b', 0, 7), 'a ~~gon~~');
+      expect(plainTextFor('> a ~~gone~~', 0, 12), 'a gone');
+      expect(htmlFor('> a ~~gone~~', 0, 12), contains('<blockquote>a <s>gone</s></blockquote>'));
+    });
   });
 }

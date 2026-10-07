@@ -45,7 +45,7 @@ class FormattingToolbar extends StatelessWidget {
           _labelButton('SUBHEAD', () => onApplyFormat('### '), f.block == BlockStyle.subheading),
           _labelButton('BODY', () => onApplyFormat('body'), f.block == BlockStyle.body && f.list == ListStyle.none),
           _labelButton('BULLET', () => onApplyFormat('- '), f.list == ListStyle.bullet),
-          _labelButton('QUOTE', () => onApplyFormat('> '), false),
+          _labelButton('QUOTE', () => onApplyFormat('> '), f.block == BlockStyle.quote),
           const SizedBox(width: 12),
           Container(
             height: 12, width: 1, 

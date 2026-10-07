@@ -456,7 +456,7 @@ class MarkdownEditingController extends TextEditingController {
           lineOffset + match.start + 3,
         );
         children.add(const TextSpan(text: '</u>', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
-      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 5) {
+      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
         // Strikethrough: Hide tags
         children.add(const TextSpan(text: '~~', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
         _addInlineStyledText(
@@ -615,7 +615,7 @@ class MarkdownEditingController extends TextEditingController {
       } else if (matchText.startsWith('*') && matchText.length >= 2) {
         ranges.add(_FormatRange('*', matchStart, matchStart + 1, matchEnd - 1, matchEnd));
         _findRangesRecursive(matchText.substring(1, matchText.length - 1), matchStart + 1, ranges);
-      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 5) {
+      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
         ranges.add(_FormatRange('~~', matchStart, matchStart + 2, matchEnd - 2, matchEnd));
         _findRangesRecursive(matchText.substring(2, matchText.length - 2), matchStart + 2, ranges);
       } else if (matchText.startsWith('<u>') && matchText.endsWith('</u>') && matchText.length >= 7) {

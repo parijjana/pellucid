@@ -21,9 +21,12 @@ void main() {
       expect(c.text, 'Hello world');
     });
 
-    test('collapsed caret does nothing', () {
+    // Same rule as bold/italic (item 24): a bare caret opens an empty,
+    // hidden run so the next keystroke is struck.
+    test('collapsed caret opens a hidden empty run', () {
       final c = make('Hello', const TextSelection.collapsed(offset: 2))..toggleFormat('~~');
-      expect(c.text, 'Hello');
+      expect(c.text, 'He~~~~llo');
+      expect(c.selection, const TextSelection.collapsed(offset: 4));
     });
   });
 

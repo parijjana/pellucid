@@ -28,6 +28,11 @@ List<PlatformMenuItem> formatMenuItems(FormattingState f) => [
         onSelected: () => _invoke(const SetHeaderIntent()),
       ),
       PlatformMenuItem(
+        label: checkedLabel('Subheading', f.block == BlockStyle.subheading),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyJ, alt: true, meta: true),
+        onSelected: () => _invoke(const SetSubheadingIntent()),
+      ),
+      PlatformMenuItem(
         label: checkedLabel('Body', f.block == BlockStyle.body && f.list == ListStyle.none),
         shortcut: const SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: true),
         onSelected: () => _invoke(const SetBodyIntent()),
@@ -36,6 +41,11 @@ List<PlatformMenuItem> formatMenuItems(FormattingState f) => [
         label: checkedLabel('Bullet', f.list == ListStyle.bullet),
         shortcut: const SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: true),
         onSelected: () => _invoke(const SetBulletIntent()),
+      ),
+      PlatformMenuItem(
+        label: checkedLabel('Quote', f.block == BlockStyle.quote),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, alt: true, meta: true),
+        onSelected: () => _invoke(const SetQuoteIntent()),
       ),
       const PlatformMenuItemGroup(members: []),
       PlatformMenuItem(
@@ -52,5 +62,10 @@ List<PlatformMenuItem> formatMenuItems(FormattingState f) => [
         label: checkedLabel('Underline', f.underline),
         shortcut: const SingleActivator(LogicalKeyboardKey.keyU, meta: true),
         onSelected: () => _invoke(const ToggleUnderlineIntent()),
+      ),
+      PlatformMenuItem(
+        label: checkedLabel('Strikethrough', f.strikethrough),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyX, alt: true, meta: true),
+        onSelected: () => _invoke(const ToggleStrikethroughIntent()),
       ),
     ];

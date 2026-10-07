@@ -89,11 +89,14 @@ void main() {
     expect(labels, [
       '   Title',
       '   Heading',
+      '   Subheading',
       '✓ Body',
       '   Bullet',
+      '   Quote',
       '✓ Bold',
       '   Italic',
       '✓ Underline',
+      '   Strikethrough',
     ]);
   });
 }

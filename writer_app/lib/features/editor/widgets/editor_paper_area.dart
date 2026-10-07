@@ -10,6 +10,8 @@ import '../providers/codex_index.dart';
 import '../../sidebar/providers/note_card.dart';
 import 'codex_mention_detector.dart';
 import 'markdown_controller.dart';
+import '../marker_aware_editing.dart';
+import '../marker_edit_rules.dart';
 
 /// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
 Map<ShortcutActivator, Intent> get _redoShortcuts =>
@@ -106,10 +108,15 @@ class EditorPaperArea extends StatelessWidget {
                 enabled: spellCheckEnabled,
                 focusNode: focusNode,
                 controller: controller,
+                child: MarkerAwareEditing(
+                controller: controller,
                 child: TextField(
                 controller: controller,
                 focusNode: focusNode,
                 maxLines: null,
+                // Hidden markdown markers stay balanced while editing (item 24).
+                inputFormatters: const [MarkerEditFormatter()],
+                contextMenuBuilder: MarkerAwareEditing.contextMenu,
                 // The document could not be read, so we do not know what is on
                 // disk. Accepting keystrokes here would invite the writer to
                 // type into a blank page that can never be saved.
@@ -136,6 +143,7 @@ class EditorPaperArea extends StatelessWidget {
                   enabledBorder: InputBorder.none,
                 ),
                 onChanged: onChanged,
+              ),
               ),
               ),
             ),

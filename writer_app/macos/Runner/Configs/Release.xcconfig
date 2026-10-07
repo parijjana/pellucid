@@ -1,2 +1,6 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
+
+// Apple Silicon only (owner, 2026-10-07): universal builds with Xcode 27 fail
+// Flutter's `lipo -verify_arch` check. Intel Macs stay on 1.0.1.
+ARCHS = arm64

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../word_count.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import '../providers/editor_provider.dart';
@@ -55,6 +56,7 @@ class _EditorScreenState extends State<EditorScreen> {
   late SearchProvider _searchProvider;
   late EditorProvider _editorProvider;
   int _currentWordCount = 0;
+  int _selectedWordCount = 0;
   String _lastProcessedText = '';
   // Cached TOC headers + per-chapter rolled-up word counts, recomputed only when
   // the editor text changes (never inside build()).
@@ -115,6 +117,20 @@ class _EditorScreenState extends State<EditorScreen> {
         // HistoryProvider not in tree
       }
     }
+  }
+
+  /// Words in the current selection (0 when nothing is selected). Selection
+  /// moves notify the controller without changing the text, so this runs
+  /// separately from [_onEditorTextChanged].
+  void _onSelectionChanged() {
+    if (!mounted) return;
+    final sel = _editorController.selection;
+    final text = _editorController.text;
+    int words = 0;
+    if (sel.isValid && !sel.isCollapsed && sel.end <= text.length) {
+      words = countWords(text.substring(sel.start, sel.end));
+    }
+    if (words != _selectedWordCount) setState(() => _selectedWordCount = words);
   }
 
   void _onEditorTextChanged() {
@@ -318,6 +334,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _lastProcessedText = editorProvider.content;
     _editorFocusNode.addListener(_onEditorFocusChange);
     _editorController.addListener(_onEditorTextChanged);
+    _editorController.addListener(_onSelectionChanged);
     _editorController.addListener(_onTypewriterUpdate);
     HardwareKeyboard.instance.addHandler(_handleGlobalKey);
 
@@ -339,6 +356,7 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _editorFocusNode.removeListener(_onEditorFocusChange);
     _editorController.removeListener(_onEditorTextChanged);
+    _editorController.removeListener(_onSelectionChanged);
     _editorController.removeListener(_onTypewriterUpdate);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _editorProvider.removeListener(_onEditorProviderChanged);
@@ -667,6 +685,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     EditorStatusBar(
                       theme: theme,
                       wordCount: _currentWordCount,
+                      selectedWordCount: _selectedWordCount,
                       isLeftSidebarOpen: uiState.isLeftSidebarOpen,
                       isRightSidebarOpen: uiState.isRightSidebarOpen,
                       isFullscreen: uiState.isFullscreen,
@@ -824,27 +843,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
 
-  int _calculateWordCount(String text) {
-    int count = 0;
-    bool inWord = false;
-    final length = text.length;
-    for (int i = 0; i < length; i++) {
-      final codeUnit = text.codeUnitAt(i);
-      final isWhitespace = codeUnit == 32 || codeUnit == 10 || codeUnit == 13 || codeUnit == 9;
-      if (isWhitespace) {
-        if (inWord) {
-          count++;
-          inWord = false;
-        }
-      } else {
-        inWord = true;
-      }
-    }
-    if (inWord) {
-      count++;
-    }
-    return count;
-  }
+  int _calculateWordCount(String text) => countWords(text);
 
   /// The first edit of a mirrored project. Forks it into a project this
   /// device owns and switches the app there, so the keystroke lands somewhere

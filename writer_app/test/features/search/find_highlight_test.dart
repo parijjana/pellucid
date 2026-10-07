@@ -193,6 +193,19 @@ void main() {
     expect(outer.position.pixels, greaterThan(500));
   });
 
+  testWidgets('status bar shows "N of M words" while text is selected', (tester) async {
+    await pumpEditor(tester, 'one two three four');
+    final controller = tester.widget<TextField>(find.byType(TextField).first).controller!;
+    expect(find.text('4 words'), findsWidgets);
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 7);
+    await tester.pump();
+    expect(find.text('2 of 4 words'), findsWidgets);
+    controller.selection = const TextSelection.collapsed(offset: 3);
+    await tester.pump();
+    expect(find.text('4 words'), findsWidgets);
+    expect(find.textContaining(' of 4 words'), findsNothing);
+  });
+
   group('MarkdownEditingController highlighting', () {
     List<TextSpan> flat(MarkdownEditingController c, BuildContext ctx) {
       final out = <TextSpan>[];

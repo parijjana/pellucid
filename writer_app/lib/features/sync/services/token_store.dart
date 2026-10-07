@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,23 +26,56 @@ abstract class SecretStore {
 
 /// [SecretStore] over flutter_secure_storage: the Keychain on macOS/iOS,
 /// an AES file keyed from Credential Manager (DPAPI, per user) on Windows.
+///
+/// macOS: the data-protection keychain needs the
+/// `com.apple.application-identifier` entitlement, which only provisioned
+/// builds carry (App Store / TestFlight exports embed it; a local `flutter
+/// run`, `flutter build macos` or Development-signed export does not, and gets
+/// errSecMissingEntitlement, -34018). Those builds use the legacy login
+/// keychain instead: still the Keychain, never plaintext. The mode is probed
+/// once per launch and is fixed for a given binary, so items never straddle
+/// the two. See lessons_learnt/flutter-secure-storage-macos-sandbox.md.
 class PlatformSecretStore implements SecretStore {
-  // macOS uses the data-protection keychain (the package default). It needs
-  // the app-identifier entitlement that a properly signed build carries; an
-  // ad-hoc `flutter build macos` has none, so it fails there by design. See
-  // lessons_learnt/flutter-secure-storage-macos-sandbox.md.
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const int _errSecMissingEntitlement = -34018;
+  static const String _probeKey = 'pellucid_keychain_probe';
 
-  const PlatformSecretStore();
+  static const FlutterSecureStorage _dataProtection = FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: true),
+  );
+  static const FlutterSecureStorage _legacyKeychain = FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
+
+  static Future<FlutterSecureStorage>? _selected;
+
+  PlatformSecretStore();
+
+  Future<FlutterSecureStorage> get _storage => _selected ??= _select();
+
+  static Future<FlutterSecureStorage> _select() async {
+    if (kIsWeb || !Platform.isMacOS) return _dataProtection;
+    try {
+      await _dataProtection.write(key: _probeKey, value: '1');
+      await _dataProtection.delete(key: _probeKey);
+      return _dataProtection;
+    } on PlatformException catch (e) {
+      if (e.details == _errSecMissingEntitlement) {
+        if (kDebugMode) print('TokenStore: unprovisioned build, using the login keychain');
+        return _legacyKeychain;
+      }
+      _selected = null; // transient failure (e.g. locked keychain): probe again later
+      rethrow;
+    }
+  }
 
   @override
-  Future<String?> read(String key) => _storage.read(key: key);
+  Future<String?> read(String key) async => (await _storage).read(key: key);
 
   @override
-  Future<void> write(String key, String value) => _storage.write(key: key, value: value);
+  Future<void> write(String key, String value) async => (await _storage).write(key: key, value: value);
 
   @override
-  Future<void> delete(String key) => _storage.delete(key: key);
+  Future<void> delete(String key) async => (await _storage).delete(key: key);
 }
 
 /// Holds the Google Drive OAuth credentials in the OS secret store.
@@ -74,7 +110,7 @@ class TokenStore {
   Future<void>? _migration;
 
   TokenStore({SecretStore? secrets, Future<SharedPreferences> Function()? prefs})
-      : _secrets = secrets ?? const PlatformSecretStore(),
+      : _secrets = secrets ?? PlatformSecretStore(),
         _prefs = prefs ?? SharedPreferences.getInstance;
 
   Future<String?> getString(String key) async {

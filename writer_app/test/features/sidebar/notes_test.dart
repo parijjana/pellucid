@@ -24,6 +24,14 @@ class MockStorageService extends Mock implements StorageService {}
 class MockSettingsProvider extends Mock implements SettingsProvider {
   @override
   bool get spellCheckEnabled => true;
+  @override
+  bool get grammarHintsEnabled => false;
+  @override
+  bool get smartPunctuationEnabled => false;
+  @override
+  bool get autoContinueListsEnabled => true;
+  @override
+  bool get attributionDuplicateHighlightEnabled => true;
 }
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockThemeProvider extends Mock implements ThemeProvider {}

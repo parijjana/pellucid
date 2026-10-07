@@ -81,6 +81,14 @@ class SettingsProvider extends ChangeNotifier {
   // Spell Check Setting
   bool _spellCheckEnabled = true;
 
+  // Editing on/off switches (backlog item 26), all on by default.
+  bool _grammarHintsEnabled = true;
+  bool _smartPunctuationEnabled = true;
+  // TODO(slice 5): the list auto-continue feature reads autoContinueListsEnabled.
+  bool _autoContinueListsEnabled = true;
+  // TODO(slice 7): the attribution duplicate highlight reads attributionDuplicateHighlightEnabled.
+  bool _attributionDuplicateHighlightEnabled = true;
+
   // Google OAuth Settings
   String? _googleClientId;
   String? _googleClientSecret;
@@ -115,6 +123,10 @@ class SettingsProvider extends ChangeNotifier {
     _tocWordCountsEnabled = (settings['toc_word_counts_enabled'] ?? 1) == 1;
     _dailyWordGoal = settings['daily_word_goal'] ?? 0;
     _spellCheckEnabled = (settings['spell_check_enabled'] ?? 1) == 1;
+    _grammarHintsEnabled = (settings['grammar_hints_enabled'] ?? 1) == 1;
+    _smartPunctuationEnabled = (settings['smart_punctuation_enabled'] ?? 1) == 1;
+    _autoContinueListsEnabled = (settings['auto_continue_lists_enabled'] ?? 1) == 1;
+    _attributionDuplicateHighlightEnabled = (settings['attribution_duplicate_highlight_enabled'] ?? 1) == 1;
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = settings['google_client_secret'];
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
@@ -197,6 +209,10 @@ class SettingsProvider extends ChangeNotifier {
   String? get googleClientSecret => _googleClientSecret;
   int get syncIntervalMinutes => _syncIntervalMinutes;
   bool get spellCheckEnabled => _spellCheckEnabled;
+  bool get grammarHintsEnabled => _grammarHintsEnabled;
+  bool get smartPunctuationEnabled => _smartPunctuationEnabled;
+  bool get autoContinueListsEnabled => _autoContinueListsEnabled;
+  bool get attributionDuplicateHighlightEnabled => _attributionDuplicateHighlightEnabled;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -262,6 +278,30 @@ class SettingsProvider extends ChangeNotifier {
   void toggleSpellCheck(bool enabled) {
     _spellCheckEnabled = enabled;
     _db.updateSetting('spell_check_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleGrammarHints(bool enabled) {
+    _grammarHintsEnabled = enabled;
+    _db.updateSetting('grammar_hints_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleSmartPunctuation(bool enabled) {
+    _smartPunctuationEnabled = enabled;
+    _db.updateSetting('smart_punctuation_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleAutoContinueLists(bool enabled) {
+    _autoContinueListsEnabled = enabled;
+    _db.updateSetting('auto_continue_lists_enabled', enabled);
+    notifyListeners();
+  }
+
+  void toggleAttributionDuplicateHighlight(bool enabled) {
+    _attributionDuplicateHighlightEnabled = enabled;
+    _db.updateSetting('attribution_duplicate_highlight_enabled', enabled);
     notifyListeners();
   }
 

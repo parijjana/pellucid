@@ -10,6 +10,8 @@ import '../providers/codex_index.dart';
 import '../../sidebar/providers/note_card.dart';
 import 'codex_mention_detector.dart';
 import 'markdown_controller.dart';
+import 'grammar_hints.dart';
+import 'smart_punctuation_scope.dart';
 
 /// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
 Map<ShortcutActivator, Intent> get _redoShortcuts =>
@@ -32,6 +34,8 @@ class EditorPaperArea extends StatelessWidget {
   final List<NoteCard> notes;
   final void Function(String noteId) onOpenNote;
   final bool spellCheckEnabled;
+  final bool grammarHintsEnabled;
+  final bool smartPunctuationEnabled;
 
   const EditorPaperArea({
     super.key,
@@ -46,6 +50,8 @@ class EditorPaperArea extends StatelessWidget {
     required this.notes,
     required this.onOpenNote,
     required this.spellCheckEnabled,
+    this.grammarHintsEnabled = false,
+    this.smartPunctuationEnabled = false,
   });
 
   @override
@@ -106,8 +112,17 @@ class EditorPaperArea extends StatelessWidget {
                 enabled: spellCheckEnabled,
                 focusNode: focusNode,
                 controller: controller,
-                child: TextField(
+                child: GrammarHintDriver(
+                enabled: grammarHintsEnabled,
+                focusNode: focusNode,
                 controller: controller,
+                child: SmartPunctuationScope(
+                enabled: smartPunctuationEnabled,
+                controller: controller,
+                onChanged: onChanged,
+                builder: (context, formatters) => TextField(
+                controller: controller,
+                inputFormatters: formatters,
                 focusNode: focusNode,
                 maxLines: null,
                 // The document could not be read, so we do not know what is on
@@ -137,6 +152,8 @@ class EditorPaperArea extends StatelessWidget {
                 ),
                 onChanged: onChanged,
               ),
+                ),
+                ),
               ),
             ),
             ),

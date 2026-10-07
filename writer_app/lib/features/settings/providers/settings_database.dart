@@ -37,6 +37,10 @@ class SettingsDatabase {
     'toc_word_counts_enabled': 1,
     'daily_word_goal': 0,
     'spell_check_enabled': 1,
+    'grammar_hints_enabled': 1,
+    'smart_punctuation_enabled': 1,
+    'auto_continue_lists_enabled': 1,
+    'attribution_duplicate_highlight_enabled': 1,
     'last_full_backup_time': null,
   };
 
@@ -66,7 +70,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 18, // Incremented for the manuscript-filename migration marker table
+      version: 19, // Incremented for the language/editing on-off switches (item 26)
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -101,7 +105,11 @@ class SettingsDatabase {
         codex_linking_enabled INTEGER DEFAULT 0,
         toc_word_counts_enabled INTEGER DEFAULT 1,
         daily_word_goal INTEGER DEFAULT 0,
-        spell_check_enabled INTEGER DEFAULT 1
+        spell_check_enabled INTEGER DEFAULT 1,
+        grammar_hints_enabled INTEGER DEFAULT 1,
+        smart_punctuation_enabled INTEGER DEFAULT 1,
+        auto_continue_lists_enabled INTEGER DEFAULT 1,
+        attribution_duplicate_highlight_enabled INTEGER DEFAULT 1
       )
     ''');
 
@@ -149,6 +157,10 @@ class SettingsDatabase {
       'toc_word_counts_enabled': 1,
       'daily_word_goal': 0,
       'spell_check_enabled': 1,
+      'grammar_hints_enabled': 1,
+      'smart_punctuation_enabled': 1,
+      'auto_continue_lists_enabled': 1,
+      'attribution_duplicate_highlight_enabled': 1,
     });
   }
 
@@ -223,6 +235,12 @@ class SettingsDatabase {
           pulled_at TEXT NOT NULL
         )
       ''');
+    }
+    if (oldVersion < 19) {
+      await db.execute('ALTER TABLE settings ADD COLUMN grammar_hints_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN smart_punctuation_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN auto_continue_lists_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN attribution_duplicate_highlight_enabled INTEGER DEFAULT 1');
     }
   }
 

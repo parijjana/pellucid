@@ -21,7 +21,7 @@ Supports all standard OS text interactions.
 | Copy | `Ctrl + C` OR `Ctrl + Insert` | `Cmd + C` |
 | Paste | `Ctrl + V` OR `Shift + Insert` | `Cmd + V` |
 | Cut | `Ctrl + X` | `Cmd + X` |
-| Undo / Redo | `Ctrl + Z` / `Ctrl + Y` | `Cmd + Z` / `Cmd + Shift + Z` |
+| Undo / Redo | `Ctrl + Z` / `Ctrl + Shift + Z` OR `Ctrl + Y` | `Cmd + Z` / `Cmd + Shift + Z` |
 
 ---
 

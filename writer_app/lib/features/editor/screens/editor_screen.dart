@@ -577,6 +577,8 @@ class _EditorScreenState extends State<EditorScreen> {
                                         onOpenNote: _openNote,
                                         spellCheckEnabled: settings.spellCheckEnabled == true,
                                         editorFont: settings.editorFont,
+                                        grammarHintsEnabled: settings.grammarHintsEnabled == true,
+                                        smartPunctuationEnabled: settings.smartPunctuationEnabled == true,
                                         onChanged: (val) {
                                           final settings = context.read<SettingsProvider>();
                                           final sync = context.read<SyncProvider>();

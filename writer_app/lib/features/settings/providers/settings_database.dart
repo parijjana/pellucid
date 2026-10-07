@@ -38,6 +38,10 @@ class SettingsDatabase {
     'daily_word_goal': 0,
     'spell_check_enabled': 1,
     'editor_font': 'serif',
+    'grammar_hints_enabled': 1,
+    'smart_punctuation_enabled': 1,
+    'auto_continue_lists_enabled': 1,
+    'attribution_duplicate_highlight_enabled': 1,
     'last_full_backup_time': null,
   };
 
@@ -46,6 +50,15 @@ class SettingsDatabase {
   static final Set<String> _webMirroredProjects = {};
 
   SettingsDatabase._init();
+
+  /// 19: editor_font (item 14); 20: language/editing on-off switches (item 26).
+  static const int schemaVersion = 20;
+
+  @visibleForTesting
+  Future<void> createForTest(Database db) => _createDB(db, schemaVersion);
+
+  @visibleForTesting
+  Future<void> upgradeForTest(Database db, int oldVersion) => _onUpgrade(db, oldVersion, schemaVersion);
 
   Future<Database> get database async {
     if (kIsWeb) throw UnsupportedError("SettingsDatabase does not support SQLite on Web. Use mock fallback.");
@@ -67,7 +80,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 19, // 19: editor_font column (document font, item 14)
+      version: schemaVersion,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -103,7 +116,11 @@ class SettingsDatabase {
         toc_word_counts_enabled INTEGER DEFAULT 1,
         daily_word_goal INTEGER DEFAULT 0,
         spell_check_enabled INTEGER DEFAULT 1,
-        editor_font TEXT DEFAULT 'serif'
+        editor_font TEXT DEFAULT 'serif',
+        grammar_hints_enabled INTEGER DEFAULT 1,
+        smart_punctuation_enabled INTEGER DEFAULT 1,
+        auto_continue_lists_enabled INTEGER DEFAULT 1,
+        attribution_duplicate_highlight_enabled INTEGER DEFAULT 1
       )
     ''');
 
@@ -152,6 +169,10 @@ class SettingsDatabase {
       'daily_word_goal': 0,
       'spell_check_enabled': 1,
       'editor_font': 'serif',
+      'grammar_hints_enabled': 1,
+      'smart_punctuation_enabled': 1,
+      'auto_continue_lists_enabled': 1,
+      'attribution_duplicate_highlight_enabled': 1,
     });
   }
 
@@ -229,6 +250,12 @@ class SettingsDatabase {
     }
     if (oldVersion < 19) {
       await db.execute("ALTER TABLE settings ADD COLUMN editor_font TEXT DEFAULT 'serif'");
+    }
+    if (oldVersion < 20) {
+      await db.execute('ALTER TABLE settings ADD COLUMN grammar_hints_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN smart_punctuation_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN auto_continue_lists_enabled INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE settings ADD COLUMN attribution_duplicate_highlight_enabled INTEGER DEFAULT 1');
     }
   }
 

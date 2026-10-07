@@ -13,6 +13,8 @@ import '../marker_aware_editing.dart';
 import '../marker_edit_rules.dart';
 import 'editor_context_menu.dart';
 import 'spell_check_driver.dart';
+import 'grammar_hints.dart';
+import 'smart_punctuation_scope.dart';
 
 /// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
 Map<ShortcutActivator, Intent> get _redoShortcuts =>
@@ -39,6 +41,8 @@ class EditorPaperArea extends StatelessWidget {
 
   /// Spell checker to use; defaults to the OS one (macOS/Windows). Tests pass a fake.
   final EditorSpellService? spellService;
+  final bool grammarHintsEnabled;
+  final bool smartPunctuationEnabled;
 
   const EditorPaperArea({
     super.key,
@@ -55,6 +59,8 @@ class EditorPaperArea extends StatelessWidget {
     required this.spellCheckEnabled,
     this.spellService,
     this.editorFont = EditorFont.defaultFont,
+    this.grammarHintsEnabled = false,
+    this.smartPunctuationEnabled = false,
   });
 
   @override
@@ -117,14 +123,22 @@ class EditorPaperArea extends StatelessWidget {
                 controller: controller,
                 service: spellService,
                 notes: notes,
-                child: MarkerAwareEditing(
+                child: GrammarHintDriver(
+                enabled: grammarHintsEnabled,
+                focusNode: focusNode,
+                controller: controller,
+                child: SmartPunctuationScope(
+                enabled: smartPunctuationEnabled,
+                controller: controller,
+                onChanged: onChanged,
+                builder: (context, formatters) => MarkerAwareEditing(
                 controller: controller,
                 child: TextField(
                 controller: controller,
                 focusNode: focusNode,
                 maxLines: null,
                 // Hidden markdown markers stay balanced while editing (item 24).
-                inputFormatters: const [MarkerEditFormatter()],
+                inputFormatters: [const MarkerEditFormatter(), ...formatters],
                 // The document could not be read, so we do not know what is on
                 // disk. Accepting keystrokes here would invite the writer to
                 // type into a blank page that can never be saved.
@@ -153,6 +167,8 @@ class EditorPaperArea extends StatelessWidget {
                     buildEditorContextMenu(context, editableTextState),
                 onChanged: onChanged,
               ),
+                ),
+                ),
               ),
               ),
             ),

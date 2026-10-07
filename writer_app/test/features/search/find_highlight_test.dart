@@ -82,6 +82,10 @@ void main() {
     when(() => mockSettings.codexLinkingEnabled).thenReturn(false);
     when(() => mockSettings.tocWordCountsEnabled).thenReturn(true);
     when(() => mockSettings.spellCheckEnabled).thenReturn(true);
+    when(() => mockSettings.grammarHintsEnabled).thenReturn(false);
+    when(() => mockSettings.smartPunctuationEnabled).thenReturn(false);
+    when(() => mockSettings.autoContinueListsEnabled).thenReturn(true);
+    when(() => mockSettings.attributionDuplicateHighlightEnabled).thenReturn(true);
 
     when(() => mockHistory.history).thenReturn([]);
     when(() => mockHistory.currentProjectStats).thenReturn(ProjectStats());

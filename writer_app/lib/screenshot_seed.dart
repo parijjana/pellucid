@@ -155,6 +155,8 @@ class ScreenshotSettingsProvider extends SettingsProvider {
   @override
   bool get spellCheckEnabled => false; // no red squiggles in shots
   @override
+  bool get grammarHintsEnabled => false; // nor dotted hints
+  @override
   int get dailyWordGoal => 1500;
   @override
   bool get hasDailyWordGoal => true;

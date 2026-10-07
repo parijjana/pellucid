@@ -22,6 +22,14 @@ class MockSettingsProvider extends Mock implements SettingsProvider {
   EditorFont get editorFont => EditorFont.defaultFont;
   @override
   bool get spellCheckEnabled => true;
+  @override
+  bool get grammarHintsEnabled => false;
+  @override
+  bool get smartPunctuationEnabled => false;
+  @override
+  bool get autoContinueListsEnabled => true;
+  @override
+  bool get attributionDuplicateHighlightEnabled => true;
 }
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockHistoryProvider extends Mock implements HistoryProvider {}

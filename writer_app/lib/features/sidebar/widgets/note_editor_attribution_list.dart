@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../providers/note_card.dart';
 import '../../editor/providers/theme_provider.dart';
+import '../providers/attribution_duplicates.dart';
 import 'note_editor_attribution_list_item.dart';
 
 class LinkHighlightingTextEditingController extends TextEditingController {
   WriterTheme theme;
 
-  LinkHighlightingTextEditingController({
-    super.text,
-    required this.theme,
-  });
+  LinkHighlightingTextEditingController({super.text, required this.theme});
 
   @override
   TextSpan buildTextSpan({
@@ -27,32 +25,32 @@ class LinkHighlightingTextEditingController extends TextEditingController {
 
     for (final match in regex.allMatches(textVal)) {
       if (match.start > start) {
-        children.add(TextSpan(
-          text: textVal.substring(start, match.start),
-          style: style,
-        ));
+        children.add(
+          TextSpan(text: textVal.substring(start, match.start), style: style),
+        );
       }
 
       final linkText = match.group(0)!;
       final isDark = theme.backgroundColor.computeLuminance() < 0.5;
-      final linkColor = isDark ? const Color(0xFF64B5F6) : const Color(0xFF1976D2);
+      final linkColor = isDark
+          ? const Color(0xFF64B5F6)
+          : const Color(0xFF1976D2);
 
-      children.add(TextSpan(
-        text: linkText,
-        style: (style ?? const TextStyle()).copyWith(
-          color: linkColor,
-          decoration: TextDecoration.underline,
-          decorationColor: linkColor,
+      children.add(
+        TextSpan(
+          text: linkText,
+          style: (style ?? const TextStyle()).copyWith(
+            color: linkColor,
+            decoration: TextDecoration.underline,
+            decorationColor: linkColor,
+          ),
         ),
-      ));
+      );
       start = match.end;
     }
 
     if (start < textVal.length) {
-      children.add(TextSpan(
-        text: textVal.substring(start),
-        style: style,
-      ));
+      children.add(TextSpan(text: textVal.substring(start), style: style));
     }
 
     return TextSpan(
@@ -94,7 +92,8 @@ class NoteEditorAttributionList extends StatefulWidget {
   });
 
   @override
-  State<NoteEditorAttributionList> createState() => _NoteEditorAttributionListState();
+  State<NoteEditorAttributionList> createState() =>
+      _NoteEditorAttributionListState();
 }
 
 class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
@@ -151,7 +150,8 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.enter) {
             if (HardwareKeyboard.instance.isShiftPressed) {
-              return KeyEventResult.ignored; // Bubble to insert standard newline
+              return KeyEventResult
+                  .ignored; // Bubble to insert standard newline
             } else {
               final controller = _controllers[index];
               final text = controller.text;
@@ -195,7 +195,8 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
 
     for (int i = 0; i < widget.items.length; i++) {
       if (_controllers[i] is LinkHighlightingTextEditingController) {
-        (_controllers[i] as LinkHighlightingTextEditingController).theme = widget.theme;
+        (_controllers[i] as LinkHighlightingTextEditingController).theme =
+            widget.theme;
       }
       if (_controllers[i].text != widget.items[i].text) {
         _controllers[i].text = widget.items[i].text;
@@ -222,13 +223,31 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
   Widget _buildStyleButton(String type, IconData icon, String label) {
     final isActive = widget.attributionType == type;
     return OutlinedButton.icon(
-      icon: Icon(icon, size: 14, color: isActive ? widget.theme.foregroundColor : widget.theme.foregroundColor.withValues(alpha: 0.4)),
-      label: Text(label, style: TextStyle(fontSize: 11, color: isActive ? widget.theme.foregroundColor : widget.theme.foregroundColor.withValues(alpha: 0.4))),
+      icon: Icon(
+        icon,
+        size: 14,
+        color: isActive
+            ? widget.theme.foregroundColor
+            : widget.theme.foregroundColor.withValues(alpha: 0.4),
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: isActive
+              ? widget.theme.foregroundColor
+              : widget.theme.foregroundColor.withValues(alpha: 0.4),
+        ),
+      ),
       style: OutlinedButton.styleFrom(
         side: BorderSide(
-          color: isActive ? widget.theme.foregroundColor : widget.theme.foregroundColor.withValues(alpha: 0.1),
+          color: isActive
+              ? widget.theme.foregroundColor
+              : widget.theme.foregroundColor.withValues(alpha: 0.1),
         ),
-        backgroundColor: isActive ? widget.theme.foregroundColor.withValues(alpha: 0.05) : Colors.transparent,
+        backgroundColor: isActive
+            ? widget.theme.foregroundColor.withValues(alpha: 0.05)
+            : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -258,7 +277,11 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
                   ),
                   decoration: InputDecoration(
                     hintText: 'Attributions Note',
-                    hintStyle: TextStyle(color: widget.theme.foregroundColor.withValues(alpha: 0.2)),
+                    hintStyle: TextStyle(
+                      color: widget.theme.foregroundColor.withValues(
+                        alpha: 0.2,
+                      ),
+                    ),
                     border: InputBorder.none,
                     isDense: true,
                   ),
@@ -281,13 +304,24 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
                 ),
               ),
               const SizedBox(width: 12),
-              _buildStyleButton('bullet', Icons.format_list_bulleted, 'Bulleted'),
+              _buildStyleButton(
+                'bullet',
+                Icons.format_list_bulleted,
+                'Bulleted',
+              ),
               const SizedBox(width: 8),
-              _buildStyleButton('number', Icons.format_list_numbered, 'Numbered'),
+              _buildStyleButton(
+                'number',
+                Icons.format_list_numbered,
+                'Numbered',
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          Divider(height: 1, color: widget.theme.foregroundColor.withValues(alpha: 0.1)),
+          Divider(
+            height: 1,
+            color: widget.theme.foregroundColor.withValues(alpha: 0.1),
+          ),
           const SizedBox(height: 16),
 
           // List Items Editor
@@ -304,38 +338,51 @@ class _NoteEditorAttributionListState extends State<NoteEditorAttributionList> {
                       child: Text(
                         'No attribution items yet. Click here to add the first item.',
                         style: TextStyle(
-                          color: widget.theme.foregroundColor.withValues(alpha: 0.4),
+                          color: widget.theme.foregroundColor.withValues(
+                            alpha: 0.4,
+                          ),
                           fontSize: 13,
                           fontStyle: FontStyle.italic,
                         ),
                       ),
                     ),
                   )
-                : ListView.builder(
-                    itemCount: widget.items.length,
-                    itemBuilder: (context, index) {
-                      final item = widget.items[index];
-                      final prefix = widget.attributionType == 'number' ? '${index + 1}.' : '•';
-
-                      return NoteEditorAttributionListItem(
-                        item: item,
-                        index: index,
-                        prefix: prefix,
-                        controller: _controllers[index],
-                        focusNode: _focusNodes[index],
-                        availableNotes: widget.availableNotes,
-                        theme: widget.theme,
-                        onItemTextChanged: widget.onItemTextChanged,
-                        onItemDeleted: widget.onItemDeleted,
-                        onLinkNote: widget.onLinkNote,
-                        onUnlinkNote: widget.onUnlinkNote,
-                        onNavigateToNote: widget.onNavigateToNote,
-                      );
-                    },
-                  ),
+                : _buildItems(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildItems() {
+    // Rechecked on every build, so every edit updates the highlights.
+    final duplicates = duplicateAttributionIndexes([
+      for (final i in widget.items) i.text,
+    ]);
+    return ListView.builder(
+      itemCount: widget.items.length,
+      itemBuilder: (context, index) {
+        final item = widget.items[index];
+        final prefix = widget.attributionType == 'number'
+            ? '${index + 1}.'
+            : '•';
+
+        return NoteEditorAttributionListItem(
+          item: item,
+          index: index,
+          prefix: prefix,
+          controller: _controllers[index],
+          focusNode: _focusNodes[index],
+          availableNotes: widget.availableNotes,
+          theme: widget.theme,
+          onItemTextChanged: widget.onItemTextChanged,
+          onItemDeleted: widget.onItemDeleted,
+          onLinkNote: widget.onLinkNote,
+          onUnlinkNote: widget.onUnlinkNote,
+          onNavigateToNote: widget.onNavigateToNote,
+          isDuplicate: duplicates.contains(index),
+        );
+      },
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
 import '../providers/codex_index.dart';
 import '../../search/providers/text_replacer.dart';
+import '../marker_edit_rules.dart';
 
 class MarkdownEditingController extends TextEditingController {
   WriterTheme theme;
@@ -31,8 +32,12 @@ class MarkdownEditingController extends TextEditingController {
   /// Keeps underlines on the right words between checks: ranges before the
   /// edit stay, ranges after it move with it, ranges touching it are dropped
   /// until the next check.
+  /// Keeps a collapsed caret off hidden markers (backlog item 24).
+  final MarkerCaret markerCaret = MarkerCaret();
+
   @override
   set value(TextEditingValue newValue) {
+    newValue = markerCaret.adjust(super.value, newValue);
     if (_misspellings.isNotEmpty && newValue.text != text) {
       _misspellings = shiftRangesForEdit(_misspellings, text, newValue.text);
     }
@@ -449,8 +454,18 @@ class MarkdownEditingController extends TextEditingController {
 
   void toggleFormat(String tag) {
     final selection = this.selection;
+    if (!selection.isValid) return;
+    if (tag == 'body') {
+      _toggleLineFormat(tag);
+      return;
+    }
     if (selection.isCollapsed && !tag.endsWith(' ')) {
-      // For selection-based tags like ** or *, do nothing if no selection
+      // No selection: end the run at the caret, or style the next keystroke.
+      final toggle = toggleInlineAtCaret(text, selection.baseOffset, tag);
+      if (toggle != null) {
+        markerCaret.setToggle(toggle);
+        value = TextEditingValue(text: toggle.text, selection: TextSelection.collapsed(offset: toggle.caret));
+      }
       return;
     }
 

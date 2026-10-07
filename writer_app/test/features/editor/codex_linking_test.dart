@@ -172,7 +172,7 @@ void main() {
       expect(mention.style!.decoration, TextDecoration.underline);       // Codex
       expect(mention.style!.decorationColor, underlineColor);            // Codex
       expect(mention.style!.backgroundColor,
-          Colors.amber.withValues(alpha: 0.35));                        // search
+          MarkdownEditingController.matchColor(theme));                        // search
       expect(mention.style!.color, fg.withValues(alpha: 0.38));         // dim
 
       controller.dispose();

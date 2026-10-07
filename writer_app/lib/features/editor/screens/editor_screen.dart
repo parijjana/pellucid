@@ -239,8 +239,32 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  /// Scrolls so the character at [charOffset] sits a third of the way down
+  /// the viewport, using the editor's real laid-out (styled) text. Returns
+  /// false when the editor is not laid out yet.
+  bool _scrollToCharacterViaEditable(int charOffset) {
+    final editable = _editorFocusNode.context?.findAncestorStateOfType<EditableTextState>();
+    if (editable == null || !editable.mounted || !_scrollController.hasClients) return false;
+    final viewport = _scrollController.position.context.storageContext.findRenderObject();
+    final box = editable.renderEditable;
+    if (viewport is! RenderBox || !viewport.attached || !box.attached || !box.hasSize) return false;
+    final caret = box.getLocalRectForCaret(TextPosition(offset: charOffset));
+    final caretY = box.localToGlobal(caret.topLeft).dy;
+    final viewportY = viewport.localToGlobal(Offset.zero).dy;
+    final target = _scrollController.position.pixels +
+        (caretY - viewportY) -
+        _scrollController.position.viewportDimension / 3;
+    _scrollController.animateTo(
+      target.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    return true;
+  }
+
   void _jumpToCharacterOffset(int charOffset) {
     if (charOffset < 0 || charOffset >= _editorController.text.length) return;
+    if (_scrollToCharacterViaEditable(charOffset)) return;
     
     final text = _editorController.text;
     final zoomLevel = context.read<EditorProvider>().zoomLevel;

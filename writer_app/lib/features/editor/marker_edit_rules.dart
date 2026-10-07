@@ -74,9 +74,14 @@ TextEdit? diffEdit(TextEditingValue oldValue, TextEditingValue newValue) {
   return TextEdit(prefix, o.length - suffix, n.substring(prefix, n.length - suffix));
 }
 
+/// Non-zero while undo/redo restores a recorded value: that value must land
+/// exactly as recorded (UndoHistory asserts it), so no rule may touch it.
+int markerRulesSuspended = 0;
+
 /// Rewrites a keyboard/paste edit so hidden markers stay balanced. Returns
 /// [newValue] untouched when no rule applies.
 TextEditingValue applyMarkerEditRules(TextEditingValue oldValue, TextEditingValue newValue) {
+  if (markerRulesSuspended > 0) return newValue;
   // IME composition (accents, CJK): leave the platform alone until it commits.
   if (newValue.composing.isValid && !newValue.composing.isCollapsed) return newValue;
   final edit = diffEdit(oldValue, newValue);
@@ -334,6 +339,10 @@ class MarkerCaret {
   }
 
   TextEditingValue adjust(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (markerRulesSuspended > 0) {
+      clear();
+      return newValue;
+    }
     if (newValue.composing.isValid && !newValue.composing.isCollapsed) return newValue;
     if (newValue.text != oldValue.text) {
       if (newValue.text == _toggleText && newValue.selection == TextSelection.collapsed(offset: sticky!)) {

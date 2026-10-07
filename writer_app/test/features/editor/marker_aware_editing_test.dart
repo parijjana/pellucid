@@ -72,10 +72,19 @@ void main() {
         debugDefaultTargetPlatformOverride = null;
       });
 
-      testWidgets('deleting the last bold letter leaves no stray markers', (tester) async {
+      testWidgets('deleting the last bold letter leaves no stray markers; undo restores it', (tester) async {
         await pumpEditor(tester, 'a**b** c', 4);
+        await tester.pump(const Duration(milliseconds: 600));
         await key(tester, LogicalKeyboardKey.backspace);
         expect(c.text, 'a c');
+        // UndoHistory throttles pushes; let the baseline and the edit land.
+        await tester.pump(const Duration(milliseconds: 600));
+        final mod = platform == TargetPlatform.macOS ? LogicalKeyboardKey.metaLeft : LogicalKeyboardKey.controlLeft;
+        await tester.sendKeyDownEvent(mod);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+        await tester.sendKeyUpEvent(mod);
+        await tester.pump();
+        expect(c.text, 'a**b** c');
         debugDefaultTargetPlatformOverride = null;
       });
     });

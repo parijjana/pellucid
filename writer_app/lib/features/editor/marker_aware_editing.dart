@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import 'hidden_markers.dart';
+import 'marker_edit_rules.dart';
 import 'rich_clipboard.dart';
 
 EditableTextState? _editableOf(BuildContext? context) {
@@ -27,6 +28,8 @@ class MarkerAwareEditing extends StatelessWidget {
         ExtendSelectionByCharacterIntent: _StepAction(controller),
         CopySelectionTextIntent: _CopyAction(controller),
         PasteTextIntent: _PasteAction(controller),
+        UndoTextIntent: _UndoRedoAction<UndoTextIntent>(),
+        RedoTextIntent: _UndoRedoAction<RedoTextIntent>(),
       },
       child: child,
     );
@@ -154,5 +157,22 @@ class _PasteAction extends ContextAction<PasteTextIntent> {
     if (state == null) return null;
     markerPaste(state, intent.cause);
     return null;
+  }
+}
+
+/// Undo/redo run the field's own history with the marker rules off, so the
+/// recorded value is restored exactly.
+class _UndoRedoAction<T extends Intent> extends ContextAction<T> {
+  @override
+  bool isEnabled(T intent, [BuildContext? context]) => callingAction?.isEnabled(intent) ?? false;
+
+  @override
+  Object? invoke(T intent, [BuildContext? context]) {
+    markerRulesSuspended++;
+    try {
+      return callingAction?.invoke(intent);
+    } finally {
+      markerRulesSuspended--;
+    }
   }
 }

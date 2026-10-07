@@ -66,6 +66,33 @@ bool get isAltShortcutPressed {
   return !keyboard.isControlPressed && !keyboard.isMetaPressed;
 }
 
+/// Pure rule behind [isAltChordSwallowed], split out so it can be tested.
+bool altChordSwallowedFor({
+  required bool alt,
+  required bool control,
+  required bool meta,
+  required bool commandPlatform,
+}) {
+  if (!alt) return false;
+  // Command platforms: every Pellucid Alt shortcut is Cmd+Opt. Option alone
+  // types characters (é ø — ∫), so it must reach the text input.
+  if (commandPlatform) return meta;
+  return !control && !meta;
+}
+
+/// Whether the app-wide key handler should swallow the current key as an Alt
+/// shortcut. Stricter than [isAltShortcutPressed] on macOS/iOS: plain Option
+/// is typing there.
+bool get isAltChordSwallowed {
+  final keyboard = HardwareKeyboard.instance;
+  return altChordSwallowedFor(
+    alt: keyboard.isAltPressed,
+    control: keyboard.isControlPressed,
+    meta: keyboard.isMetaPressed,
+    commandPlatform: usesCommandModifier,
+  );
+}
+
 /// Whether the current build should use the single-column "mobile phone"
 /// layout.
 ///

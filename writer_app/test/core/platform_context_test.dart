@@ -21,6 +21,25 @@ import 'package:pellucid/core/platform_context.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  group('altChordSwallowedFor', () {
+    bool f({bool alt = false, bool ctrl = false, bool meta = false, required bool cmd}) =>
+        altChordSwallowedFor(alt: alt, control: ctrl, meta: meta, commandPlatform: cmd);
+
+    test('macOS: Option alone (e acute, o slash, em dash) is typing', () {
+      expect(f(alt: true, cmd: true), isFalse);
+    });
+    test('macOS: Cmd+Option is a shortcut', () {
+      expect(f(alt: true, meta: true, cmd: true), isTrue);
+    });
+    test('macOS: no Option never swallows', () {
+      expect(f(meta: true, cmd: true), isFalse);
+    });
+    test('Windows/Linux: Alt is a shortcut, AltGr (Ctrl+Alt) is typing', () {
+      expect(f(alt: true, cmd: false), isTrue);
+      expect(f(alt: true, ctrl: true, cmd: false), isFalse);
+    });
+  });
+
   group('compactLayoutFor', () {
     // iPad Split View / Stage Manager cannot be driven from the CLI at all —
     // simulator rotation and Split View need a System Events Automation

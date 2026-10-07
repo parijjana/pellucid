@@ -74,6 +74,21 @@ void main() {
     expect(teh.style!.decorationColor!.computeLuminance(), greaterThan(0.2));
   });
 
+  testWidgets('underline contrasts with the page on every theme', (tester) async {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance(), lb = b.computeLuminance();
+      return (la > lb ? la + 0.05 : lb + 0.05) / (la > lb ? lb + 0.05 : la + 0.05);
+    }
+
+    for (final t in WriterTheme.presets) {
+      final c = MarkdownEditingController(text: 'teh', theme: t);
+      c.setMisspellings([const TextRange(start: 0, end: 3)]);
+      final style = (await spansFor(tester, c)).single.style!;
+      expect(style.decorationColor, isNotNull, reason: t.name);
+      expect(contrast(style.decorationColor!, t.backgroundColor), greaterThan(3.0), reason: t.name);
+    }
+  });
+
   testWidgets('no misspellings leaves the spans untouched', (tester) async {
     final c = MarkdownEditingController(text: '# Title\nbody', theme: theme);
     expect((await spansFor(tester, c)).where(_isWavy), isEmpty);

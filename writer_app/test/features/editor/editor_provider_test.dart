@@ -94,6 +94,10 @@ void main() {
       expect(editorProvider.zoomLevel, 1.05);
       expect(EditorProvider.snapZoom(0.99), 1.0);
       expect(EditorProvider.snapZoom(0.1), 0.5);
+      expect(EditorProvider.snapZoom(5), 2.0);
+      expect(EditorProvider.snapZoom(1.0), 1.0);
+      expect(EditorProvider.snapZoom(1.024), 1.0);
+      expect(EditorProvider.snapZoom(1.026), 1.05);
     });
 
     group('failed document load', () {

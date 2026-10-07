@@ -380,8 +380,8 @@ class WriterApp extends StatelessWidget {
               // native menu items (Quit/Close/Minimize/Hide/Preferences, i.e.
               // Cmd+Q/W/M/H/,) can still be handled by AppKit's main menu.
               // AltGr (Ctrl+Alt on Windows) is typing, not a shortcut: see
-              // isAltShortcutPressed.
-              if (isAltShortcutPressed) {
+              // isAltChordSwallowed (which also lets plain macOS Option through).
+              if (isAltChordSwallowed) {
                 return KeyEventResult.handled;
               }
             }

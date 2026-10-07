@@ -16,11 +16,23 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pellucid/core/platform_context.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  testWidgets('isAltChordSwallowed (note dialog + app handler) follows the host rule', (tester) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    expect(isAltChordSwallowed, !usesCommandModifier, reason: 'plain Alt/Option');
+    if (usesCommandModifier) {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      expect(isAltChordSwallowed, isTrue, reason: 'Cmd+Option');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  });
+
   group('altChordSwallowedFor', () {
     bool f({bool alt = false, bool ctrl = false, bool meta = false, required bool cmd}) =>
         altChordSwallowedFor(alt: alt, control: ctrl, meta: meta, commandPlatform: cmd);

@@ -180,8 +180,9 @@ class _NoteEditorDialogState extends State<NoteEditorDialog> {
           autofocus: true,
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent) {
-              // Excludes AltGr (Ctrl+Alt on Windows), which types ą, µ, etc.
-              final isAlt = isAltShortcutPressed;
+              // Excludes AltGr (Ctrl+Alt on Windows) and plain Option on
+              // macOS/iOS (types ∫, µ, etc.): only Cmd+Option is a chord there.
+              final isAlt = isAltChordSwallowed;
               final isMeta = HardwareKeyboard.instance.isMetaPressed;
               final isControl = HardwareKeyboard.instance.isControlPressed;
 

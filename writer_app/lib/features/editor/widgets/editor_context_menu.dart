@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../sidebar/providers/notes_provider.dart';
 import '../marker_aware_editing.dart';
 import 'editor_selection_actions.dart';
+import 'grammar_hints.dart';
+import 'markdown_controller.dart';
 import 'spell_check_driver.dart';
 
 const _newNote = '\u0000new';
@@ -53,6 +55,29 @@ Widget buildEditorContextMenu(BuildContext context, EditableTextState editable) 
       onPressed: () {
         editable.hideToolbar();
         driver.ignore(hit.word);
+      },
+    ));
+  }
+
+  // Grammar hint under the caret (slice 8 checker): offer its fix.
+  final markdown = editable.widget.controller;
+  final issue = (markdown is MarkdownEditingController && sel.isValid && sel.isCollapsed)
+      ? markdown.grammarIssueAt(sel.baseOffset)
+      : null;
+  if (issue != null) {
+    final word = issue.replacement.trim();
+    items.add(ContextMenuButtonItem(
+      label: word.isEmpty ? 'Remove repeated word' : 'Use “$word”',
+      onPressed: () {
+        editable.hideToolbar();
+        final f = issue.fixRange;
+        editable.userUpdateTextEditingValue(
+          TextEditingValue(
+            text: issue.applyTo(value.text),
+            selection: TextSelection.collapsed(offset: f.start + issue.replacement.length),
+          ),
+          SelectionChangedCause.toolbar,
+        );
       },
     ));
   }

@@ -11,6 +11,7 @@ import 'package:pellucid/features/editor/marker_aware_editing.dart';
 import 'package:pellucid/features/editor/widgets/editor_context_menu.dart';
 import 'package:pellucid/features/editor/widgets/editor_selection_actions.dart';
 import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
+import 'package:pellucid/features/editor/utils/grammar_checker.dart';
 
 const _channel = MethodChannel('com.overengineeredhobbies.pellucid/clipboard');
 
@@ -75,5 +76,48 @@ void main() {
       await EditorSelectionActions.copySelection('plain words');
       expect(rich.single['plain'], 'plain words');
     });
+  });
+
+  group('slice 8 grammar fix in slice 7 menu', () {
+    Future<MarkdownEditingController> openMenuAt(WidgetTester tester, String text, int caret) async {
+      final c = MarkdownEditingController(text: text, theme: WriterTheme.presets.first);
+      c.setGrammarIssues(GrammarChecker.check(text));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextField(
+            controller: c,
+            maxLines: null,
+            contextMenuBuilder: (ctx, s) => buildEditorContextMenu(ctx, s),
+          ),
+        ),
+      ));
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      c.selection = TextSelection.collapsed(offset: caret);
+      await tester.pump();
+      tester.state<EditableTextState>(find.byType(EditableText)).showToolbar();
+      await tester.pump();
+      return c;
+    }
+
+    testWidgets('lone i offers and applies the capital I', (tester) async {
+      final c = await openMenuAt(tester, 'so i went', 4);
+      await tester.tap(find.text('Use “I”'));
+      await tester.pump();
+      expect(c.text, 'so I went');
+    }, variant: macOnly);
+
+    testWidgets('repeated word offers removal', (tester) async {
+      final c = await openMenuAt(tester, 'saw the the cat', 11);
+      await tester.tap(find.text('Remove repeated word'));
+      await tester.pump();
+      expect(c.text, 'saw the cat');
+    }, variant: macOnly);
+
+    testWidgets('no hint under the caret, no grammar item', (tester) async {
+      await openMenuAt(tester, 'so I went', 8);
+      expect(find.textContaining('Use “'), findsNothing);
+      expect(find.text('Remove repeated word'), findsNothing);
+    }, variant: macOnly);
   });
 }

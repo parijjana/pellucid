@@ -8,6 +8,8 @@ class SetBodyIntent extends Intent { const SetBodyIntent(); }
 class SetBulletIntent extends Intent { const SetBulletIntent(); }
 class ToggleBoldIntent extends Intent { const ToggleBoldIntent(); }
 class ToggleItalicIntent extends Intent { const ToggleItalicIntent(); }
+class ToggleStrikethroughIntent extends Intent { const ToggleStrikethroughIntent(); }
+class SetQuoteIntent extends Intent { const SetQuoteIntent(); }
 class ToggleUnderlineIntent extends Intent { const ToggleUnderlineIntent(); }
 
 // UI Toggles

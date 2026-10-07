@@ -57,6 +57,11 @@ class MobilePersistentToolbar extends StatelessWidget {
                     onPressed: () => onApplyFormat('- '),
                   ),
                   _ToolbarTextButton(
+                    label: 'QUOTE',
+                    theme: theme,
+                    onPressed: () => onApplyFormat('> '),
+                  ),
+                  _ToolbarTextButton(
                     label: 'BOLD',
                     theme: theme,
                     onPressed: () => onApplyFormat('**'),
@@ -65,6 +70,11 @@ class MobilePersistentToolbar extends StatelessWidget {
                     label: 'ITALIC',
                     theme: theme,
                     onPressed: () => onApplyFormat('*'),
+                  ),
+                  _ToolbarTextButton(
+                    label: 'STRIKE',
+                    theme: theme,
+                    onPressed: () => onApplyFormat('~~'),
                   ),
                 ],
               ),

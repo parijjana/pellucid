@@ -21,7 +21,10 @@ class FormattingToolbar extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.backgroundColor,
       ),
-      child: Row(
+      // Scales down on narrow windows instead of overflowing.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _labelButton('TITLE', () => onApplyFormat('# ')),
@@ -29,6 +32,7 @@ class FormattingToolbar extends StatelessWidget {
           _labelButton('SUBHEAD', () => onApplyFormat('### ')),
           _labelButton('BODY', () => onApplyFormat('body')),
           _labelButton('BULLET', () => onApplyFormat('- ')),
+          _labelButton('QUOTE', () => onApplyFormat('> ')),
           const SizedBox(width: 12),
           Container(
             height: 12, width: 1, 
@@ -37,7 +41,9 @@ class FormattingToolbar extends StatelessWidget {
           const SizedBox(width: 12),
           _labelButton('BOLD', () => onApplyFormat('**')),
           _labelButton('ITALIC', () => onApplyFormat('*')),
+          _labelButton('STRIKE', () => onApplyFormat('~~')),
         ],
+        ),
       ),
     );
   }

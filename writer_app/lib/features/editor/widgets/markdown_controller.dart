@@ -6,6 +6,9 @@ import '../providers/theme_provider.dart';
 import '../providers/codex_index.dart';
 import '../../search/providers/text_replacer.dart';
 
+/// Prefix of a block-quote line.
+const String blockQuoteMarker = '> ';
+
 class MarkdownEditingController extends TextEditingController {
   WriterTheme theme;
   String _searchQuery = '';
@@ -305,6 +308,8 @@ class MarkdownEditingController extends TextEditingController {
         _addStyledBlock(children, line, r'^## ', 24.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
       } else if (line.startsWith('### ')) {
         _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, currentOffset, contentColor: dim ? dimColor : null);
+      } else if (line.startsWith(blockQuoteMarker)) {
+        _addBlockQuote(children, line, currentOffset, style ?? const TextStyle(), dim ? dimColor : null);
       } else if (line.startsWith('- ')) {
         _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, currentOffset, isBullet: true, contentColor: dim ? dimColor : null);
       } else {
@@ -320,6 +325,21 @@ class MarkdownEditingController extends TextEditingController {
     }
 
     return TextSpan(style: style, children: children);
+  }
+
+  /// Block quote (`> text`): marker hidden, content italic and slightly muted.
+  /// Inline formatting inside the quote is still rendered.
+  void _addBlockQuote(List<InlineSpan> children, String line, int lineOffset, TextStyle base, Color? dimColor) {
+    children.add(const TextSpan(text: blockQuoteMarker, style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+    _addInlineStyledText(
+      children,
+      line.substring(blockQuoteMarker.length),
+      base.copyWith(
+        fontStyle: FontStyle.italic,
+        color: dimColor ?? theme.foregroundColor.withValues(alpha: 0.75),
+      ),
+      lineOffset + blockQuoteMarker.length,
+    );
   }
 
   void _addStyledBlock(List<InlineSpan> children, String line, String pattern, double fontSize, FontWeight weight, int lineOffset, {bool isBullet = false, Color? contentColor}) {
@@ -354,7 +374,7 @@ class MarkdownEditingController extends TextEditingController {
 
   void _addInlineStyledText(List<InlineSpan> children, String line, TextStyle baseStyle, int lineOffset) {
     // Scan for Bold + Italic (***), Bold (**), Italic (*), or Underline (<u>)
-    final regex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>)');
+    final regex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>|~~.*?~~)');
     int lastMatchEnd = 0;
     
     final matches = regex.allMatches(line);
@@ -406,6 +426,19 @@ class MarkdownEditingController extends TextEditingController {
           lineOffset + match.start + 3,
         );
         children.add(const TextSpan(text: '</u>', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 5) {
+        // Strikethrough: Hide tags
+        children.add(const TextSpan(text: '~~', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
+        _addInlineStyledText(
+          children,
+          matchText.substring(2, matchText.length - 2),
+          baseStyle.copyWith(decoration: TextDecoration.combine([
+            if (baseStyle.decoration != null) baseStyle.decoration!,
+            TextDecoration.lineThrough,
+          ])),
+          lineOffset + match.start + 2,
+        );
+        children.add(const TextSpan(text: '~~', style: TextStyle(color: Colors.transparent, fontSize: 1.0, letterSpacing: -1.0)));
       } else {
         // Fallback for malformed matches
         _emitStyled(children, matchText, baseStyle, lineOffset + match.start);
@@ -525,7 +558,7 @@ class MarkdownEditingController extends TextEditingController {
   }
 
   void _findRangesRecursive(String text, int offset, List<_FormatRange> ranges) {
-    final regex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>)');
+    final regex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>|~~.*?~~)');
     final matches = regex.allMatches(text);
     
     for (final match in matches) {
@@ -542,6 +575,9 @@ class MarkdownEditingController extends TextEditingController {
       } else if (matchText.startsWith('*') && matchText.length >= 2) {
         ranges.add(_FormatRange('*', matchStart, matchStart + 1, matchEnd - 1, matchEnd));
         _findRangesRecursive(matchText.substring(1, matchText.length - 1), matchStart + 1, ranges);
+      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 5) {
+        ranges.add(_FormatRange('~~', matchStart, matchStart + 2, matchEnd - 2, matchEnd));
+        _findRangesRecursive(matchText.substring(2, matchText.length - 2), matchStart + 2, ranges);
       } else if (matchText.startsWith('<u>') && matchText.endsWith('</u>') && matchText.length >= 7) {
         ranges.add(_FormatRange('<u>', matchStart, matchStart + 3, matchEnd - 4, matchEnd));
         _findRangesRecursive(matchText.substring(3, matchText.length - 4), matchStart + 3, ranges);
@@ -584,13 +620,13 @@ class MarkdownEditingController extends TextEditingController {
 
     if (tag == 'body') {
       // Remove any leading header or bullet tags
-      newLineContent = lineContent.replaceFirst(RegExp(r'^(#+\s*|-\s*)'), '');
+      newLineContent = lineContent.replaceFirst(RegExp(r'^(#+\s*|-\s*|>\s*)'), '');
     } else if (lineContent.startsWith(tag)) {
       // Remove existing tag
       newLineContent = lineContent.substring(tag.length);
     } else {
       // Remove existing tag first if any, then add new tag
-      final stripped = lineContent.replaceFirst(RegExp(r'^(#+\s*|-\s*)'), '');
+      final stripped = lineContent.replaceFirst(RegExp(r'^(#+\s*|-\s*|>\s*)'), '');
       newLineContent = '$tag$stripped';
     }
 

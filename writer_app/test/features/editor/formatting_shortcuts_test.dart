@@ -288,4 +288,62 @@ void main() {
     await pressAltKey(LogicalKeyboardKey.keyJ);
     expect(controller.text, 'Hello world');
   });
+
+  testWidgets('Quote (Alt/Cmd+Opt+Q) and Strikethrough (Alt/Cmd+Opt+X) shortcuts', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<EditorProvider>.value(value: mockEditor),
+          ChangeNotifierProvider<ThemeProvider>.value(value: mockTheme),
+          ChangeNotifierProvider<SettingsProvider>.value(value: mockSettings),
+          ChangeNotifierProvider<SyncProvider>.value(value: mockSync),
+          ChangeNotifierProvider<HistoryProvider>.value(value: mockHistory),
+          ChangeNotifierProvider<NotesProvider>.value(value: mockNotes),
+          ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+          ChangeNotifierProvider<ShortcutsProvider>.value(value: realShortcuts),
+          ChangeNotifierProvider<SprintController>(create: (_) => SprintController()),
+        ],
+        child: const MaterialApp(
+          home: EditorScreen(),
+        ),
+      ),
+    );
+
+    // Find the text field inside EditorScreen and focus it
+    final textFieldFinder = find.byType(TextField);
+    expect(textFieldFinder, findsOneWidget);
+
+    final FocusNode focusNode = tester.widget<TextField>(textFieldFinder).focusNode!;
+    focusNode.requestFocus();
+    await tester.pump();
+
+    final controller = tester.widget<TextField>(textFieldFinder).controller!;
+
+    // Collapsed cursor at the start of the line, matching how the line-based
+    // header/title/bullet formatting activators expect selection state.
+    controller.selection = const TextSelection.collapsed(offset: 0);
+
+    // Formatting shortcuts in Pellucid are unified: Alt/Opt + Key on
+    // Windows/Linux, and Cmd + Opt + Key on macOS (see pressShortcut in
+    // shortcuts_test.dart for the same pattern).
+    final bool isMac = Platform.isMacOS;
+    Future<void> pressAltKey(LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      if (isMac) await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      if (isMac) await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump();
+    }
+
+    await pressAltKey(LogicalKeyboardKey.keyQ);
+    expect(controller.text, '> Hello world');
+    await pressAltKey(LogicalKeyboardKey.keyQ);
+    expect(controller.text, 'Hello world');
+
+    controller.selection = const TextSelection(baseOffset: 6, extentOffset: 11);
+    await pressAltKey(LogicalKeyboardKey.keyX);
+    expect(controller.text, 'Hello ~~world~~');
+  });
 }

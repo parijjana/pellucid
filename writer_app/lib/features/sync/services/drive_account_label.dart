@@ -51,17 +51,25 @@ class DriveAccountLabelStore {
   static const String key = 'google_drive_account_label';
 
   Future<String?> read() async {
-    final value = (await SharedPreferences.getInstance()).getString(key);
-    return (value == null || value.trim().isEmpty) ? null : value;
+    try {
+      final value = (await SharedPreferences.getInstance()).getString(key);
+      return (value == null || value.trim().isEmpty) ? null : value;
+    } catch (_) {
+      return null; // a missing label must never break login-status checks
+    }
   }
 
   Future<void> write(String? label) async {
-    final prefs = await SharedPreferences.getInstance();
-    final clean = label?.trim();
-    if (clean == null || clean.isEmpty) {
-      await prefs.remove(key);
-    } else {
-      await prefs.setString(key, clean);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final clean = label?.trim();
+      if (clean == null || clean.isEmpty) {
+        await prefs.remove(key);
+      } else {
+        await prefs.setString(key, clean);
+      }
+    } catch (_) {
+      // Label is cosmetic; failing to store it is not worth an error.
     }
   }
 }

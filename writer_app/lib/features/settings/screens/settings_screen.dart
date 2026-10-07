@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:file_selector/file_selector.dart';
 import '../providers/settings_provider.dart';
+import '../../editor/providers/editor_font.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../editor/providers/theme_provider.dart';
 import '../../editor/widgets/integrated_header.dart';
@@ -915,6 +916,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         _buildToggleRow(label: 'TOC Word Counts', value: settings.tocWordCountsEnabled, onChanged: settings.toggleTocWordCounts, theme: theme),
         _buildDailyGoalRow(settings, theme),
+        _buildFontRow(settings, theme),
         _buildToggleRow(label: 'Battery Guard', value: settings.batteryGuardEnabled, onChanged: settings.toggleBatteryGuard, theme: theme),
         if (settings.batteryGuardEnabled) ...[
           Padding(
@@ -954,6 +956,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildFontRow(SettingsProvider settings, WriterTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Document Font', style: TextStyle(color: theme.foregroundColor, fontSize: 13)),
+          DropdownButton<EditorFont>(
+            key: const Key('document_font_dropdown'),
+            value: settings.editorFont,
+            dropdownColor: theme.sidebarColor,
+            style: TextStyle(color: theme.foregroundColor, fontSize: 13),
+            underline: const SizedBox(),
+            onChanged: (EditorFont? value) {
+              if (value != null) settings.setEditorFont(value);
+            },
+            items: EditorFont.values.map<DropdownMenuItem<EditorFont>>((EditorFont f) {
+              return DropdownMenuItem<EditorFont>(
+                value: f,
+                child: Text(f.label, style: f.apply()),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 

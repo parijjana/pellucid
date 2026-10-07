@@ -7,6 +7,7 @@ import '../services/native_spell_check_service.dart';
 import '../providers/theme_provider.dart';
 import '../providers/editor_provider.dart';
 import '../providers/codex_index.dart';
+import '../providers/editor_font.dart';
 import '../../sidebar/providers/note_card.dart';
 import 'codex_mention_detector.dart';
 import 'markdown_controller.dart';
@@ -32,6 +33,7 @@ class EditorPaperArea extends StatelessWidget {
   final List<NoteCard> notes;
   final void Function(String noteId) onOpenNote;
   final bool spellCheckEnabled;
+  final EditorFont editorFont;
 
   const EditorPaperArea({
     super.key,
@@ -46,6 +48,7 @@ class EditorPaperArea extends StatelessWidget {
     required this.notes,
     required this.onOpenNote,
     required this.spellCheckEnabled,
+    this.editorFont = EditorFont.defaultFont,
   });
 
   @override
@@ -124,12 +127,11 @@ class EditorPaperArea extends StatelessWidget {
                     ? const SpellCheckConfiguration()
                     : const SpellCheckConfiguration.disabled(),
                 cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
-                style: TextStyle(
+                style: editorFont.apply(TextStyle(
                   color: theme.foregroundColor,
                   fontSize: 16 * zoomLevel,
                   height: 1.8,
-                  fontFamily: 'Georgia',
-                ),
+                )),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   focusedBorder: InputBorder.none,

@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file/memory.dart';
 import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'settings_database.dart';
+import '../../editor/providers/editor_font.dart';
 import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
 import '../../sidebar/providers/note_card.dart';
@@ -80,6 +81,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // Spell Check Setting
   bool _spellCheckEnabled = true;
+  EditorFont _editorFont = EditorFont.defaultFont;
 
   // Google OAuth Settings
   String? _googleClientId;
@@ -115,6 +117,7 @@ class SettingsProvider extends ChangeNotifier {
     _tocWordCountsEnabled = (settings['toc_word_counts_enabled'] ?? 1) == 1;
     _dailyWordGoal = settings['daily_word_goal'] ?? 0;
     _spellCheckEnabled = (settings['spell_check_enabled'] ?? 1) == 1;
+    _editorFont = EditorFont.fromId(settings['editor_font'] as String?);
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = settings['google_client_secret'];
     _syncIntervalMinutes = settings['sync_interval_minutes'] ?? 30;
@@ -197,6 +200,7 @@ class SettingsProvider extends ChangeNotifier {
   String? get googleClientSecret => _googleClientSecret;
   int get syncIntervalMinutes => _syncIntervalMinutes;
   bool get spellCheckEnabled => _spellCheckEnabled;
+  EditorFont get editorFont => _editorFont;
 
   String? get currentProjectPath {
     if (_masterDirectoryPath == null || _currentProjectName == null) return null;
@@ -262,6 +266,13 @@ class SettingsProvider extends ChangeNotifier {
   void toggleSpellCheck(bool enabled) {
     _spellCheckEnabled = enabled;
     _db.updateSetting('spell_check_enabled', enabled);
+    notifyListeners();
+  }
+
+  void setEditorFont(EditorFont font) {
+    if (_editorFont == font) return;
+    _editorFont = font;
+    _db.updateSetting('editor_font', font.id);
     notifyListeners();
   }
 

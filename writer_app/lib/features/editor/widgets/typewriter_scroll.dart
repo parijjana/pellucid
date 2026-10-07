@@ -3,6 +3,7 @@
 // caret position (same approximation as the editor's search jump logic).
 
 import 'package:flutter/material.dart';
+import '../providers/editor_font.dart';
 
 /// Vertical inset between the top of the scroll content and the first text
 /// line: SingleChildScrollView vertical padding (100) + paper padding (60).
@@ -10,7 +11,7 @@ const double kEditorTextTopInset = 160.0;
 
 /// Returns the scroll offset that vertically centers the caret line in the
 /// viewport. Mirrors the editor's text style parameters (16.0 * zoom,
-/// height 1.8, Georgia, maxWidth = pageWidth - 120.0). Result is NOT clamped
+/// height 1.8, the chosen [font], maxWidth = pageWidth - 120.0). Result is NOT clamped
 /// to the scroll extents; callers must clamp.
 double typewriterTargetOffset({
   required String text,
@@ -18,6 +19,7 @@ double typewriterTargetOffset({
   required double zoomLevel,
   required double pageWidth,
   required double viewportHeight,
+  EditorFont font = EditorFont.defaultFont,
 }) {
   final int clampedCaret = caretOffset.clamp(0, text.length);
   final String measured = text.substring(0, clampedCaret);
@@ -25,11 +27,10 @@ double typewriterTargetOffset({
   final textPainter = TextPainter(
     text: TextSpan(
       text: measured,
-      style: TextStyle(
+      style: font.apply(TextStyle(
         fontSize: 16.0 * zoomLevel,
         height: 1.8,
-        fontFamily: 'Georgia',
-      ),
+      )),
     ),
     textDirection: TextDirection.ltr,
   );

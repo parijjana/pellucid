@@ -245,6 +245,7 @@ class _EditorScreenState extends State<EditorScreen> {
       zoomLevel: _editorProvider.zoomLevel,
       pageWidth: _editorProvider.pageWidth,
       viewportHeight: _scrollController.position.viewportDimension,
+      font: context.read<SettingsProvider>().editorFont,
     ).clamp(0.0, _scrollController.position.maxScrollExtent);
 
     if ((target - _scrollController.offset).abs() < 1.0) return;
@@ -290,11 +291,10 @@ class _EditorScreenState extends State<EditorScreen> {
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(
+        style: context.read<SettingsProvider>().editorFont.apply(TextStyle(
           fontSize: 16.0 * zoomLevel,
           height: 1.8,
-          fontFamily: 'Georgia',
-        ),
+        )),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -412,11 +412,10 @@ class _EditorScreenState extends State<EditorScreen> {
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(
+        style: context.read<SettingsProvider>().editorFont.apply(TextStyle(
           fontSize: 16.0 * zoomLevel,
           height: 1.8,
-          fontFamily: 'Georgia',
-        ),
+        )),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -572,6 +571,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         notes: notesProvider.cards,
                                         onOpenNote: _openNote,
                                         spellCheckEnabled: settings.spellCheckEnabled == true,
+                                        editorFont: settings.editorFont,
                                         onChanged: (val) {
                                           final settings = context.read<SettingsProvider>();
                                           final sync = context.read<SyncProvider>();

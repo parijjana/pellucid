@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:pellucid/features/editor/providers/editor_font.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/settings/providers/settings_provider.dart';
@@ -15,7 +16,10 @@ import 'package:pellucid/features/sync/services/project_pull.dart';
 
 class MockSyncProvider extends Mock implements SyncProvider {}
 
-class MockSettingsProvider extends Mock implements SettingsProvider {}
+class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  EditorFont get editorFont => EditorFont.defaultFont;
+}
 
 class MockStorageService extends Mock implements StorageService {}
 

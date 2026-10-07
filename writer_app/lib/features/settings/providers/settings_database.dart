@@ -37,6 +37,7 @@ class SettingsDatabase {
     'toc_word_counts_enabled': 1,
     'daily_word_goal': 0,
     'spell_check_enabled': 1,
+    'editor_font': 'serif',
     'last_full_backup_time': null,
   };
 
@@ -66,7 +67,7 @@ class SettingsDatabase {
 
     return await openDatabase(
       path,
-      version: 18, // Incremented for the manuscript-filename migration marker table
+      version: 19, // 19: editor_font column (document font, item 14)
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -101,7 +102,8 @@ class SettingsDatabase {
         codex_linking_enabled INTEGER DEFAULT 0,
         toc_word_counts_enabled INTEGER DEFAULT 1,
         daily_word_goal INTEGER DEFAULT 0,
-        spell_check_enabled INTEGER DEFAULT 1
+        spell_check_enabled INTEGER DEFAULT 1,
+        editor_font TEXT DEFAULT 'serif'
       )
     ''');
 
@@ -149,6 +151,7 @@ class SettingsDatabase {
       'toc_word_counts_enabled': 1,
       'daily_word_goal': 0,
       'spell_check_enabled': 1,
+      'editor_font': 'serif',
     });
   }
 
@@ -223,6 +226,9 @@ class SettingsDatabase {
           pulled_at TEXT NOT NULL
         )
       ''');
+    }
+    if (oldVersion < 19) {
+      await db.execute("ALTER TABLE settings ADD COLUMN editor_font TEXT DEFAULT 'serif'");
     }
   }
 

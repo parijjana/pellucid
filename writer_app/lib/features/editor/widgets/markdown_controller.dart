@@ -61,6 +61,24 @@ class MarkdownEditingController extends TextEditingController {
     ];
   }
 
+  /// Index of the first range in [ranges] whose end is past [offset].
+  /// [ranges] must be sorted and non-overlapping (spell-check results and
+  /// Codex mentions both are), so their ends ascend and binary search works.
+  @visibleForTesting
+  static int firstRangeEndingAfter<T>(List<T> ranges, int offset, int Function(T) endOf) {
+    int lo = 0;
+    int hi = ranges.length;
+    while (lo < hi) {
+      final int mid = (lo + hi) >> 1;
+      if (endOf(ranges[mid]) <= offset) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
   bool get codexLinkingEnabled => _codexLinkingEnabled;
   set codexLinkingEnabled(bool val) {
     if (_codexLinkingEnabled != val) {
@@ -140,12 +158,16 @@ class MarkdownEditingController extends TextEditingController {
   List<InlineSpan> _underlineMisspellings(List<InlineSpan> spans, int startOffset) {
     final List<InlineSpan> out = [];
     int offset = startOffset;
+    // Skip straight to the first range that can reach this segment: scanning
+    // from the start for every segment was quadratic on long manuscripts.
+    final int first = firstRangeEndingAfter(_misspellings, startOffset, (r) => r.end);
     for (final span in spans) {
       final textSpan = span as TextSpan;
       final String run = textSpan.text ?? '';
       final int runEnd = offset + run.length;
       int cursor = 0;
-      for (final r in _misspellings) {
+      for (int i = first; i < _misspellings.length; i++) {
+        final r = _misspellings[i];
         if (r.end <= offset + cursor) continue;
         if (r.start >= runEnd) break;
         final int mStart = (r.start < offset ? offset : r.start) - offset;
@@ -257,7 +279,8 @@ class MarkdownEditingController extends TextEditingController {
     final int segEnd = absOffset + segment.length;
     int cursor = 0; // local index into segment
 
-    for (final r in ranges) {
+    for (int i = firstRangeEndingAfter(ranges, absOffset, (r) => r.end); i < ranges.length; i++) {
+      final r = ranges[i];
       if (r.end <= absOffset) continue;
       if (r.start >= segEnd) break;
       final int mStart = (r.start < absOffset ? absOffset : r.start) - absOffset;

@@ -18,6 +18,9 @@ Supports all standard OS text interactions.
 | :--- | :--- | :--- |
 | Toggle Bold | `Ctrl + B` | `Cmd + B` |
 | Toggle Italic | `Ctrl + I` | `Cmd + I` |
+| Line as Subheading (`### `) | `Alt + J` | `Cmd + Opt + J` |
+| Line as Block Quote (`> `) | `Alt + Q` | `Cmd + Opt + Q` |
+| Toggle Strikethrough (`~~`) | `Alt + X` | `Cmd + Opt + X` |
 | Copy | `Ctrl + C` OR `Ctrl + Insert` | `Cmd + C` |
 | Paste | `Ctrl + V` OR `Shift + Insert` | `Cmd + V` |
 | Cut | `Ctrl + X` | `Cmd + X` |
@@ -77,6 +80,11 @@ Moving the writing area on the screen.
 | Shift Paper Left | `Alt + Shift + Left` | `Cmd + Opt + Shift + Left` |
 
 ---
+
+## Free-key check for formatting additions (2026-10-07)
+Keys in use with `Alt` / `Cmd+Opt`: 1-6, A, B, C, E, G, K, L, M, N, P, S, T, arrows, Enter.
+`H` is avoided (`Cmd+Opt+H` is "Hide Others" on macOS) and `D` too (`Cmd+Opt+D` toggles the Dock).
+New: `J` (Subheading), `Q` (Block Quote), `X` (Strikethrough). All three are free on both platforms.
 
 ## Conflict Verification
 - **System:** `Alt+F4`, `Alt+Tab`, and macOS `Cmd+Space` are avoided.

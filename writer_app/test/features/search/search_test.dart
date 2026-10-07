@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:pellucid/features/editor/providers/editor_font.dart';
 import 'package:pellucid/features/search/providers/search_provider.dart';
 import 'package:pellucid/features/search/widgets/search_popup.dart';
 import 'package:pellucid/features/editor/providers/editor_provider.dart';
@@ -17,6 +18,8 @@ class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockNotesProvider extends Mock implements NotesProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  EditorFont get editorFont => EditorFont.defaultFont;
   @override
   bool get spellCheckEnabled => true;
 }

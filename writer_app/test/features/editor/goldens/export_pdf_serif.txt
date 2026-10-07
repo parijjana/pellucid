@@ -1,0 +1,25 @@
+fonts: Times-Bold, Times-Italic, Times-Roman
+embeddedFontFiles: false
+text:
+Chapter
+One
+Part
+Subheading
+here
+Plain
+with
+struck
+and
+bold
+and
+italic
+words,
+~5
+minutes
+stays.
+A
+quoted
+line
+Back
+to
+body.

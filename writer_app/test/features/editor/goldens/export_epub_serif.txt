@@ -1,0 +1,26 @@
+css:
+body { font-family: 'Georgia', 'Times New Roman', 'Noto Serif', serif; }
+blockquote { margin: 1em 2em; font-style: italic; }
+del { text-decoration: line-through; }
+
+chapter:
+<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+  <meta charset="utf-8"/>
+  <title>Chapter One</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <h1 id="ch_ID">Chapter One</h1>
+  <h1>Chapter One</h1><h2>Part</h2>
+<h3>Subheading here</h3>
+<p>Plain with <del>struck</del> and <strong>bold</strong> and <em>italic</em> words, ~5 minutes stays.</p>
+<blockquote>
+<p>A quoted line</p>
+</blockquote>
+<p>Back to body.</p>
+
+</body>
+</html>
+

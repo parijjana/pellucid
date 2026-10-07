@@ -58,6 +58,11 @@ class MobilePersistentToolbar extends StatelessWidget {
                     onPressed: () => onApplyFormat('## '),
                   ),
                   _ToolbarTextButton(
+                    label: 'SUBHEAD',
+                    theme: theme,
+                    onPressed: () => onApplyFormat('### '),
+                  ),
+                  _ToolbarTextButton(
                     label: 'BODY',
                     theme: theme,
                     active: f.block == BlockStyle.body && f.list == ListStyle.none,
@@ -70,6 +75,11 @@ class MobilePersistentToolbar extends StatelessWidget {
                     onPressed: () => onApplyFormat('- '),
                   ),
                   _ToolbarTextButton(
+                    label: 'QUOTE',
+                    theme: theme,
+                    onPressed: () => onApplyFormat('> '),
+                  ),
+                  _ToolbarTextButton(
                     label: 'BOLD',
                     theme: theme,
                     active: f.bold,
@@ -80,6 +90,11 @@ class MobilePersistentToolbar extends StatelessWidget {
                     theme: theme,
                     active: f.italic,
                     onPressed: () => onApplyFormat('*'),
+                  ),
+                  _ToolbarTextButton(
+                    label: 'STRIKE',
+                    theme: theme,
+                    onPressed: () => onApplyFormat('~~'),
                   ),
                 ],
               ),

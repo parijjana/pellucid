@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:pellucid/features/editor/providers/editor_font.dart';
 import 'package:pellucid/features/editor/providers/editor_provider.dart';
 import 'package:pellucid/features/editor/providers/local_snapshot_store.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
@@ -20,6 +21,8 @@ import 'package:pellucid/features/sync/models/logical_file.dart';
 
 class MockStorageService extends Mock implements StorageService {}
 class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  EditorFont get editorFont => EditorFont.defaultFont;
   @override
   bool get spellCheckEnabled => true;
 }

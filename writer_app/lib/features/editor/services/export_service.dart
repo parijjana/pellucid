@@ -1,48 +1,103 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:epub_builder/epub_builder.dart' as eb;
-import 'package:markdown/markdown.dart' as md;
+import '../providers/editor_font.dart';
+import 'export_markdown.dart';
 import 'package:htmltopdfwidgets/htmltopdfwidgets.dart' as htp;
 
 class ExportService {
-  Future<void> exportToPdf(String markdown, String filePath) async {
-    final pdf = pw.Document();
-    
+  /// PDF theme for the chosen document font. These are the PDF standard
+  /// fonts (Times, Helvetica, Courier): every viewer supplies them, so nothing
+  /// is embedded and no font licence applies. If a bundled font is ever
+  /// embedded here it must pass the font rule in the project CLAUDE.md.
+  static pw.ThemeData pdfThemeFor(EditorFont font) {
+    switch (font) {
+      case EditorFont.serif:
+        return pw.ThemeData.withFont(
+          base: pw.Font.times(),
+          bold: pw.Font.timesBold(),
+          italic: pw.Font.timesItalic(),
+          boldItalic: pw.Font.timesBoldItalic(),
+        );
+      case EditorFont.sans:
+        return pw.ThemeData.withFont(
+          base: pw.Font.helvetica(),
+          bold: pw.Font.helveticaBold(),
+          italic: pw.Font.helveticaOblique(),
+          boldItalic: pw.Font.helveticaBoldOblique(),
+        );
+      case EditorFont.monospace:
+        return pw.ThemeData.withFont(
+          base: pw.Font.courier(),
+          bold: pw.Font.courierBold(),
+          italic: pw.Font.courierOblique(),
+          boldItalic: pw.Font.courierBoldOblique(),
+        );
+    }
+  }
+
+  /// Builds the PDF in memory. [compress] is off in tests so the content
+  /// streams can be inspected.
+  Future<Uint8List> buildPdf(
+    String markdown, {
+    EditorFont font = EditorFont.defaultFont,
+    bool compress = true,
+  }) async {
+    final pdf = pw.Document(compress: compress);
+
     // Convert Markdown to PDF Widgets
     final widgets = await htp.HTMLToPdf().convert(
-      md.markdownToHtml(markdown),
+      markdownToExportHtml(markdown),
     );
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
+        theme: pdfThemeFor(font),
         build: (context) => widgets,
       ),
     );
 
-    final file = File(filePath);
-    await file.writeAsBytes(await pdf.save());
+    return pdf.save();
   }
 
-  Future<void> exportToEpub({
+  Future<void> exportToPdf(
+    String markdown,
+    String filePath, {
+    EditorFont font = EditorFont.defaultFont,
+  }) async {
+    final file = File(filePath);
+    await file.writeAsBytes(await buildPdf(markdown, font: font));
+  }
+
+  /// The stylesheet shipped inside the EPUB: the chosen font for the book.
+  static String epubCssFor(EditorFont font) =>
+      'body { font-family: ${font.cssFamily}; }\n'
+      'blockquote { margin: 1em 2em; font-style: italic; }\n'
+      'del { text-decoration: line-through; }\n';
+
+  /// Builds the EPUB in memory (also used by the tests).
+  Uint8List buildEpub({
     required String markdown,
     required String title,
     required String author,
-    required String filePath,
-  }) async {
+    EditorFont font = EditorFont.defaultFont,
+  }) {
     final book = eb.EpubBook.create(
       title: title,
       authors: [author],
+      cssContent: epubCssFor(font),
     );
 
     // Split markdown by headers to create chapters
     final chapters = _splitIntoChapters(markdown);
-    
+
     for (var i = 0; i < chapters.length; i++) {
       final chapter = chapters[i];
-      final htmlContent = md.markdownToHtml(chapter.content);
-      
+      final htmlContent = markdownToExportHtml(chapter.content);
+
       book.addChapter(
         eb.EpubChapter(
           title: chapter.title.isEmpty ? 'Chapter ${i + 1}' : chapter.title,
@@ -52,12 +107,19 @@ class ExportService {
     }
 
     final bytes = eb.EpubBuilder(book).encode();
-    if (bytes != null) {
-      final file = File(filePath);
-      await file.writeAsBytes(bytes);
-    } else {
-      throw Exception('Failed to encode EPUB');
-    }
+    if (bytes == null) throw Exception('Failed to encode EPUB');
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<void> exportToEpub({
+    required String markdown,
+    required String title,
+    required String author,
+    required String filePath,
+    EditorFont font = EditorFont.defaultFont,
+  }) async {
+    final bytes = buildEpub(markdown: markdown, title: title, author: author, font: font);
+    await File(filePath).writeAsBytes(bytes);
   }
 
   List<_Chapter> _splitIntoChapters(String markdown) {

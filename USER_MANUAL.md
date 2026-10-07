@@ -44,10 +44,13 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 ### Text Formatting:
 - Alt + T: Format current line as Title / Cmd + Opt + T on macOS
 - Alt + E: Format current line as Header / Cmd + Opt + E on macOS
+- Alt + J: Format current line as Subheading (###) / Cmd + Opt + J on macOS
+- Alt + Q: Format current line as Block Quote (> ) / Cmd + Opt + Q on macOS
 - Alt + G: Format current line as Body text / Cmd + Opt + G on macOS
 - Alt + L: Format current line as Bullet point / Cmd + Opt + L on macOS
 - Ctrl + B: Toggle Bold on selection / Cmd + B on macOS
 - Ctrl + I: Toggle Italic on selection / Cmd + I on macOS
+- Alt + X: Toggle Strikethrough (~~text~~) on selection / Cmd + Opt + X on macOS
 
 ### Notes and Attribution Workflow:
 - Alt + N: Create a new Research Note / Cmd + Opt + N on macOS

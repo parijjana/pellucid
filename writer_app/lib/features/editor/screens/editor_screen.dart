@@ -248,6 +248,7 @@ class _EditorScreenState extends State<EditorScreen> {
       zoomLevel: _editorProvider.zoomLevel,
       pageWidth: _editorProvider.pageWidth,
       viewportHeight: _scrollController.position.viewportDimension,
+      font: context.read<SettingsProvider>().editorFont,
     ).clamp(0.0, _scrollController.position.maxScrollExtent);
 
     if ((target - _scrollController.offset).abs() < 1.0) return;
@@ -293,11 +294,10 @@ class _EditorScreenState extends State<EditorScreen> {
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(
+        style: context.read<SettingsProvider>().editorFont.apply(TextStyle(
           fontSize: 16.0 * zoomLevel,
           height: 1.8,
-          fontFamily: 'Georgia',
-        ),
+        )),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -417,11 +417,10 @@ class _EditorScreenState extends State<EditorScreen> {
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(
+        style: context.read<SettingsProvider>().editorFont.apply(TextStyle(
           fontSize: 16.0 * zoomLevel,
           height: 1.8,
-          fontFamily: 'Georgia',
-        ),
+        )),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -470,6 +469,9 @@ class _EditorScreenState extends State<EditorScreen> {
         // Formatting (Still local to editor for context)
         SingleActivator(LogicalKeyboardKey.keyT, alt: true, meta: usesCommandModifier): const SetTitleIntent(),
         SingleActivator(LogicalKeyboardKey.keyE, alt: true, meta: usesCommandModifier): const SetHeaderIntent(),
+        SingleActivator(LogicalKeyboardKey.keyJ, alt: true, meta: usesCommandModifier): const SetSubheadingIntent(),
+        SingleActivator(LogicalKeyboardKey.keyQ, alt: true, meta: usesCommandModifier): const SetQuoteIntent(),
+        SingleActivator(LogicalKeyboardKey.keyX, alt: true, meta: usesCommandModifier): const ToggleStrikethroughIntent(),
         SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: usesCommandModifier): const SetBodyIntent(),
         SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: usesCommandModifier): const SetBulletIntent(),
         SingleActivator(LogicalKeyboardKey.keyB, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleBoldIntent(),
@@ -502,6 +504,9 @@ class _EditorScreenState extends State<EditorScreen> {
           }),
           SetTitleIntent: CallbackAction<SetTitleIntent>(onInvoke: (_) => _applyFormat('# ')),
           SetHeaderIntent: CallbackAction<SetHeaderIntent>(onInvoke: (_) => _applyFormat('## ')),
+          SetSubheadingIntent: CallbackAction<SetSubheadingIntent>(onInvoke: (_) => _applyFormat('### ')),
+          SetQuoteIntent: CallbackAction<SetQuoteIntent>(onInvoke: (_) => _applyFormat('> ')),
+          ToggleStrikethroughIntent: CallbackAction<ToggleStrikethroughIntent>(onInvoke: (_) => _applyFormat('~~')),
           SetBodyIntent: CallbackAction<SetBodyIntent>(onInvoke: (_) => _applyFormat('body')),
           SetBulletIntent: CallbackAction<SetBulletIntent>(onInvoke: (_) => _applyFormat('- ')),
           ToggleBoldIntent: CallbackAction<ToggleBoldIntent>(onInvoke: (_) => _applyFormat('**')),
@@ -571,6 +576,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         notes: notesProvider.cards,
                                         onOpenNote: _openNote,
                                         spellCheckEnabled: settings.spellCheckEnabled == true,
+                                        editorFont: settings.editorFont,
                                         onChanged: (val) {
                                           final settings = context.read<SettingsProvider>();
                                           final sync = context.read<SyncProvider>();

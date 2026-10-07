@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:pellucid/features/editor/providers/editor_font.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/settings/providers/settings_provider.dart';
 import 'package:pellucid/features/editor/widgets/alarm_setter_dialog.dart';
@@ -9,6 +10,8 @@ import 'package:provider/provider.dart';
 
 class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockSettingsProvider extends Mock implements SettingsProvider {
+  @override
+  EditorFont get editorFont => EditorFont.defaultFont;
   @override
   bool get spellCheckEnabled => true;
 }

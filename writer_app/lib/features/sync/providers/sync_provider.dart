@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
+import '../services/drive_account_label.dart';
 import '../services/google_drive_sync_service.dart';
 import '../services/manuscript_migration.dart';
 import '../services/project_pull.dart';
@@ -33,6 +34,12 @@ class SyncProvider with ChangeNotifier {
   bool _fullBackupInProgress = false;
   bool get isFullBackupInProgress => _fullBackupInProgress;
 
+  /// How the connected Google account is shown in Settings: "Name (email)"
+  /// from Drive, or a name the user typed. Local only; never sent or logged.
+  String? _accountLabel;
+  String? get accountLabel => _accountLabel;
+  final DriveAccountLabelStore _labelStore = DriveAccountLabelStore();
+
   List<drive.Revision> _history = [];
   List<drive.Revision> get history => _history;
 
@@ -44,6 +51,7 @@ class SyncProvider with ChangeNotifier {
 
   Future<void> _checkLoginStatus() async {
     _isLoggedIn = await _service.isLoggedIn;
+    _accountLabel = _isLoggedIn ? await _labelStore.read() : null;
     final settings = await _db.getSettings();
     final lastSyncedStr = settings['last_synced_time'];
     if (lastSyncedStr != null) {
@@ -56,14 +64,38 @@ class SyncProvider with ChangeNotifier {
     try {
       await _service.login(customClientId: clientId, customClientSecret: clientSecret);
       await _checkLoginStatus();
+      if (_isLoggedIn) await _resolveAccountLabel();
       return _isLoggedIn;
     } catch (e) {
       return false;
     }
   }
 
+  /// Asks Drive who the account is (about.get, drive.file only). If it
+  /// answers, the label is stored; if not, [accountLabel] stays null and the
+  /// UI asks the user to name the connection via [setAccountLabel].
+  Future<void> _resolveAccountLabel() async {
+    final user = await _service.fetchAccountUser();
+    final label = user?.label;
+    if (label != null) {
+      _accountLabel = label;
+      await _labelStore.write(label);
+      notifyListeners();
+    }
+  }
+
+  /// Stores a user-chosen name for the connection (e.g. "Personal Drive").
+  /// An empty name clears it.
+  Future<void> setAccountLabel(String? name) async {
+    final clean = name?.trim();
+    _accountLabel = (clean == null || clean.isEmpty) ? null : clean;
+    await _labelStore.write(_accountLabel);
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     await _service.logout();
+    _accountLabel = null;
     _isLoggedIn = false;
     _lastSynced = null;
     await _db.updateSetting('last_synced_time', null);

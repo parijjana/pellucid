@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'drive_account_label.dart';
 import 'oauth_helper_factory.dart';
 import '../models/logical_file.dart';
 
@@ -109,8 +110,17 @@ class GoogleDriveSyncService {
     }
   }
 
+  /// The connected account as Drive reports it, or null if unavailable.
+  Future<DriveAccountUser?> fetchAccountUser() async {
+    if (await _getApi() == null) return null;
+    final token = (await SharedPreferences.getInstance()).getString(_tokenKey);
+    if (token == null) return null;
+    return fetchDriveAboutUser(GoogleAuthClient(token));
+  }
+
   Future<void> logout() async {
     _driveApi = null;
+    await DriveAccountLabelStore().write(null);
 
     // Best-effort revoke of the refresh token at Google before clearing it
     // locally, so the grant is invalidated server-side too. Failures ignored.

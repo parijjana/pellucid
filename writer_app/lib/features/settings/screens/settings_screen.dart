@@ -67,6 +67,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  /// Lets the user name (or rename) the Drive connection, e.g. "Personal
+  /// Drive". Stored locally only.
+  void _showAccountNameDialog(SyncProvider sync, WriterTheme theme) {
+    final controller = TextEditingController(text: sync.accountLabel ?? '');
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: theme.sidebarColor,
+        title: Text('Name this connection', style: TextStyle(color: theme.foregroundColor)),
+        content: TextField(
+          key: const Key('drive-account-name-field'),
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: theme.foregroundColor),
+          decoration: InputDecoration(
+            hintText: 'e.g. Personal Drive',
+            hintStyle: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.2)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              await sync.setAccountLabel(controller.text);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleSyncLogin(SyncProvider sync) async {
     try {
       final settings = context.read<SettingsProvider>();
@@ -88,6 +121,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Connected and synced to Google Drive.'))
           );
+          // Google did not tell us who this is: ask the user to name it.
+          if (sync.accountLabel == null) {
+            _showAccountNameDialog(sync, context.read<ThemeProvider>().currentTheme);
+          }
         }
       }
     } catch (e) {
@@ -768,6 +805,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(sync.isLoggedIn ? 'Google Drive Connected' : 'Cloud Sync Off',
                   style: TextStyle(color: theme.foregroundColor, fontWeight: FontWeight.bold, fontSize: 14)),
+                if (sync.isLoggedIn)
+                  GestureDetector(
+                    onTap: () => _showAccountNameDialog(sync, theme),
+                    child: Text(
+                      sync.accountLabel ?? 'Name this connection',
+                      key: const Key('drive-account-label'),
+                      style: TextStyle(
+                        color: theme.foregroundColor.withValues(alpha: sync.accountLabel == null ? 0.4 : 0.8),
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                 Text(!isFolderSelected ? 'Select Master Folder first.' : 'Automated backups to Pellucid Vault.',
                   style: TextStyle(color: theme.foregroundColor.withValues(alpha: 0.4), fontSize: 11)),
               ],
@@ -1128,7 +1178,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final navigator = Navigator.of(context);
 
                 await historyProvider.saveStatsNow();
-                await editorProvider.flushSync(
+                // Upload of the old project runs in the background: creating a
+                // project must not wait on the network.
+                editorProvider.flushSyncInBackground(
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
                 );

@@ -139,7 +139,8 @@ class MacMenuBarWrapper extends StatelessWidget {
 
     // 1. Flush/save current project stats and sync
     await historyProvider.saveStatsNow();
-    await editorProvider.flushSync(
+    // (the upload runs in the background; creating must not wait on the network)
+    editorProvider.flushSyncInBackground(
       syncProvider: syncProvider,
       projectName: settings.currentProjectName,
     );

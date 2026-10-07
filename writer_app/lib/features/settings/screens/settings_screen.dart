@@ -1091,7 +1091,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final navigator = Navigator.of(context);
 
                 await historyProvider.saveStatsNow();
-                await editorProvider.flushSync(
+                // Upload of the old project runs in the background: creating a
+                // project must not wait on the network.
+                editorProvider.flushSyncInBackground(
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
                 );

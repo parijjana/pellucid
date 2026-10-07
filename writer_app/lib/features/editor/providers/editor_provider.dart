@@ -2,6 +2,7 @@
 // Description: Provider for managing editor state and auto-saving (Updated for Multi-Project).
 
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'storage_service.dart';
 import '../../settings/providers/settings_database.dart';
@@ -25,6 +26,9 @@ class EditorProvider extends ChangeNotifier {
   Timer? _syncDebounceTimer;
   Timer? _syncThrottleTimer;
   bool _hasUnsyncedChanges = false;
+  // Bumped on every loadProject so a background sync that finishes after the
+  // user has moved to another project cannot mark that project clean.
+  int _loadEpoch = 0;
 
   // Configurable durations for TDD testing (default to 30 minutes)
   Duration syncDebounceDuration = const Duration(minutes: 30);
@@ -155,6 +159,7 @@ class EditorProvider extends ChangeNotifier {
       _loadError = read.error;
     }
     _hasUnsyncedChanges = false;
+    _loadEpoch++;
     notifyListeners();
   }
 
@@ -236,6 +241,7 @@ class EditorProvider extends ChangeNotifier {
     // Belt and braces: pushing an unread document to Drive would put the blank
     // into cloud version history too, where it outlives the local file.
     if (_documentLoadFailed) return;
+    final epoch = _loadEpoch;
 
     // Cancel both timers to prevent duplicate/redundant runs
     _syncDebounceTimer?.cancel();
@@ -249,7 +255,7 @@ class EditorProvider extends ChangeNotifier {
       content: _content,
     );
 
-    if (syncProvider.status == SyncStatus.success) {
+    if (syncProvider.status == SyncStatus.success && epoch == _loadEpoch) {
       _hasUnsyncedChanges = false;
     }
   }
@@ -257,6 +263,19 @@ class EditorProvider extends ChangeNotifier {
   Future<void> flushSync({SyncProvider? syncProvider, String? projectName}) async {
     if (_hasUnsyncedChanges && syncProvider != null && projectName != null) {
       await _performSync(syncProvider, projectName);
+    }
+  }
+
+  /// Like [flushSync], but returns immediately: the upload of the current
+  /// project's content runs in the background (content is captured before the
+  /// first await, so a following [loadProject] cannot change what is sent).
+  /// Used when switching away from a project so the UI never waits on the
+  /// network. Sync errors are already handled inside [SyncProvider].
+  void flushSyncInBackground({SyncProvider? syncProvider, String? projectName}) {
+    if (_hasUnsyncedChanges && syncProvider != null && projectName != null) {
+      unawaited(_performSync(syncProvider, projectName).catchError((Object e) {
+        if (kDebugMode) debugPrint('Background sync failed: $e');
+      }));
     }
   }
 

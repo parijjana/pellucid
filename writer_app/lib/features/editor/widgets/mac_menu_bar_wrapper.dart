@@ -11,6 +11,8 @@ import '../providers/editor_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/shortcuts_provider.dart';
 import '../widgets/shortcuts.dart';
+import '../caret_formatting.dart';
+import 'format_menu.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/providers/history_provider.dart';
 import '../../settings/screens/settings_screen.dart';
@@ -197,7 +199,9 @@ class MacMenuBarWrapper extends StatelessWidget {
       builder: (context, settingsState, _) {
         final settings = context.read<SettingsProvider>();
 
-        return PlatformMenuBar(
+        return ValueListenableBuilder<FormattingState>(
+          valueListenable: caretFormatting,
+          builder: (context, formatting, _) => PlatformMenuBar(
           menus: [
             PlatformMenu(
               label: 'Pellucid',
@@ -333,6 +337,10 @@ class MacMenuBarWrapper extends StatelessWidget {
                   },
                 ),
               ],
+            ),
+            PlatformMenu(
+              label: 'Format',
+              menus: formatMenuItems(formatting),
             ),
             PlatformMenu(
               label: 'Projects',
@@ -592,6 +600,7 @@ class MacMenuBarWrapper extends StatelessWidget {
             ),
           ],
           child: child,
+        ),
         );
       },
     );

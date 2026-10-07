@@ -84,6 +84,38 @@ class MainFlutterWindow: NSWindow {
       }
     }
 
+    // Copy from the editor: HTML + plain text for other apps, plus the
+    // markdown under a private type so a paste inside Pellucid keeps it.
+    let markdownType = NSPasteboard.PasteboardType("com.overengineeredhobbies.pellucid.markdown")
+    let clipboardChannel = FlutterMethodChannel(
+      name: "com.overengineeredhobbies.pellucid/clipboard",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    clipboardChannel.setMethodCallHandler { (call, result) in
+      let pasteboard = NSPasteboard.general
+      switch call.method {
+      case "setRich":
+        guard let args = call.arguments as? [String: Any],
+              let plain = args["plain"] as? String,
+              let html = args["html"] as? String,
+              let markdown = args["markdown"] as? String else {
+          result(FlutterError(code: "bad_args", message: "plain, html and markdown required", details: nil))
+          return
+        }
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString(plain, forType: .string)
+        item.setString("<meta charset=\"utf-8\">" + html, forType: .html)
+        item.setString(markdown, forType: markdownType)
+        pasteboard.writeObjects([item])
+        result(nil)
+      case "getMarkdown":
+        result(pasteboard.string(forType: markdownType))
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
     super.awakeFromNib()
   }
 

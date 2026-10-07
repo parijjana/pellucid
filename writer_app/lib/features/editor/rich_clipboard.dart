@@ -1,0 +1,174 @@
+// Description: Copy from the editor (backlog item 24). Other apps get rich text
+// (HTML) and plain text without markdown markers; Pellucid itself gets the
+// markdown back on paste.
+//
+// macOS only for now (native channel in MainFlutterWindow.swift): it puts
+// HTML, plain text and a private markdown type on one pasteboard item.
+// Elsewhere copy keeps its old behaviour (the markdown as plain text) until
+// the Windows/iOS side is built.
+
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+import 'hidden_markers.dart';
+
+class _Attrs {
+  final bool b;
+  final bool i;
+  final bool u;
+  const _Attrs(this.b, this.i, this.u);
+  @override
+  bool operator ==(Object o) => o is _Attrs && o.b == b && o.i == i && o.u == u;
+  @override
+  int get hashCode => Object.hash(b, i, u);
+}
+
+_Attrs _attrsAt(LineMarkers line, int k) {
+  bool b = false, i = false, u = false;
+  for (final r in line.runs) {
+    if (r.contentStart <= k && k < r.contentEnd) {
+      b |= r.bold;
+      i |= r.italic;
+      u |= r.underline;
+    }
+  }
+  return _Attrs(b, i, u);
+}
+
+/// One line of a copied range, as styled segments of visible text.
+class _CopiedLine {
+  final String? prefix; // block prefix, when the copy starts at the line start
+  final List<(String, _Attrs)> segments;
+  _CopiedLine(this.prefix, this.segments);
+}
+
+List<_CopiedLine> _copiedLines(String text, int start, int end) {
+  final out = <_CopiedLine>[];
+  int ls = lineStartOf(text, start);
+  while (true) {
+    final int le = lineEndOf(text, ls);
+    final line = scanLine(text, ls, le);
+    final int from = start > ls ? start : ls;
+    final int to = end < le ? end : le;
+    final String? prefix = (line.prefix != null && from <= line.prefixEnd) ? line.prefix : null;
+    final segments = <(String, _Attrs)>[];
+    final buf = StringBuffer();
+    _Attrs? cur;
+    for (int k = from; k < to; k++) {
+      if (line.isHidden(k)) continue;
+      final a = _attrsAt(line, k);
+      if (cur != null && a != cur) {
+        segments.add((buf.toString(), cur));
+        buf.clear();
+      }
+      cur = a;
+      buf.writeCharCode(text.codeUnitAt(k));
+    }
+    if (cur != null) segments.add((buf.toString(), cur));
+    out.add(_CopiedLine(prefix, segments));
+    if (le >= end || le >= text.length) break;
+    ls = le + 1;
+  }
+  return out;
+}
+
+/// The plain text a reader sees in `[start, end)`.
+String plainTextFor(String text, int start, int end) => _copiedLines(text, start, end)
+    .map((l) => (l.prefix == '- ' ? '• ' : '') + l.segments.map((s) => s.$1).join())
+    .join('\n');
+
+/// `[start, end)` as markdown that renders on its own: runs cut by the range
+/// are closed and reopened inside it.
+String markdownFor(String text, int start, int end) => _copiedLines(text, start, end).map((l) {
+      final sb = StringBuffer(l.prefix ?? '');
+      for (final (s, a) in l.segments) {
+        final stars = a.b && a.i ? '***' : (a.b ? '**' : (a.i ? '*' : ''));
+        sb
+          ..write(stars)
+          ..write(a.u ? '<u>' : '')
+          ..write(s)
+          ..write(a.u ? '</u>' : '')
+          ..write(stars);
+      }
+      return sb.toString();
+    }).join('\n');
+
+String _escape(String s) =>
+    s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+/// `[start, end)` as simple HTML for word processors and mail.
+String htmlFor(String text, int start, int end) {
+  final sb = StringBuffer();
+  bool inList = false;
+  for (final l in _copiedLines(text, start, end)) {
+    final inline = StringBuffer();
+    for (final (s, a) in l.segments) {
+      var h = _escape(s);
+      if (a.u) h = '<u>$h</u>';
+      if (a.i) h = '<em>$h</em>';
+      if (a.b) h = '<strong>$h</strong>';
+      inline.write(h);
+    }
+    final isItem = l.prefix == '- ';
+    if (isItem && !inList) sb.write('<ul>');
+    if (!isItem && inList) sb.write('</ul>');
+    inList = isItem;
+    final tag = switch (l.prefix) {
+      '# ' => 'h1',
+      '## ' => 'h2',
+      '### ' => 'h3',
+      '- ' => 'li',
+      _ => 'p',
+    };
+    sb.write('<$tag>$inline</$tag>');
+  }
+  if (inList) sb.write('</ul>');
+  return sb.toString();
+}
+
+class RichClipboard {
+  static const MethodChannel _channel = MethodChannel('com.overengineeredhobbies.pellucid/clipboard');
+
+  /// Tests set this to exercise the native path with a mocked channel.
+  @visibleForTesting
+  static bool? debugSupported;
+
+  static bool get isSupported =>
+      debugSupported ?? (!kIsWeb && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST'));
+
+  /// Copies `[start, end)` of [text].
+  static Future<void> copy(String text, int start, int end) async {
+    if (start >= end) return;
+    final markdown = markdownFor(text, start, end);
+    if (isSupported) {
+      try {
+        await _channel.invokeMethod<void>('setRich', {
+          'plain': plainTextFor(text, start, end),
+          'html': htmlFor(text, start, end),
+          'markdown': markdown,
+        });
+        return;
+      } on PlatformException {
+        // fall through
+      } on MissingPluginException {
+        // fall through
+      }
+    }
+    await Clipboard.setData(ClipboardData(text: markdown));
+  }
+
+  /// The markdown Pellucid put on the clipboard, or null when the clipboard
+  /// holds something else (paste that as usual).
+  static Future<String?> readMarkdown() async {
+    if (!isSupported) return null;
+    try {
+      return await _channel.invokeMethod<String>('getMarkdown');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+}

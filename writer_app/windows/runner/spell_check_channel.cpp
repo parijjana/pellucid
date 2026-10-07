@@ -7,6 +7,7 @@
 
 #include <flutter/standard_method_codec.h>
 
+#include <cwctype>
 #include <map>
 #include <string>
 #include <vector>
@@ -32,6 +33,36 @@ std::wstring Utf16FromUtf8(const std::string& utf8) {
   ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(),
                         static_cast<int>(utf8.size()), utf16.data(), length);
   return utf16;
+}
+
+constexpr size_t kMaxLearnableCodePoints = 64;
+
+// Whitespace as Dart's \s sees it (iswspace misses some of these in the C
+// locale), plus control characters.
+bool IsBlankOrControl(wchar_t c) {
+  if (::iswspace(c) || ::iswcntrl(c)) return true;
+  switch (c) {
+    case 0x00A0: case 0x1680: case 0x2028: case 0x2029: case 0x202F:
+    case 0x205F: case 0x3000: case 0xFEFF:
+      return true;
+    default:
+      return c >= 0x2000 && c <= 0x200A;
+  }
+}
+
+// Learn/Ignore accept one word: 1-64 code points (a surrogate pair counts
+// once), no whitespace or control characters. Mirrors
+// NativeSpellCheckService.isLearnableWord on the Dart side.
+bool IsLearnableWord(const std::wstring& word) {
+  if (word.empty()) return false;
+  size_t code_points = 0;
+  for (size_t i = 0; i < word.size(); ++i) {
+    const wchar_t c = word[i];
+    if (c >= 0xDC00 && c <= 0xDFFF) continue;  // low surrogate: same code point
+    if (IsBlankOrControl(c)) return false;
+    if (++code_points > kMaxLearnableCodePoints) return false;
+  }
+  return true;
 }
 
 const std::string* StringArg(const EncodableMap& args, const char* key) {
@@ -191,9 +222,13 @@ RegisterSpellCheckChannel(flutter::BinaryMessenger* messenger) {
               langs.push_back(Utf16FromUtf8(*language));
             }
           }
+          // One word only, as on the Dart side (isLearnableWord): 1-64 code
+          // points, no whitespace or control characters. ISpellChecker::Add
+          // writes the user's dictionary, so reject anything else here too.
+          const std::wstring wide = word ? Utf16FromUtf8(*word) : std::wstring();
           result->Success(EncodableValue(
-              word && checker->WordAction(Utf16FromUtf8(*word), langs,
-                                          call.method_name() == "learnWord")));
+              IsLearnableWord(wide) &&
+              checker->WordAction(wide, langs, call.method_name() == "learnWord")));
           return;
         }
         const std::string* text = args ? StringArg(*args, "text") : nullptr;

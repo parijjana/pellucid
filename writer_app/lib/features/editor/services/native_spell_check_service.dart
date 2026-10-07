@@ -69,8 +69,20 @@ class NativeSpellCheckService implements EditorSpellService {
   @override
   Future<void> ignoreWord(String word, {Locale? locale}) => _wordAction('ignoreWord', word, locale);
 
+  /// Longest word Learn spelling / Ignore will pass to the OS (code points).
+  static const int maxWordLength = 64;
+
+  static final RegExp _blankOrControl = RegExp(r'[\s\p{Cc}]', unicode: true);
+
+  /// Learn/Ignore take one word only: 1–[maxWordLength] code points, no
+  /// whitespace or control characters. The native handlers apply the same
+  /// rule, so a bad call from anywhere cannot write junk into the user's
+  /// system-wide dictionary.
+  static bool isLearnableWord(String word) =>
+      word.isNotEmpty && word.runes.length <= maxWordLength && !_blankOrControl.hasMatch(word);
+
   Future<void> _wordAction(String method, String word, Locale? locale) async {
-    if (!isSupported || word.isEmpty) return;
+    if (!isSupported || !isLearnableWord(word)) return;
     try {
       await _channel.invokeMethod(method, {
         'word': word,

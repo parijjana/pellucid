@@ -80,8 +80,15 @@ class MainFlutterWindow: NSWindow {
         
         result(results)
       } else if call.method == "learnWord" || call.method == "ignoreWord" {
+        // One word only, as on the Dart side (isLearnableWord): 1-64 code
+        // points, no whitespace or control characters. learnWord writes the
+        // user's system-wide dictionary, so reject anything else here too.
+        let rejected = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
         guard let args = call.arguments as? [String: Any],
-              let word = args["word"] as? String, !word.isEmpty else {
+              let word = args["word"] as? String,
+              !word.isEmpty,
+              word.unicodeScalars.count <= 64,
+              word.rangeOfCharacter(from: rejected) == nil else {
           result(false)
           return
         }

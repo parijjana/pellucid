@@ -64,32 +64,25 @@ class MarkdownEditingController extends TextEditingController {
     super.value = newValue;
   }
 
-  static List<GrammarIssue> _shiftGrammarIssues(List<GrammarIssue> issues, String oldText, String newText) => [
-        for (final i in issues)
-          if (shiftRangesForEdit([i.range, i.fixRange], oldText, newText) case [final r, final f])
-            GrammarIssue(
-                range: r, fixRange: f, replacement: i.replacement, ruleId: i.ruleId, message: i.message),
-      ];
+  static List<GrammarIssue> _shiftGrammarIssues(List<GrammarIssue> issues, String oldText, String newText) {
+    // One prefix/suffix scan per edit, not one per hint.
+    final e = _EditSpan.between(oldText, newText);
+    final out = <GrammarIssue>[];
+    for (final i in issues) {
+      final r = e.shift(i.range);
+      final f = e.shift(i.fixRange);
+      if (r == null || f == null) continue;
+      out.add(identical(r, i.range) && identical(f, i.fixRange)
+          ? i
+          : GrammarIssue(range: r, fixRange: f, replacement: i.replacement, ruleId: i.ruleId, message: i.message));
+    }
+    return out;
+  }
 
   static List<TextRange> shiftRangesForEdit(List<TextRange> ranges, String oldText, String newText) {
-    final int maxPrefix = oldText.length < newText.length ? oldText.length : newText.length;
-    int prefix = 0;
-    while (prefix < maxPrefix && oldText.codeUnitAt(prefix) == newText.codeUnitAt(prefix)) {
-      prefix++;
-    }
-    int suffix = 0;
-    while (suffix < maxPrefix - prefix &&
-        oldText.codeUnitAt(oldText.length - 1 - suffix) == newText.codeUnitAt(newText.length - 1 - suffix)) {
-      suffix++;
-    }
-    final int editEnd = oldText.length - suffix;
-    final int delta = newText.length - oldText.length;
+    final e = _EditSpan.between(oldText, newText);
     return [
-      for (final r in ranges)
-        if (r.end <= prefix)
-          r
-        else if (r.start >= editEnd)
-          TextRange(start: r.start + delta, end: r.end + delta),
+      for (final r in ranges) ?e.shift(r),
     ];
   }
 
@@ -872,5 +865,32 @@ class _CachedLine {
       if (a[i] != b[i]) return false;
     }
     return true;
+  }
+}
+
+/// The changed middle of an edit (common prefix/suffix trimmed) and its length delta.
+class _EditSpan {
+  final int prefix, editEnd, delta;
+  const _EditSpan(this.prefix, this.editEnd, this.delta);
+
+  factory _EditSpan.between(String oldText, String newText) {
+    final int maxPrefix = oldText.length < newText.length ? oldText.length : newText.length;
+    int prefix = 0;
+    while (prefix < maxPrefix && oldText.codeUnitAt(prefix) == newText.codeUnitAt(prefix)) {
+      prefix++;
+    }
+    int suffix = 0;
+    while (suffix < maxPrefix - prefix &&
+        oldText.codeUnitAt(oldText.length - 1 - suffix) == newText.codeUnitAt(newText.length - 1 - suffix)) {
+      suffix++;
+    }
+    return _EditSpan(prefix, oldText.length - suffix, newText.length - oldText.length);
+  }
+
+  /// [r] unchanged if before the edit, moved if after, null if it touches it.
+  TextRange? shift(TextRange r) {
+    if (r.end <= prefix) return r;
+    if (r.start >= editEnd) return delta == 0 ? r : TextRange(start: r.start + delta, end: r.end + delta);
+    return null;
   }
 }

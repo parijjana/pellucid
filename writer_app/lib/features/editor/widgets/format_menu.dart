@@ -43,6 +43,26 @@ List<PlatformMenuItem> formatMenuItems(FormattingState f) => [
         onSelected: () => _invoke(const SetBulletIntent()),
       ),
       PlatformMenuItem(
+        label: checkedLabel('Numbered List', f.list == ListStyle.numbered),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyO, alt: true, meta: true),
+        onSelected: () => _invoke(const SetNumberedIntent()),
+      ),
+      PlatformMenuItem(
+        label: checkedLabel('Checklist', f.list == ListStyle.checklist),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyV, alt: true, meta: true),
+        onSelected: () => _invoke(const SetChecklistIntent()),
+      ),
+      PlatformMenuItem(
+        label: '   Increase Indent',
+        shortcut: const SingleActivator(LogicalKeyboardKey.bracketRight, meta: true),
+        onSelected: () => _invoke(const IndentIntent()),
+      ),
+      PlatformMenuItem(
+        label: '   Decrease Indent',
+        shortcut: const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true),
+        onSelected: () => _invoke(const OutdentIntent()),
+      ),
+      PlatformMenuItem(
         label: checkedLabel('Quote', f.block == BlockStyle.quote),
         shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, alt: true, meta: true),
         onSelected: () => _invoke(const SetQuoteIntent()),

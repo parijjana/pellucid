@@ -6,6 +6,10 @@ class SetHeaderIntent extends Intent { const SetHeaderIntent(); }
 class SetSubheadingIntent extends Intent { const SetSubheadingIntent(); }
 class SetBodyIntent extends Intent { const SetBodyIntent(); }
 class SetBulletIntent extends Intent { const SetBulletIntent(); }
+class SetNumberedIntent extends Intent { const SetNumberedIntent(); }
+class SetChecklistIntent extends Intent { const SetChecklistIntent(); }
+class IndentIntent extends Intent { const IndentIntent(); }
+class OutdentIntent extends Intent { const OutdentIntent(); }
 class ToggleBoldIntent extends Intent { const ToggleBoldIntent(); }
 class ToggleItalicIntent extends Intent { const ToggleItalicIntent(); }
 class ToggleStrikethroughIntent extends Intent { const ToggleStrikethroughIntent(); }

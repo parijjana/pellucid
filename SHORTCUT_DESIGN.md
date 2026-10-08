@@ -21,6 +21,10 @@ Supports all standard OS text interactions.
 | Line as Subheading (`### `) | `Alt + J` | `Cmd + Opt + J` |
 | Line as Block Quote (`> `) | `Alt + Q` | `Cmd + Opt + Q` |
 | Toggle Strikethrough (`~~`) | `Alt + X` | `Cmd + Opt + X` |
+| Toggle Bullet list (`- `) | `Alt + L` | `Cmd + Opt + L` |
+| Toggle Numbered list (`1. `) | `Alt + O` | `Cmd + Opt + O` |
+| Toggle Checklist (`- [ ] `) | `Alt + V` | `Cmd + Opt + V` |
+| Indent / Unindent list item | `Tab` / `Shift + Tab` in a list, or `Ctrl + ]` / `Ctrl + [` | `Tab` / `Shift + Tab` in a list, or `Cmd + ]` / `Cmd + [` |
 | Copy | `Ctrl + C` OR `Ctrl + Insert` | `Cmd + C` |
 | Paste | `Ctrl + V` OR `Shift + Insert` | `Cmd + V` |
 | Cut | `Ctrl + X` | `Cmd + X` |
@@ -85,6 +89,15 @@ Moving the writing area on the screen.
 Keys in use with `Alt` / `Cmd+Opt`: 1-6, A, B, C, E, G, K, L, M, N, P, S, T, arrows, Enter.
 `H` is avoided (`Cmd+Opt+H` is "Hide Others" on macOS) and `D` too (`Cmd+Opt+D` toggles the Dock).
 New: `J` (Subheading), `Q` (Block Quote), `X` (Strikethrough). All three are free on both platforms.
+
+## Free-key check for list shortcuts (2026-10-08)
+Added: `O` (numbered list, "ordered") and `V` (checklist, the tick shape) with `Alt` / `Cmd+Opt`;
+`L` (bullet) already existed and already toggles. `O` and `V` were free of every key in the list above,
+and neither is a macOS system chord (`Cmd+Opt+H` Hide Others, `Cmd+Opt+D` Dock, `Cmd+Opt+M` Minimise All,
+`Cmd+Opt+Esc` Force Quit are the ones that bite; `Cmd+Opt+V` is only Finder's "Move Item Here").
+Indent/unindent use `Ctrl/Cmd + ]` and `[` (Pages, Notes and Google Docs use the same pair); the Tab key
+does the same inside a list and keeps typing four spaces anywhere else. Shift+Tab outside a list moves
+focus as before.
 
 ## Conflict Verification
 - **System:** `Alt+F4`, `Alt+Tab`, and macOS `Cmd+Space` are avoided.

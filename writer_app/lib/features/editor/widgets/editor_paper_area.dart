@@ -13,6 +13,7 @@ import '../marker_aware_editing.dart';
 import '../marker_edit_rules.dart';
 import 'editor_context_menu.dart';
 import 'spell_check_driver.dart';
+import 'typewriter_pause.dart';
 import 'grammar_hints.dart';
 import 'smart_punctuation_scope.dart';
 
@@ -30,6 +31,9 @@ class EditorPaperArea extends StatelessWidget {
   final EditorProvider provider;
   final TextEditingController controller;
   final ScrollController scrollController;
+
+  /// Pointer presses in the text suspend typewriter re-centring (item 18).
+  final TypewriterPause? typewriterPause;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
   final bool codexEnabled;
@@ -50,6 +54,7 @@ class EditorPaperArea extends StatelessWidget {
     required this.provider,
     required this.controller,
     required this.scrollController,
+    this.typewriterPause,
     required this.focusNode,
     required this.onChanged,
     required this.codexEnabled,
@@ -133,6 +138,8 @@ class EditorPaperArea extends StatelessWidget {
                 onChanged: onChanged,
                 builder: (context, formatters) => MarkerAwareEditing(
                 controller: controller,
+                child: Listener(
+                onPointerDown: (_) => typewriterPause?.pointerDown(),
                 child: TextField(
                 controller: controller,
                 focusNode: focusNode,
@@ -167,6 +174,7 @@ class EditorPaperArea extends StatelessWidget {
                     buildEditorContextMenu(context, editableTextState),
                 onChanged: onChanged,
               ),
+                ),
                 ),
                 ),
               ),

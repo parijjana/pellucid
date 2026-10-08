@@ -31,17 +31,34 @@ bool htmlAddsStructure(String markdown, String? plain) {
 class _Attrs {
   final bool bold, italic, strike, code;
   final String? href;
-  const _Attrs({this.bold = false, this.italic = false, this.strike = false, this.code = false, this.href});
-  _Attrs copy({bool? bold, bool? italic, bool? strike, bool? code, String? href}) => _Attrs(
-        bold: bold ?? this.bold,
-        italic: italic ?? this.italic,
-        strike: strike ?? this.strike,
-        code: code ?? this.code,
-        href: href ?? this.href,
-      );
+  const _Attrs({
+    this.bold = false,
+    this.italic = false,
+    this.strike = false,
+    this.code = false,
+    this.href,
+  });
+  _Attrs copy({
+    bool? bold,
+    bool? italic,
+    bool? strike,
+    bool? code,
+    String? href,
+  }) => _Attrs(
+    bold: bold ?? this.bold,
+    italic: italic ?? this.italic,
+    strike: strike ?? this.strike,
+    code: code ?? this.code,
+    href: href ?? this.href,
+  );
   @override
   bool operator ==(Object o) =>
-      o is _Attrs && o.bold == bold && o.italic == italic && o.strike == strike && o.code == code && o.href == href;
+      o is _Attrs &&
+      o.bold == bold &&
+      o.italic == italic &&
+      o.strike == strike &&
+      o.code == code &&
+      o.href == href;
   @override
   int get hashCode => Object.hash(bold, italic, strike, code, href);
 }
@@ -52,13 +69,63 @@ class _Seg {
   _Seg(this.text, this.a);
 }
 
-const _skipTags = {'head', 'style', 'script', 'meta', 'title', 'link', 'template', 'noscript', 'img', 'svg', 'canvas', 'iframe', 'object', 'video', 'audio', 'button', 'select', 'textarea'};
+const _skipTags = {
+  'head',
+  'style',
+  'script',
+  'meta',
+  'title',
+  'link',
+  'template',
+  'noscript',
+  'img',
+  'svg',
+  'canvas',
+  'iframe',
+  'object',
+  'video',
+  'audio',
+  'button',
+  'select',
+  'textarea',
+};
 const _blockTags = {
-  'p', 'div', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside', 'figure', 'figcaption', 'address',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre', 'table', 'tr', 'dl', 'dt', 'dd', 'hr', 'form', 'fieldset', 'center'
+  'p',
+  'div',
+  'section',
+  'article',
+  'header',
+  'footer',
+  'main',
+  'nav',
+  'aside',
+  'figure',
+  'figcaption',
+  'address',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'li',
+  'blockquote',
+  'pre',
+  'table',
+  'tr',
+  'dl',
+  'dt',
+  'dd',
+  'hr',
+  'form',
+  'fieldset',
+  'center',
 };
 
-String _style(Element e) => (e.attributes['style'] ?? '').toLowerCase().replaceAll(' ', '');
+String _style(Element e) =>
+    (e.attributes['style'] ?? '').toLowerCase().replaceAll(' ', '');
 
 bool _isBoldStyle(String st) {
   final m = RegExp(r'(?<![-\w])font-weight:(\w+)').firstMatch(st);
@@ -108,7 +175,12 @@ class _Converter {
   // ---- blocks -------------------------------------------------------------
 
   /// Walks [nodes]; consecutive inline nodes are gathered into one paragraph.
-  void _blocks(List<Node> nodes, {required String prefix, required List<_ListCtx> lists, required bool pre}) {
+  void _blocks(
+    List<Node> nodes, {
+    required String prefix,
+    required List<_ListCtx> lists,
+    required bool pre,
+  }) {
     var inline = <Node>[];
     void flush() {
       if (inline.isEmpty) return;
@@ -143,7 +215,12 @@ class _Converter {
     return false;
   }
 
-  void _emitParagraph(List<_Seg> segs, String prefix, bool pre, {String first = ''}) {
+  void _emitParagraph(
+    List<_Seg> segs,
+    String prefix,
+    bool pre, {
+    String first = '',
+  }) {
     final text = _render(segs, pre: pre);
     if (text.trim().isEmpty) return;
     final parts = text.split('\n');
@@ -152,7 +229,12 @@ class _Converter {
     }
   }
 
-  void _block(Element e, {required String prefix, required List<_ListCtx> lists, required bool pre}) {
+  void _block(
+    Element e, {
+    required String prefix,
+    required List<_ListCtx> lists,
+    required bool pre,
+  }) {
     final tag = e.localName!;
     final st = _style(e);
     final preserve = pre || tag == 'pre' || st.contains('white-space:pre');
@@ -164,9 +246,13 @@ class _Converter {
           _inline(n, const _Attrs(), segs, false);
         }
         // Headings are bold already; drop the redundant inline bold.
-        final text = _render(segs.map((s) => _Seg(s.text, s.a.copy(bold: false))).toList(), pre: false)
-            .replaceAll('\n', ' ');
-        if (text.trim().isNotEmpty) _lines.add('$prefix${'#' * level} ${text.trim()}');
+        final text = _render(
+          segs.map((s) => _Seg(s.text, s.a.copy(bold: false))).toList(),
+          pre: false,
+        ).replaceAll('\n', ' ');
+        if (text.trim().isNotEmpty) {
+          _lines.add('$prefix${'#' * level} ${text.trim()}');
+        }
       case 'ul' || 'ol':
         final start = int.tryParse(e.attributes['start'] ?? '') ?? 1;
         final ctx = _ListCtx(tag == 'ol', start);
@@ -198,7 +284,12 @@ class _Converter {
   }
 
   /// p / div / pre / etc.: a paragraph, or children when it holds blocks.
-  void _paragraphLike(Element e, String prefix, List<_ListCtx> lists, bool preserve) {
+  void _paragraphLike(
+    Element e,
+    String prefix,
+    List<_ListCtx> lists,
+    bool preserve,
+  ) {
     if (_containsBlock(e)) {
       _blocks(e.nodes, prefix: prefix, lists: lists, pre: preserve);
       return;
@@ -216,7 +307,12 @@ class _Converter {
     _emitParagraph(segs, prefix, preserve);
   }
 
-  void _listItem(Element li, String prefix, List<_ListCtx> lists, bool preserve) {
+  void _listItem(
+    Element li,
+    String prefix,
+    List<_ListCtx> lists,
+    bool preserve,
+  ) {
     final ctx = lists.isEmpty ? _ListCtx(false, 1) : lists.last;
     final indent = '    ' * (lists.length > 1 ? lists.length - 1 : 0);
     String marker = ctx.ordered ? '${ctx.next++}. ' : '- ';
@@ -229,9 +325,14 @@ class _Converter {
     final inlineNodes = <Node>[];
     final nested = <Node>[];
     for (final n in li.nodes) {
-      if (n is Element && (n.localName == 'ul' || n.localName == 'ol' || n.localName == 'blockquote')) {
+      if (n is Element &&
+          (n.localName == 'ul' ||
+              n.localName == 'ol' ||
+              n.localName == 'blockquote')) {
         nested.add(n);
-      } else if (n is Element && _containsBlock(n) && _blockTags.contains(n.localName)) {
+      } else if (n is Element &&
+          _containsBlock(n) &&
+          _blockTags.contains(n.localName)) {
         // <li><p>text</p></li>: take the paragraph's inline content.
         for (final c in n.nodes) {
           if (c is Element && (c.localName == 'ul' || c.localName == 'ol')) {
@@ -240,7 +341,9 @@ class _Converter {
             inlineNodes.add(c);
           }
         }
-      } else if (n is Element && _blockTags.contains(n.localName) && n.localName != 'li') {
+      } else if (n is Element &&
+          _blockTags.contains(n.localName) &&
+          n.localName != 'li') {
         inlineNodes.addAll(n.nodes);
       } else {
         inlineNodes.add(n);
@@ -260,7 +363,12 @@ class _Converter {
     _lines.add('$prefix$indent$marker$text');
     for (final n in nested) {
       if (n is Element && n.localName == 'blockquote') {
-        _blocks(n.nodes, prefix: '$prefix$indent    > ', lists: lists, pre: preserve);
+        _blocks(
+          n.nodes,
+          prefix: '$prefix$indent    > ',
+          lists: lists,
+          pre: preserve,
+        );
       } else if (n is Element) {
         _block(n, prefix: prefix, lists: lists, pre: preserve);
       }
@@ -277,7 +385,9 @@ class _Converter {
 
   void _msoListItem(Element p, String prefix) {
     final st = (p.attributes['style'] ?? '').toLowerCase();
-    final level = int.tryParse(RegExp(r'level(\d+)').firstMatch(st)?.group(1) ?? '1') ?? 1;
+    final level =
+        int.tryParse(RegExp(r'level(\d+)').firstMatch(st)?.group(1) ?? '1') ??
+        1;
     // The bullet / number Word draws is in a span marked mso-list:Ignore.
     String bullet = '';
     for (final s in p.querySelectorAll('span')) {
@@ -318,7 +428,9 @@ class _Converter {
         }
         cells.add(_render(segs, pre: false).replaceAll('\n', ' ').trim());
       }
-      if (cells.any((c) => c.isNotEmpty)) _lines.add('$prefix${cells.join('\t')}');
+      if (cells.any((c) => c.isNotEmpty)) {
+        _lines.add('$prefix${cells.join('\t')}');
+      }
     }
   }
 
@@ -330,9 +442,13 @@ class _Converter {
     var out = a;
     if (_isBoldStyle(st)) out = out.copy(bold: true);
     if (_isNormalWeight(st)) out = out.copy(bold: false);
-    if (st.contains('font-style:italic') || st.contains('font-style:oblique')) out = out.copy(italic: true);
+    if (st.contains('font-style:italic') || st.contains('font-style:oblique')) {
+      out = out.copy(italic: true);
+    }
     if (st.contains('font-style:normal')) out = out.copy(italic: false);
-    if (RegExp(r'text-decoration(-line)?:[^;]*line-through').hasMatch(st)) out = out.copy(strike: true);
+    if (RegExp(r'text-decoration(-line)?:[^;]*line-through').hasMatch(st)) {
+      out = out.copy(strike: true);
+    }
     return out;
   }
 
@@ -366,10 +482,24 @@ class _Converter {
         attrs = attrs.copy(code: true);
       case 'a':
         final href = (n.attributes['href'] ?? '').trim();
-        if (RegExp(r'^(https?:|mailto:)', caseSensitive: false).hasMatch(href)) {
+        if (RegExp(
+          r'^(https?:|mailto:)',
+          caseSensitive: false,
+        ).hasMatch(href)) {
           attrs = attrs.copy(href: href);
         }
-      case 'sup' || 'sub' || 'u' || 'ins' || 'mark' || 'small' || 'big' || 'span' || 'font' || 'label' || 'abbr' || 'time':
+      case 'sup' ||
+          'sub' ||
+          'u' ||
+          'ins' ||
+          'mark' ||
+          'small' ||
+          'big' ||
+          'span' ||
+          'font' ||
+          'label' ||
+          'abbr' ||
+          'time':
         break;
       default:
         break;
@@ -420,7 +550,9 @@ class _Converter {
     var text = sb.toString();
     if (!pre) {
       // Tidy spaces around line breaks and at the ends.
-      text = text.replaceAll(RegExp(r' *\n *'), '\n').replaceAll(RegExp(r' {2,}'), ' ');
+      text = text
+          .replaceAll(RegExp(r' *\n *'), '\n')
+          .replaceAll(RegExp(r' {2,}'), ' ');
       text = text.replaceAll(RegExp(r'^\n+|\n+$'), '');
       text = text.trim();
     }
@@ -441,7 +573,9 @@ class _Converter {
     final trail = raw.substring(raw.trimRight().length);
     var core = raw.trim();
     if (a.code) core = '`$core`';
-    final stars = a.bold && a.italic ? '***' : (a.bold ? '**' : (a.italic ? '*' : ''));
+    final stars = a.bold && a.italic
+        ? '***'
+        : (a.bold ? '**' : (a.italic ? '*' : ''));
     core = '$stars$core$stars';
     if (a.strike) core = '~~$core~~';
     return '$lead$core$trail';

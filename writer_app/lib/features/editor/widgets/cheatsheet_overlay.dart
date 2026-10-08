@@ -79,6 +79,7 @@ class CheatsheetOverlayContent extends StatelessWidget {
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + J', isMac), description: 'Subheading (H3)'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + Q', isMac), description: 'Block Quote'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + X', isMac), description: 'Strikethrough'),
+                    _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + Shift + V' : 'Ctrl + Shift + V', description: 'Paste as Plain Text'),
                   ],
                 ),
               ],

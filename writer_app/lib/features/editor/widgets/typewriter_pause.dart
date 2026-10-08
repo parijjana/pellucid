@@ -15,7 +15,11 @@ class TypewriterPause {
 
   /// Whether [event] ends a pause: a key press that edits text or moves the
   /// caret. Bare modifiers, Escape, Cmd/Ctrl+C and Alt shortcuts do not.
-  static bool resumes(KeyEvent event, {required bool ctrlOrMeta, required bool alt}) {
+  static bool resumes(
+    KeyEvent event, {
+    required bool ctrlOrMeta,
+    required bool alt,
+  }) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
     final k = event.logicalKey;
     if (_ignored.contains(k)) return false;

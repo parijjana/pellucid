@@ -165,6 +165,21 @@ class RichClipboard {
     await Clipboard.setData(ClipboardData(text: markdown));
   }
 
+  /// The HTML another app put on the clipboard (Word, a browser, mail), or null
+  /// when there is none or this platform cannot read it.
+  /// TODO(item 22): iOS (UIPasteboard, "public.html") and Windows ("HTML Format")
+  /// need a native clipboard channel first; until then they paste plain text.
+  static Future<String?> readHtml() async {
+    if (!isSupported) return null;
+    try {
+      return await _channel.invokeMethod<String>('getHtml');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   /// The markdown Pellucid put on the clipboard, or null when the clipboard
   /// holds something else (paste that as usual).
   static Future<String?> readMarkdown() async {

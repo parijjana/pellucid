@@ -3,9 +3,12 @@
 // copy/cut/paste go through RichClipboard. EditableText makes these actions
 // overridable, so an ancestor Actions widget replaces them for this field only.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'hidden_markers.dart';
+import 'html_to_markdown.dart';
 import 'marker_edit_rules.dart';
 import 'rich_clipboard.dart';
 
@@ -23,8 +26,15 @@ class MarkerAwareEditing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Actions(
+    final mac = defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS;
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        // Paste as plain text (item 22): Cmd+Shift+V on Mac, Ctrl+Shift+V elsewhere.
+        SingleActivator(LogicalKeyboardKey.keyV, shift: true, meta: mac, control: !mac): const PastePlainTextIntent(),
+      },
+      child: Actions(
       actions: <Type, Action<Intent>>{
+        PastePlainTextIntent: _PastePlainAction(),
         ExtendSelectionByCharacterIntent: _StepAction(controller),
         CopySelectionTextIntent: _CopyAction(controller),
         PasteTextIntent: _PasteAction(controller),
@@ -32,6 +42,7 @@ class MarkerAwareEditing extends StatelessWidget {
         RedoTextIntent: _UndoRedoAction<RedoTextIntent>(),
       },
       child: child,
+      ),
     );
   }
 
@@ -64,6 +75,18 @@ class MarkerAwareEditing extends StatelessWidget {
           _ => item,
         },
     ];
+  }
+
+  /// "Paste as plain text" for the context menu, or null when the field is read-only.
+  static ContextMenuButtonItem? pastePlainItem(EditableTextState state) {
+    if (state.widget.readOnly) return null;
+    return ContextMenuButtonItem(
+      label: 'Paste as plain text',
+      onPressed: () {
+        markerPastePlain(state, SelectionChangedCause.toolbar);
+        state.hideToolbar();
+      },
+    );
   }
 }
 
@@ -118,11 +141,47 @@ Future<void> markerCopy(EditableTextState state, {required bool cut}) async {
   }
 }
 
-/// Pastes Pellucid's own markdown when the clipboard holds it; anything
-/// else goes to the field's normal paste.
+/// Paste as plain text (item 22): the clipboard's text, no conversion.
+class PastePlainTextIntent extends Intent {
+  const PastePlainTextIntent([this.cause = SelectionChangedCause.keyboard]);
+  final SelectionChangedCause cause;
+}
+
+class _PastePlainAction extends ContextAction<PastePlainTextIntent> {
+  @override
+  Object? invoke(PastePlainTextIntent intent, [BuildContext? context]) {
+    final state = _editableOf(context);
+    if (state == null) return null;
+    markerPastePlain(state, intent.cause);
+    return null;
+  }
+}
+
+/// Pastes the clipboard's plain text as is. This is the plain-text flavour of
+/// the field's normal paste: no markdown, no HTML conversion.
+Future<void> markerPastePlain(EditableTextState state, SelectionChangedCause cause) async {
+  if (state.widget.readOnly) return;
+  await state.pasteText(cause);
+}
+
+/// Pastes Pellucid's own markdown when the clipboard holds it, otherwise
+/// formatted text from another app converted to markdown (item 22), otherwise
+/// the field's normal (plain) paste.
 Future<void> markerPaste(EditableTextState state, SelectionChangedCause cause) async {
   if (state.widget.readOnly) return;
-  final markdown = await RichClipboard.readMarkdown();
+  var markdown = await RichClipboard.readMarkdown();
+  if (markdown == null) {
+    final html = await RichClipboard.readHtml();
+    if (html != null && html.isNotEmpty) {
+      final converted = htmlToMarkdown(html);
+      if (converted != null) {
+        // Only when the HTML says more than the plain text does; otherwise the
+        // plain paste keeps the text exactly as copied (code, spacing).
+        final plain = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+        if (htmlAddsStructure(converted, plain)) markdown = converted;
+      }
+    }
+  }
   if (markdown == null) {
     await state.pasteText(cause);
     return;

@@ -13,6 +13,7 @@ import '../providers/shortcuts_provider.dart';
 import '../widgets/shortcuts.dart';
 import '../caret_formatting.dart';
 import 'format_menu.dart';
+import '../marker_aware_editing.dart' show PastePlainTextIntent;
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/providers/history_provider.dart';
 import '../../settings/screens/settings_screen.dart';
@@ -299,6 +300,16 @@ class MacMenuBarWrapper extends StatelessWidget {
                     final contextNode = FocusManager.instance.primaryFocus?.context;
                     if (contextNode != null) {
                       Actions.maybeInvoke(contextNode, const PasteTextIntent(SelectionChangedCause.keyboard));
+                    }
+                  },
+                ),
+                PlatformMenuItem(
+                  label: 'Paste as Plain Text',
+                  shortcut: const SingleActivator(LogicalKeyboardKey.keyV, meta: true, shift: true),
+                  onSelected: () {
+                    final contextNode = FocusManager.instance.primaryFocus?.context;
+                    if (contextNode != null) {
+                      Actions.maybeInvoke(contextNode, const PastePlainTextIntent());
                     }
                   },
                 ),

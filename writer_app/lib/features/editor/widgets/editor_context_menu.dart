@@ -84,7 +84,13 @@ Widget buildEditorContextMenu(BuildContext context, EditableTextState editable) 
 
   // Cut / copy / paste / select all, with copy and paste keeping hidden
   // markers balanced and putting rich text on the clipboard (item 24).
-  items.addAll(MarkerAwareEditing.routedButtonItems(editable));
+  for (final item in MarkerAwareEditing.routedButtonItems(editable)) {
+    items.add(item);
+    if (item.type == ContextMenuButtonType.paste) {
+      final plain = MarkerAwareEditing.pastePlainItem(editable);
+      if (plain != null) items.add(plain);
+    }
+  }
 
   final selected = (sel.isValid && !sel.isCollapsed) ? sel.textInside(value.text) : '';
   if (selected.trim().isNotEmpty) {

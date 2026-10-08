@@ -2,9 +2,12 @@
 // EditableText's own spell-check drawing replaced buildTextSpan wholesale,
 // so a heading with a misspelling showed its raw "# " markdown.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
+import 'package:pellucid/features/editor/services/native_spell_check_service.dart';
+import 'package:pellucid/features/editor/widgets/editor_paper_area.dart';
 import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
 
 List<TextSpan> _flatten(InlineSpan root) {
@@ -105,5 +108,41 @@ void main() {
     // Fix the first word: its range goes, the other stays.
     c.value = c.value.copyWith(text: 'the big cat and teh dog');
     expect(c.misspellings, [const TextRange(start: 16, end: 19)]);
+  });
+
+  group('iOS uses the controller path, not Flutter spell check', () {
+
+    testWidgets('EditableText spell check is off on iOS, macOS and Windows', (tester) async {
+      for (final p in [TargetPlatform.iOS, TargetPlatform.macOS, TargetPlatform.windows]) {
+        debugDefaultTargetPlatformOverride = p;
+        expect(NativeSpellCheckService.isSupported, isTrue, reason: p.name);
+        final c = editableSpellCheckConfiguration(true, inTest: false);
+        expect(c.spellCheckEnabled, isFalse, reason: p.name);
+        expect(c.spellCheckService, isNull, reason: p.name);
+      }
+      // Android keeps Flutter's own checker.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      expect(editableSpellCheckConfiguration(true, inTest: false).spellCheckEnabled, isTrue);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('on iOS a misspelling leaves heading and bold markers hidden', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      expect(editableSpellCheckConfiguration(true, inTest: false).spellCheckEnabled, isFalse);
+      //                                        0         1         2
+      //                                        0123456789012345678901234
+      final c = MarkdownEditingController(text: '# Teh Title\nsome **bolt** x', theme: theme);
+      c.setMisspellings([const TextRange(start: 2, end: 5), const TextRange(start: 19, end: 23)]);
+      final spans = await spansFor(tester, c);
+      expect(spans.firstWhere((s) => s.text == '# ').style!.color, Colors.transparent);
+      final stars = spans.where((s) => s.text == '**').toList();
+      expect(stars, isNotEmpty);
+      for (final s in stars) {
+        expect(s.style!.color, Colors.transparent);
+      }
+      expect(spans.where(_isWavy).map((s) => s.text), ['Teh', 'bolt']);
+      expect(spans.map((s) => s.text).join(), c.text);
+      debugDefaultTargetPlatformOverride = null;
+    });
   });
 }

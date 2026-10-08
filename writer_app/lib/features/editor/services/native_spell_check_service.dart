@@ -1,10 +1,10 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// Spell checking through the OS spell checker: NSSpellChecker on macOS
-/// (MainFlutterWindow.swift) and ISpellChecker on Windows
-/// (windows/runner/spell_check_channel.cpp). Flutter has no desktop default.
+/// (MainFlutterWindow.swift), UITextChecker on iOS (ios/Runner/AppDelegate.swift)
+/// and ISpellChecker on Windows (windows/runner/spell_check_channel.cpp).
 ///
 /// Not handed to EditableText: its built-in spell-check drawing replaces the
 /// editor's markdown styling. EditorPaperArea drives this service itself and
@@ -23,7 +23,12 @@ class NativeSpellCheckService implements EditorSpellService {
   const NativeSpellCheckService();
 
   /// Platforms with a native handler for [_channel].
-  static bool get isSupported => Platform.isMacOS || Platform.isWindows;
+  static bool get isSupported => !kIsWeb && isSupportedOn(defaultTargetPlatform);
+
+  /// Which platforms answer [_channel] natively. iOS is here because Flutter's
+  /// own spell-check drawing there bypasses MarkdownEditingController.
+  static bool isSupportedOn(TargetPlatform p) =>
+      p == TargetPlatform.macOS || p == TargetPlatform.windows || p == TargetPlatform.iOS;
 
   static const _channel = MethodChannel('com.overengineeredhobbies.pellucid/spellcheck');
 

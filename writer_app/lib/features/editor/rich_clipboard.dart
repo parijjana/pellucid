@@ -2,10 +2,12 @@
 // (HTML) and plain text without markdown markers; Pellucid itself gets the
 // markdown back on paste.
 //
-// macOS only for now (native channel in MainFlutterWindow.swift): it puts
-// HTML, plain text and a private markdown type on one pasteboard item.
-// Elsewhere copy keeps its old behaviour (the markdown as plain text) until
-// the Windows/iOS side is built.
+// Native channel on macOS (MainFlutterWindow.swift) and iOS (ios/Runner/
+// AppDelegate.swift, UIPasteboard): HTML, plain text and a private markdown
+// type on one pasteboard item. Windows has an UNCOMPILED, UNTESTED C++ draft
+// (windows/runner/clipboard_channel.cpp, CF_HTML + CF_UNICODETEXT) that is not
+// in the build yet, so Windows keeps the old behaviour (markdown as plain
+// text). See docs/WINDOWS_1.1.0_HANDOFF.md.
 
 import 'dart:io';
 
@@ -142,7 +144,13 @@ class RichClipboard {
   static bool? debugSupported;
 
   static bool get isSupported =>
-      debugSupported ?? (!kIsWeb && Platform.isMacOS && !Platform.environment.containsKey('FLUTTER_TEST'));
+      debugSupported ??
+      (!kIsWeb &&
+          isSupportedOn(defaultTargetPlatform) &&
+          !Platform.environment.containsKey('FLUTTER_TEST'));
+
+  /// Platforms with a native `setRich` / `getMarkdown` handler.
+  static bool isSupportedOn(TargetPlatform p) => p == TargetPlatform.macOS || p == TargetPlatform.iOS;
 
   /// Copies `[start, end)` of [text].
   static Future<void> copy(String text, int start, int end) async {

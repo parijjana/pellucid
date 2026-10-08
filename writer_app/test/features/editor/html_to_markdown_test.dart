@@ -212,7 +212,7 @@ A\tB''');
 Home
 ## A *fine* day
 by **Someone**
-Text with ***nested <u>junk</u>***, a `snippet` and [mail](mailto:a@b.co).
+Text with ***nested*** ***<u>junk</u>***, a `snippet` and [mail](mailto:a@b.co).
 > Wise words.
 1. Step **one**
 2. Step two

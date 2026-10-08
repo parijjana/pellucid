@@ -23,6 +23,29 @@ Plain with ~~struck~~ and **bold** and *italic* words, ~5 minutes stays.
 Back to body.
 ''';
 
+// Lists as the editor stores them: four-space nesting, 1. a. i. by level,
+// checklists. Item 21 for slice 5.
+const _listsDoc = '''# Lists
+
+- bullet one
+    - nested bullet
+        - deep bullet
+- bullet two
+
+1. first
+2. second
+    1. nested one
+    2. nested two
+        1. deepest
+3. third **bold**
+
+- [ ] open task
+- [x] done task
+    - [ ] nested task
+
+Prose with [x] in the middle stays as typed.
+''';
+
 void _matchesGolden(String name, String actual) {
   final file = File('test/features/editor/goldens/$name');
   if (Platform.environment['UPDATE_GOLDENS'] == '1' || !file.existsSync()) {
@@ -53,6 +76,15 @@ void main() {
       expect(html, contains('A quoted line'));
     });
 
+    test('numbered and nested lists and checklists', () {
+      final html = markdownToExportHtml(_listsDoc);
+      expect(RegExp(r'<ol>').allMatches(html).length, 3); // top, nested, deepest
+      expect(html, contains('<li>nested bullet'));
+      expect(html, contains('<li class="task"><span class="task-box">\u2610</span> open task'));
+      expect(html, contains('<span class="task-box done">\u2611</span> done task'));
+      expect(html, contains('Prose with [x] in the middle'));
+    });
+
     test('a lone tilde is not strikethrough', () {
       final html = markdownToExportHtml('about ~5 min and ~6 min');
       expect(html, isNot(contains('<del>')));
@@ -63,6 +95,18 @@ void main() {
     test('snapshot (serif)', () async {
       final bytes = await service.buildPdf(_doc, font: EditorFont.serif, compress: false);
       _matchesGolden('export_pdf_serif.txt', _pdfSummary(bytes));
+    });
+
+    test('lists snapshot: numbers, nesting and checklists (serif)', () async {
+      final bytes = await service.buildPdf(_listsDoc, font: EditorFont.serif, compress: false);
+      final summary = _pdfSummary(bytes);
+      _matchesGolden('export_pdf_lists.txt', summary);
+      // Level-aware numbering, nested items in order, boxes drawn (no glyph needed).
+      final shown = summary.split('text:\n').last.split('\n');
+      expect(shown, containsAllInOrder(['1.', 'first', '2.', 'second', 'a.', 'nested', 'one', 'b.', 'nested', 'two']));
+      expect(shown, containsAllInOrder(['i.', 'deepest', '3.', 'third']));
+      expect(shown, containsAllInOrder(['bullet', 'one', 'nested', 'bullet', 'deep', 'bullet', 'bullet', 'two']));
+      expect(summary, isNot(contains('\u2610')));
     });
 
     test('each font uses its own standard family and embeds nothing', () async {
@@ -87,8 +131,8 @@ void main() {
   });
 
   group('EPUB', () {
-    String epubSummary(EditorFont font) {
-      final bytes = service.buildEpub(markdown: _doc, title: 'T', author: 'A', font: font);
+    String epubSummary(EditorFont font, {String doc = _doc}) {
+      final bytes = service.buildEpub(markdown: doc, title: 'T', author: 'A', font: font);
       final archive = ZipDecoder().decodeBytes(bytes);
       final names = archive.files.map((f) => f.name).toList()..sort();
       String read(String suffix) =>
@@ -101,6 +145,14 @@ void main() {
 
     test('snapshot (serif)', () {
       _matchesGolden('export_epub_serif.txt', epubSummary(EditorFont.serif));
+    });
+
+    test('lists snapshot: nested lists, level styles and checkboxes', () {
+      final summary = epubSummary(EditorFont.serif, doc: _listsDoc);
+      _matchesGolden('export_epub_lists.txt', summary);
+      expect(summary, contains('ol ol { list-style-type: lower-alpha; }'));
+      expect(summary, contains('ol ol ol { list-style-type: lower-roman; }'));
+      expect(summary, contains('<li class="task">'));
     });
 
     test('stylesheet carries the chosen font', () {

@@ -2,6 +2,12 @@ css:
 body { font-family: 'Georgia', 'Times New Roman', 'Noto Serif', serif; }
 blockquote { margin: 1em 2em; font-style: italic; }
 del { text-decoration: line-through; }
+ul ul { list-style-type: circle; }
+ul ul ul { list-style-type: square; }
+ol ol { list-style-type: lower-alpha; }
+ol ol ol { list-style-type: lower-roman; }
+li.task { list-style: none; margin-left: -1.4em; }
+.task-box { margin-right: 0.3em; }
 
 chapter:
 <?xml version="1.0" encoding="utf-8"?>

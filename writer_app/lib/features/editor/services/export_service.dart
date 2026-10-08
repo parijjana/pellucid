@@ -5,7 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:epub_builder/epub_builder.dart' as eb;
 import '../providers/editor_font.dart';
 import 'export_markdown.dart';
-import 'package:htmltopdfwidgets/htmltopdfwidgets.dart' as htp;
+import 'export_pdf_lists.dart';
 
 class ExportService {
   /// PDF theme for the chosen document font. These are the PDF standard
@@ -48,9 +48,7 @@ class ExportService {
     final pdf = pw.Document(compress: compress);
 
     // Convert Markdown to PDF Widgets
-    final widgets = await htp.HTMLToPdf().convert(
-      markdownToExportHtml(markdown),
-    );
+    final widgets = await markdownToPdfWidgets(markdown);
 
     pdf.addPage(
       pw.MultiPage(
@@ -76,7 +74,11 @@ class ExportService {
   static String epubCssFor(EditorFont font) =>
       'body { font-family: ${font.cssFamily}; }\n'
       'blockquote { margin: 1em 2em; font-style: italic; }\n'
-      'del { text-decoration: line-through; }\n';
+      'del { text-decoration: line-through; }\n'
+      // Nested lists change marker with the level, as in the editor.
+      'ul ul { list-style-type: circle; }\nul ul ul { list-style-type: square; }\n'
+      'ol ol { list-style-type: lower-alpha; }\nol ol ol { list-style-type: lower-roman; }\n'
+      'li.task { list-style: none; margin-left: -1.4em; }\n.task-box { margin-right: 0.3em; }\n';
 
   /// Builds the EPUB in memory (also used by the tests).
   Uint8List buildEpub({

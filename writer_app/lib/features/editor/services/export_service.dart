@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:epub_builder/epub_builder.dart' as eb;
+import '../list_marker.dart';
 import '../providers/editor_font.dart';
 import 'export_markdown.dart';
 import 'export_pdf_lists.dart';
@@ -71,14 +72,25 @@ class ExportService {
   }
 
   /// The stylesheet shipped inside the EPUB: the chosen font for the book.
-  static String epubCssFor(EditorFont font) =>
+  static String epubCssFor(EditorFont font, {BulletStyle bullets = BulletStyle.classic}) =>
       'body { font-family: ${font.cssFamily}; }\n'
       'blockquote { margin: 1em 2em; font-style: italic; }\n'
       'del { text-decoration: line-through; }\n'
       // Nested lists change marker with the level, as in the editor.
       'ul ul { list-style-type: circle; }\nul ul ul { list-style-type: square; }\n'
       'ol ol { list-style-type: lower-alpha; }\nol ol ol { list-style-type: lower-roman; }\n'
+      'p.in1 { margin-left: 1.6em; }\np.in2 { margin-left: 3.2em; }\np.in3 { margin-left: 4.8em; }\np.in4 { margin-left: 6.4em; }\n'
+      '${_epubBulletCss(bullets)}'
       'li.task { list-style: none; margin-left: -1.4em; }\n.task-box { margin-right: 0.3em; }\n';
+
+  /// CSS for a non-classic bullet set (slice 5b): the glyph is the list marker
+  /// (`list-style-type` string, EPUB 3; a reader that ignores it keeps the
+  /// classic marker above). Classic needs nothing.
+  static String _epubBulletCss(BulletStyle b) {
+    if (b == BulletStyle.classic) return '';
+    final g = b.glyphs;
+    return "ul { list-style-type: '${g[0]} '; }\nul ul { list-style-type: '${g[1]} '; }\nul ul ul { list-style-type: '${g[2]} '; }\n";
+  }
 
   /// Builds the EPUB in memory (also used by the tests).
   Uint8List buildEpub({
@@ -86,11 +98,12 @@ class ExportService {
     required String title,
     required String author,
     EditorFont font = EditorFont.defaultFont,
+    BulletStyle bullets = BulletStyle.classic,
   }) {
     final book = eb.EpubBook.create(
       title: title,
       authors: [author],
-      cssContent: epubCssFor(font),
+      cssContent: epubCssFor(font, bullets: bullets),
     );
 
     // Split markdown by headers to create chapters
@@ -119,8 +132,9 @@ class ExportService {
     required String author,
     required String filePath,
     EditorFont font = EditorFont.defaultFont,
+    BulletStyle bullets = BulletStyle.classic,
   }) async {
-    final bytes = buildEpub(markdown: markdown, title: title, author: author, font: font);
+    final bytes = buildEpub(markdown: markdown, title: title, author: author, font: font, bullets: bullets);
     await File(filePath).writeAsBytes(bytes);
   }
 

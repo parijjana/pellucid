@@ -18,7 +18,7 @@ import 'export_markdown.dart';
 /// long list can break across pages.
 Future<List<pw.Widget>> markdownToPdfWidgets(String markdown) async {
   final doc = md.Document(extensionSet: exportExtensionSet);
-  final nodes = doc.parseLines(markdown.replaceAll('\r\n', '\n').split('\n'));
+  final nodes = doc.parseLines(markParagraphIndents(markdown.replaceAll('\r\n', '\n')).split('\n'));
   final out = <pw.Widget>[];
   final pending = <md.Node>[];
 
@@ -32,12 +32,48 @@ Future<List<pw.Widget>> markdownToPdfWidgets(String markdown) async {
     if (node is md.Element && (node.tag == 'ul' || node.tag == 'ol')) {
       await flush();
       await _list(node, 0, out);
+    } else if (node is md.Element && node.tag == 'p' && _leadingEm(node)) {
+      // Paragraph indent (slice 5b): one list level (18 pt) per em space; the
+      // em space itself is never printed.
+      await flush();
+      final level = _stripEm(node);
+      final widgets = await htp.HTMLToPdf().convert(md.renderToHtml([node]));
+      out.addAll(level == 0
+          ? widgets
+          : [pw.Padding(padding: pw.EdgeInsets.only(left: 18.0 * level), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: widgets))]);
     } else {
+      _stripEm(node);
       pending.add(node);
     }
   }
   await flush();
   return out;
+}
+
+bool _leadingEm(md.Element p) => (p.children?.firstOrNull is md.Text) && (p.children!.first as md.Text).text.startsWith(exportIndentMark);
+
+/// Removes em spaces at the start of [node]'s text (and after soft line
+/// breaks), recursively, and returns the indent level of its first line.
+int _stripEm(md.Node node) {
+  int level = 0;
+  if (node is md.Element && (node.tag == 'pre' || node.tag == 'code')) return 0;
+  if (node is md.Element && node.children != null) {
+    final kids = node.children!;
+    for (int i = 0; i < kids.length; i++) {
+      final k = kids[i];
+      if (k is md.Text) {
+        if (k.text.contains(exportIndentMark) || k.text.contains(paragraphIndentChar)) {
+          final r = takeParagraphIndent(k.text);
+          // Only a text node that starts the paragraph carries the level.
+          if (i == 0) level = r.level;
+          kids[i] = md.Text((i == 0 ? r.text : k.text.replaceAll(RegExp('\n\uE000+'), '\n')).replaceAll(exportIndentMark, '').replaceAll(paragraphIndentChar, ''));
+        }
+      } else {
+        _stripEm(k);
+      }
+    }
+  }
+  return level;
 }
 
 bool _isList(md.Node n) => n is md.Element && (n.tag == 'ul' || n.tag == 'ol');
@@ -88,6 +124,7 @@ Future<void> _list(md.Element list, int level, List<pw.Widget> out) async {
 
 Future<List<pw.Widget>> _content(List<md.Node> nodes) async {
   if (nodes.isEmpty) return const [];
+  nodes.forEach(_stripEm);
   final blocky = nodes.any((n) => n is md.Element && (n.tag == 'p' || n.tag.startsWith('h') || n.tag == 'blockquote'));
   final html = md.renderToHtml(nodes);
   return htp.HTMLToPdf().convert(blocky ? html : '<p>$html</p>');

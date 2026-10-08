@@ -39,6 +39,9 @@ const fixtures = <String>[
   'a ~~gone~~ b ~~~~ c',
   '> quoted **b** ~~s~~',
   '>not a quote',
+  '\u2003indented paragraph',
+  '\u2003\u2003**bold** indented',
+  '\u2003',
   '',
 ];
 

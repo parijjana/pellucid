@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:pellucid/features/editor/providers/editor_font.dart';
@@ -84,6 +85,7 @@ void main() {
     when(() => mockSettings.grammarHintsEnabled).thenReturn(false);
     when(() => mockSettings.smartPunctuationEnabled).thenReturn(false);
     when(() => mockSettings.autoContinueListsEnabled).thenReturn(true);
+    when(() => mockSettings.bulletStyle).thenReturn(BulletStyle.defaultStyle);
     when(() => mockSettings.attributionDuplicateHighlightEnabled).thenReturn(true);
 
     when(() => mockHistory.history).thenReturn([]);

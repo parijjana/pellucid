@@ -7,6 +7,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
 import 'package:pellucid/features/editor/providers/codex_index.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/editor/utils/grammar_checker.dart';
@@ -30,6 +31,8 @@ void main() {
       // Slice 5: lists, checklists, nesting, and inline styles on block lines.
       '\n- ', '\n1. ', '\n12. ', '\n- [ ] ', '\n- [x] ', '- [ ] ', '1. ', '    ', '\n    - ', '\n        3. ',
       '\n    - [x] ', '\n  2. ', '[x]', '# **b**', '- *i* ',
+      // Slice 5b: paragraph indent (em spaces) at line starts and mid-line.
+      '\u2003', '\n\u2003', '\n\u2003\u2003**b**', '\u2003\u2003\u2003\u2003\u2003', '\n\u2003- ',
     ];
     const styles = [
       TextStyle(fontSize: 16, fontFamily: 'Georgia'),
@@ -49,7 +52,7 @@ void main() {
 
     for (int step = 0; step < 400; step++) {
       final text = cached.text;
-      final roll = rnd.nextInt(12);
+      final roll = rnd.nextInt(13);
       if (roll < 5) {
         // Type or delete somewhere, like a keystroke.
         final at = rnd.nextInt(text.length + 1);
@@ -91,6 +94,11 @@ void main() {
         final issues = GrammarChecker.check(text);
         cached.setGrammarIssues(issues);
         plain.setGrammarIssues(issues);
+      } else if (roll == 12) {
+        // Bullet style (slice 5b) changes how every list line is drawn.
+        final b = BulletStyle.values[rnd.nextInt(BulletStyle.values.length)];
+        cached.bulletStyle = b;
+        plain.bulletStyle = b;
       } else {
         // Document font (slice 6) reaches buildTextSpan as the base style.
         style = styles[rnd.nextInt(styles.length)];

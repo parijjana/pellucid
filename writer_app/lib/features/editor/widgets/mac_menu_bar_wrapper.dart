@@ -699,6 +699,7 @@ class MacMenuBarWrapper extends StatelessWidget {
         author: 'Pellucid',
         filePath: result.path,
         font: settings.editorFont,
+        bullets: settings.bulletStyle,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to ${result.path}')));

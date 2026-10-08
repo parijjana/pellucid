@@ -7,6 +7,7 @@ import 'package:pellucid/features/editor/providers/editor_font.dart';
 import 'package:pellucid/features/editor/providers/editor_provider.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/editor/widgets/shortcuts.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
 import 'package:pellucid/features/settings/providers/settings_provider.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/settings/providers/history_provider.dart';
@@ -20,6 +21,8 @@ class MockThemeProvider extends Mock implements ThemeProvider {}
 class MockSettingsProvider extends Mock implements SettingsProvider {
   @override
   EditorFont get editorFont => EditorFont.defaultFont;
+  @override
+  BulletStyle get bulletStyle => BulletStyle.defaultStyle;
   @override
   bool get spellCheckEnabled => true;
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:pellucid/features/editor/providers/editor_font.dart';
@@ -26,6 +27,8 @@ class MockSettingsProvider extends Mock implements SettingsProvider {
   bool get grammarHintsEnabled => false;
   @override
   bool get smartPunctuationEnabled => false;
+  @override
+  BulletStyle get bulletStyle => BulletStyle.defaultStyle;
   @override
   bool get autoContinueListsEnabled => true;
   @override

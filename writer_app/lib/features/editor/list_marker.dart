@@ -69,9 +69,57 @@ ListMarker? parseListMarker(String line) {
   return ListMarker(indent, ListKind.bullet, marker);
 }
 
-/// Bullet glyph by level: • ◦ ▪, then round again.
-const List<String> bulletGlyphs = ['•', '◦', '▪'];
-String bulletGlyphForLevel(int level) => bulletGlyphs[level % bulletGlyphs.length];
+/// Paragraph indent (slice 5b). Markdown has no paragraph indent and leading
+/// spaces would make a code block, so each level is one U+2003 EM SPACE at the
+/// start of the line: other apps show a visible indent and no code block.
+const String paragraphIndentChar = '\u2003';
+const int maxParagraphIndent = 4;
+
+/// Number of leading em spaces of [line] (all of them, not capped).
+int paragraphIndentCount(String line) {
+  int n = 0;
+  while (n < line.length && line.codeUnitAt(n) == 0x2003) {
+    n++;
+  }
+  return n;
+}
+
+/// Display level of a paragraph line: its em spaces, at most [maxParagraphIndent].
+int paragraphIndentLevel(String line) {
+  final n = paragraphIndentCount(line);
+  return n > maxParagraphIndent ? maxParagraphIndent : n;
+}
+
+/// Bullet glyph sets (slice 5b, Settings > Bullet Style). Display only: files
+/// keep `-`. Each set has three glyphs, by nesting level, then round again.
+/// Every glyph is one UTF-16 unit so the drawn marker keeps the stored length.
+enum BulletStyle {
+  classic('classic', 'Classic', ['\u2022', '\u25E6', '\u25AA']), // • ◦ ▪
+  dashes('dashes', 'Dashes', ['\u2013', '\u2013', '\u2013']), // – – –
+  arrows('arrows', 'Arrows', ['\u25B8', '\u25B9', '\u25B8']), // ▸ ▹ ▸
+  circles('circles', 'Circles', ['\u25CF', '\u25CB', '\u25CF']); // ● ○ ●
+
+  const BulletStyle(this.id, this.label, this.glyphs);
+
+  /// Stable id stored in the settings database.
+  final String id;
+  final String label;
+  final List<String> glyphs;
+
+  static const BulletStyle defaultStyle = BulletStyle.classic;
+
+  static BulletStyle fromId(String? id) =>
+      BulletStyle.values.firstWhere((b) => b.id == id, orElse: () => defaultStyle);
+
+  String glyphForLevel(int level) => glyphs[level % glyphs.length];
+
+  /// "• ◦ ▪" for the Settings menu.
+  String get sample => glyphs.join(' ');
+}
+
+/// Bullet glyph by level in the classic set: • ◦ ▪, then round again.
+const List<String> bulletGlyphs = ['\u2022', '\u25E6', '\u25AA'];
+String bulletGlyphForLevel(int level, [BulletStyle style = BulletStyle.classic]) => style.glyphForLevel(level);
 
 String _letters(int n) {
   final out = StringBuffer();
@@ -128,10 +176,10 @@ class ListGlyph {
 const String checkboxOff = '☐';
 const String checkboxOn = '☑';
 
-ListGlyph listGlyph(ListMarker m) {
+ListGlyph listGlyph(ListMarker m, [BulletStyle style = BulletStyle.classic]) {
   switch (m.kind) {
     case ListKind.bullet:
-      return ListGlyph('${bulletGlyphForLevel(m.level)} ', 0, m.marker.length - 2);
+      return ListGlyph('${bulletGlyphForLevel(m.level, style)} ', 0, m.marker.length - 2);
     case ListKind.check:
       return ListGlyph('${m.checked ? checkboxOn : checkboxOff} ', 0, m.marker.length - 2);
     case ListKind.number:

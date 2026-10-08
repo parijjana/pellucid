@@ -1,0 +1,16 @@
+fonts: Times-Bold, Times-Roman
+embeddedFontFiles: false
+text:
+Indent
+First
+level
+paragraph
+soft
+break
+Third
+level
+Plain
+paragraph
+code
+keeps
+it

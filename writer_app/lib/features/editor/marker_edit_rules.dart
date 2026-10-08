@@ -108,7 +108,7 @@ TextEditingValue applyMarkerEditRules(TextEditingValue oldValue, TextEditingValu
       result = _forwardDelete(o, edit, p);
     }
   } else if (edit.inserted == '\n' && edit.start == edit.end && sel.isValid && sel.isCollapsed && listAutoContinueEnabled) {
-    result = _listEnter(o, edit.start);
+    result = _listEnter(o, edit.start) ?? _indentEnter(o, edit.start);
   }
   result ??= _replace(o, edit.start, edit.end, edit.inserted);
   final TextEditingValue out = result ?? newValue;
@@ -166,8 +166,29 @@ TextEditingValue? _listEnter(String o, int p) {
   return r;
 }
 
+/// Enter on an indented paragraph (slice 5b): the new line carries the indent;
+/// Enter on an empty indented line takes one level off instead. Null leaves
+/// the keystroke to the generic rules.
+TextEditingValue? _indentEnter(String o, int p) {
+  final line = scanLineAt(o, p);
+  if (!line.isParagraphIndent || p < line.prefixEnd) return null;
+  if (o.substring(line.prefixEnd, line.lineEnd).trim().isEmpty) {
+    return _value(o.replaceRange(line.lineStart, line.lineStart + 1, ''), p - 1);
+  }
+  final String lead = paragraphIndentChar * paragraphIndentLevel(line.prefix!);
+  final r = _replace(o, p, p, '\n', lineLead: lead);
+  if (r == null) return null;
+  final int newLine = lineEndOf(r.text, lineStartOf(r.text, p)) + 1;
+  lastAutoMarker = AutoMarkerUndo(r.text, r.selection.baseOffset, newLine, newLine + lead.length);
+  return r;
+}
+
 TextEditingValue? _backspace(String o, TextEdit edit, int p) {
   final line = scanLineAt(o, p);
+  // Backspace at the start of an indented paragraph removes one level.
+  if (line.isParagraphIndent && p == line.prefixEnd) {
+    return _value(o.replaceRange(line.prefixEnd - 1, line.prefixEnd, ''), p - 1);
+  }
   // Rule: Backspace at the start of a heading/bullet line removes the style.
   if (line.prefix != null && p == line.prefixEnd) {
     return _value(o.replaceRange(line.lineStart, line.prefixEnd, ''), line.lineStart);
@@ -216,7 +237,7 @@ TextEditingValue? _replace(String o, int s, int e, String ins, {int? caret, Stri
 
   // Enter straight after a block prefix with text after it: open a body line
   // above instead of splitting the prefix from its text.
-  if (s == e && ins == '\n' && first.prefix != null && s == first.prefixEnd && first.lineEnd > s) {
+  if (s == e && ins == '\n' && first.prefix != null && !first.isParagraphIndent && s == first.prefixEnd && first.lineEnd > s) {
     return _value(o.replaceRange(first.lineStart, first.lineStart, '\n'), s + 1);
   }
 

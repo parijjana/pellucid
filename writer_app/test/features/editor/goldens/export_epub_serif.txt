@@ -6,6 +6,10 @@ ul ul { list-style-type: circle; }
 ul ul ul { list-style-type: square; }
 ol ol { list-style-type: lower-alpha; }
 ol ol ol { list-style-type: lower-roman; }
+p.in1 { margin-left: 1.6em; }
+p.in2 { margin-left: 3.2em; }
+p.in3 { margin-left: 4.8em; }
+p.in4 { margin-left: 6.4em; }
 li.task { list-style: none; margin-left: -1.4em; }
 .task-box { margin-right: 0.3em; }
 

@@ -69,7 +69,66 @@ final md.ExtensionSet exportExtensionSet = md.ExtensionSet(
 /// its bullet: `<li><span class="task-box"` -> `<li class="task"><span ...`.
 final RegExp _taskItem = RegExp(r'<li>(\s*(?:<p>)?\s*)<span class="task-box');
 
+/// Paragraph indent (slice 5b). The Markdown parser trims the em spaces at the
+/// start of a paragraph, so before parsing each leading run (outside code
+/// fences) is swapped for the same number of private-use marks; the HTML
+/// step turns them into `class="in1".."in4"`, the PDF step into padding. The
+/// em space itself never reaches the output outside code.
+const String exportIndentMark = '\uE000';
+
+final RegExp _indentedParagraph = RegExp('<p>\uE000+');
+final RegExp _softBreakIndent = RegExp('\n\uE000+');
+final RegExp _preBlock = RegExp(r'<pre>.*?</pre>', dotAll: true);
+
+/// [markdown] with each leading em-space run replaced by [exportIndentMark]s.
+/// Lines inside fenced code are left as they are.
+String markParagraphIndents(String markdown) {
+  if (!markdown.contains('\u2003')) return markdown;
+  final out = <String>[];
+  bool fenced = false;
+  for (final line in markdown.split('\n')) {
+    final t = line.trimLeft();
+    if (t.startsWith('```') || t.startsWith('~~~')) fenced = !fenced;
+    if (!fenced && line.startsWith('\u2003')) {
+      int n = 0;
+      while (n < line.length && line.codeUnitAt(n) == 0x2003) {
+        n++;
+      }
+      out.add(exportIndentMark * n + line.substring(n));
+    } else {
+      out.add(line);
+    }
+  }
+  return out.join('\n');
+}
+
 /// The HTML both exporters consume.
-String markdownToExportHtml(String markdown) => md
-    .markdownToHtml(markdown, extensionSet: exportExtensionSet)
-    .replaceAllMapped(_taskItem, (m) => '<li class="task">${m[1]}<span class="task-box');
+String markdownToExportHtml(String markdown) {
+  final html = md
+      .markdownToHtml(markParagraphIndents(markdown), extensionSet: exportExtensionSet)
+      .replaceAllMapped(_taskItem, (m) => '<li class="task">${m[1]}<span class="task-box');
+  final indented = html
+      .replaceAllMapped(_indentedParagraph, (m) => '<p class="in${(m[0]!.length - 3).clamp(1, 4)}">')
+      .replaceAll(_softBreakIndent, '\n');
+  // Stray em spaces and marks outside code never print.
+  final sb = StringBuffer();
+  int at = 0;
+  String clean(String t) => t.replaceAll('\u2003', '').replaceAll(exportIndentMark, '');
+  for (final m in _preBlock.allMatches(indented)) {
+    sb
+      ..write(clean(indented.substring(at, m.start)))
+      ..write(indented.substring(m.start, m.end));
+    at = m.end;
+  }
+  sb.write(clean(indented.substring(at)));
+  return sb.toString();
+}
+
+/// [text] without paragraph-indent marks, and the indent level it had.
+({String text, int level}) takeParagraphIndent(String text) {
+  int n = 0;
+  while (n < text.length && text[n] == exportIndentMark) {
+    n++;
+  }
+  return (text: text.substring(n).replaceAll(_softBreakIndent, '\n').replaceAll(exportIndentMark, ''), level: n > 4 ? 4 : n);
+}

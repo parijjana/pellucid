@@ -188,7 +188,8 @@ void main() {
       expect(show(indentLines(v('- a\n    - b|'), outdent: true)!), '- a\n- b|');
       expect(indentLines(v('- a|'), outdent: true), isNull);
       expect(indentLines(v('plain|'), outdent: true), isNull);
-      expect(indentLines(v('plain|'), outdent: false), isNull);
+      // Plain paragraphs take a paragraph indent now (slice 5b): see paragraph_indent_test.dart.
+      expect(show(indentLines(v('plain|'), outdent: false)!), '\u2003plain|');
     });
     test('a tab indent unindents too', () {
       expect(indentLines(v('- a\n\t- b|'), outdent: true)!.text, '- a\n- b');

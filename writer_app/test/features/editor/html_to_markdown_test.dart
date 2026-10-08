@@ -253,4 +253,30 @@ Writer''');
       expect(htmlAddsStructure('a b', null), isTrue);
     });
   });
+
+  group('paragraph indent (slice 5b)', () {
+    const em = '\u2003';
+    test('margin-left becomes em-space levels (0.5 in each)', () {
+      expect(md('<p style="margin-left: 0.5in">a</p>'), '${em}a');
+      expect(md('<p style="margin-left:48px">a</p>'), '${em}a');
+      expect(md('<p style="margin-left:72pt">b</p>'), '${em * 2}b');
+      expect(md('<p style="padding-left: 3em">c</p>'), '${em}c'.replaceFirst(em, em * 1));
+    });
+    test('text-indent indents the first line only', () {
+      expect(md('<p style="text-indent:0.5in">one<br>two</p>'), '${em}one\ntwo');
+    });
+    test('levels stop at four', () {
+      expect(md('<p style="margin-left:10in">a</p>'), '${em * 4}a');
+    });
+    test('unclear indents are dropped', () {
+      expect(md('<p style="margin-left:-0.5in">a</p>'), 'a');
+      expect(md('<p style="margin-left:2px">a</p>'), 'a');
+      expect(md('<p style="margin-left:auto">a</p>'), 'a');
+      expect(md('<p style="margin-left:5%">a</p>'), 'a');
+    });
+    test('quotes and list items do not take em spaces', () {
+      expect(md('<blockquote><p style="margin-left:0.5in">q</p></blockquote>'), '> q');
+      expect(md('<ul><li style="margin-left:0.5in">x</li></ul>'), '- x');
+    });
+  });
 }

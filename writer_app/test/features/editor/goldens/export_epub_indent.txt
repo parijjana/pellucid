@@ -18,46 +18,17 @@ chapter:
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
   <meta charset="utf-8"/>
-  <title>Lists</title>
+  <title>Indent</title>
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
-  <h1 id="ch_ID">Lists</h1>
-  <h1>Lists</h1><ul>
-<li>bullet one
-<ul>
-<li>nested bullet
-<ul>
-<li>deep bullet</li>
-</ul>
-</li>
-</ul>
-</li>
-<li>bullet two</li>
-</ul>
-<ol>
-<li>first</li>
-<li>second
-<ol>
-<li>nested one</li>
-<li>nested two
-<ol>
-<li>deepest</li>
-</ol>
-</li>
-</ol>
-</li>
-<li>third <strong>bold</strong></li>
-</ol>
-<ul>
-<li class="task"><span class="task-box">☐</span> open task</li>
-<li class="task"><span class="task-box done">☑</span> done task
-<ul>
-<li class="task"><span class="task-box">☐</span> nested task</li>
-</ul>
-</li>
-</ul>
-<p>Prose with [x] in the middle stays as typed.</p>
+  <h1 id="ch_ID">Indent</h1>
+  <h1>Indent</h1><p class="in1">First level paragraph
+soft break</p>
+<p class="in3">Third level</p>
+<p>Plain paragraph</p>
+<pre><code> code keeps it
+</code></pre>
 
 </body>
 </html>

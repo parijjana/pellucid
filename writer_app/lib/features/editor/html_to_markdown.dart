@@ -29,13 +29,14 @@ bool htmlAddsStructure(String markdown, String? plain) {
 }
 
 class _Attrs {
-  final bool bold, italic, strike, code;
+  final bool bold, italic, strike, code, underline;
   final String? href;
   const _Attrs({
     this.bold = false,
     this.italic = false,
     this.strike = false,
     this.code = false,
+    this.underline = false,
     this.href,
   });
   _Attrs copy({
@@ -43,12 +44,14 @@ class _Attrs {
     bool? italic,
     bool? strike,
     bool? code,
+    bool? underline,
     String? href,
   }) => _Attrs(
     bold: bold ?? this.bold,
     italic: italic ?? this.italic,
     strike: strike ?? this.strike,
     code: code ?? this.code,
+    underline: underline ?? this.underline,
     href: href ?? this.href,
   );
   @override
@@ -58,9 +61,10 @@ class _Attrs {
       o.italic == italic &&
       o.strike == strike &&
       o.code == code &&
+      o.underline == underline &&
       o.href == href;
   @override
-  int get hashCode => Object.hash(bold, italic, strike, code, href);
+  int get hashCode => Object.hash(bold, italic, strike, code, underline, href);
 }
 
 class _Seg {
@@ -449,6 +453,11 @@ class _Converter {
     if (RegExp(r'text-decoration(-line)?:[^;]*line-through').hasMatch(st)) {
       out = out.copy(strike: true);
     }
+    // A link's own underline is just the browser default, not formatting.
+    if (a.href == null &&
+        RegExp(r'text-decoration(-line)?:[^;]*underline').hasMatch(st)) {
+      out = out.copy(underline: true);
+    }
     return out;
   }
 
@@ -486,12 +495,14 @@ class _Converter {
           r'^(https?:|mailto:)',
           caseSensitive: false,
         ).hasMatch(href)) {
-          attrs = attrs.copy(href: href);
+          attrs = attrs.copy(href: href, underline: false);
+        }
+      case 'u' || 'ins':
+        if (attrs.href == null) {
+          attrs = attrs.copy(underline: true);
         }
       case 'sup' ||
           'sub' ||
-          'u' ||
-          'ins' ||
           'mark' ||
           'small' ||
           'big' ||
@@ -576,6 +587,9 @@ class _Converter {
     final stars = a.bold && a.italic
         ? '***'
         : (a.bold ? '**' : (a.italic ? '*' : ''));
+    if (a.underline) {
+      core = '<u>$core</u>';
+    }
     core = '$stars$core$stars';
     if (a.strike) core = '~~$core~~';
     return '$lead$core$trail';

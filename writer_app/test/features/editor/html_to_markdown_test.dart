@@ -46,6 +46,18 @@ void main() {
       );
     });
 
+    test('underline: <u>, Word-style <u> and span style become <u>', () {
+      expect(md('<p>a <u>under</u> b</p>'), 'a <u>under</u> b');
+      expect(md('<p><b><u>both</u></b></p>'), '**<u>both</u>**');
+      expect(md("<p><span style='text-decoration:underline;text-underline:single'>word</span> x</p>"), '<u>word</u> x');
+      expect(md('<p><span style="text-decoration-line: underline">w</span></p>'), '<u>w</u>');
+    });
+
+    test('a link keeps no <u> from its default underline', () {
+      expect(md('<p><a href="https://x.org"><u>link</u></a> <a href="https://x.org" style="text-decoration:underline"><span style="text-decoration:underline">l2</span></a></p>'),
+          '[link](https://x.org) [l2](https://x.org)');
+    });
+
     test('whitespace collapses; nbsp becomes a space', () {
       expect(md('<p>a\n   b&nbsp;&nbsp;c</p>'), 'a b c');
     });
@@ -200,7 +212,7 @@ A\tB''');
 Home
 ## A *fine* day
 by **Someone**
-Text with ***nested junk***, a `snippet` and [mail](mailto:a@b.co).
+Text with ***nested <u>junk</u>***, a `snippet` and [mail](mailto:a@b.co).
 > Wise words.
 1. Step **one**
 2. Step two

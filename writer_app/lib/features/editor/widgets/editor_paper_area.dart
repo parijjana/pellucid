@@ -18,6 +18,7 @@ import 'grammar_hints.dart';
 import 'smart_punctuation_scope.dart';
 import 'checklist_tap.dart';
 import '../list_editing.dart';
+import '../long_document/windowed_paper_area.dart';
 
 /// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
 Map<ShortcutActivator, Intent> get _redoShortcuts =>
@@ -100,6 +101,10 @@ class EditorPaperArea extends StatelessWidget {
     final zoomLevel = provider.zoomLevel;
     final pageWidth = provider.pageWidth;
     final horizontalPos = provider.horizontalPosition;
+
+    // Slice 3b: long documents open in the windowed editor (behind a flag).
+    final windowed = windowedPaperArea(this);
+    if (windowed != null) return windowed;
 
     return Container(
       width: double.infinity,

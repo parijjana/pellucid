@@ -114,8 +114,13 @@ class MarkdownEditingController extends TextEditingController {
 
   /// Feeds the current research-note titles used for mention recognition.
   set codexTitles(List<CodexTitle> titles) {
+    _codexTitles = titles;
     if (codexIndex.setTitles(titles)) notifyListeners();
   }
+
+  /// The titles last fed to [codexTitles] (the windowed editor copies them).
+  List<CodexTitle> get codexTitles => _codexTitles;
+  List<CodexTitle> _codexTitles = const [];
 
   String get searchQuery => _searchQuery;
   set searchQuery(String val) {
@@ -449,6 +454,16 @@ class MarkdownEditingController extends TextEditingController {
     if (lineCacheEnabled) _lineCache = next;
 
     return TextSpan(style: style, children: children);
+  }
+
+  /// Spans for one line drawn outside a live field (slice 3b windowed editor:
+  /// the static lines around the editing window). Same styling as
+  /// [buildTextSpan]; this controller's text must be [line], so its ranges
+  /// (spelling, grammar, Find match, Codex mentions) are line-relative.
+  List<InlineSpan> buildLineSpans({required bool dim, TextStyle? style}) {
+    final List<InlineSpan> spans = [];
+    _addLine(spans, text, 0, dim, style);
+    return spans;
   }
 
   void _addLine(List<InlineSpan> children, String line, int lineOffset, bool dim, TextStyle? style) {

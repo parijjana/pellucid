@@ -13,7 +13,9 @@ import 'spell_check_driver.dart';
 
 const _newNote = '\u0000new';
 
-Widget buildEditorContextMenu(BuildContext context, EditableTextState editable) {
+/// [documentOffset] is where the field's text starts in the document the
+/// spell checker ran on (non-zero only in the long-document editor).
+Widget buildEditorContextMenu(BuildContext context, EditableTextState editable, {int documentOffset = 0}) {
   final value = editable.textEditingValue;
   final sel = value.selection;
   final items = <ContextMenuButtonItem>[];
@@ -21,9 +23,16 @@ Widget buildEditorContextMenu(BuildContext context, EditableTextState editable) 
   // Spelling: the word under the caret, or a selection that is exactly one
   // misspelled word.
   final driver = SpellCheckDriver.maybeOf(editable.context);
-  final hit = (driver == null || !sel.isValid)
+  final docHit = (driver == null || !sel.isValid)
       ? null
-      : driver.hitAt(sel.isCollapsed ? sel.baseOffset : sel.start);
+      : driver.hitAt((sel.isCollapsed ? sel.baseOffset : sel.start) + documentOffset);
+  final hit = docHit == null || documentOffset == 0
+      ? docHit
+      : SpellHit(
+          TextRange(start: docHit.range.start - documentOffset, end: docHit.range.end - documentOffset),
+          docHit.word,
+          docHit.suggestions,
+        );
   if (driver != null &&
       hit != null &&
       (sel.isCollapsed || (sel.start >= hit.range.start && sel.end <= hit.range.end))) {

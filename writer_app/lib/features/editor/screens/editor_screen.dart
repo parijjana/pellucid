@@ -38,6 +38,7 @@ import '../widgets/mobile_persistent_toolbar.dart';
 import '../widgets/cheatsheet_overlay.dart';
 import '../widgets/typewriter_pause.dart';
 import '../widgets/typewriter_scroll.dart';
+import '../long_document/windowed_editor.dart';
 import '../utils/toc_parser.dart';
 import '../../../core/platform_context.dart';
 import '../../sidebar/widgets/snapshot_management_dialog.dart';
@@ -232,7 +233,8 @@ class _EditorScreenState extends State<EditorScreen> {
     if (!enabled) return;
 
     final selection = _editorController.selection;
-    if (!selection.isValid || !_scrollController.hasClients) return;
+    final windowed = windowedEditorFor(_editorController);
+    if (!selection.isValid || (windowed == null && !_scrollController.hasClients)) return;
 
     final text = _editorController.text;
     // Mouse selection in progress (item 18): hold still. Text typed without a
@@ -253,6 +255,10 @@ class _EditorScreenState extends State<EditorScreen> {
     _typewriterCaretLine = caretLine;
     _typewriterText = text;
 
+    if (windowed != null) {
+      windowed.revealOffset(caret, fraction: 0.5, duration: const Duration(milliseconds: 100));
+      return;
+    }
     final target = typewriterTargetOffset(
       text: text,
       caretOffset: caret,
@@ -312,6 +318,11 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void _jumpToCharacterOffset(int charOffset) {
     if (charOffset < 0 || charOffset >= _editorController.text.length) return;
+    final windowed = windowedEditorFor(_editorController);
+    if (windowed != null) {
+      windowed.revealOffset(charOffset);
+      return;
+    }
     if (_scrollToCharacterViaEditable(charOffset)) return;
     
     final text = _editorController.text;
@@ -438,6 +449,11 @@ class _EditorScreenState extends State<EditorScreen> {
     int charOffset = 0;
     for (int i = 0; i < lineIndex && i < lines.length; i++) {
       charOffset += lines[i].length + 1;
+    }
+    final windowed = windowedEditorFor(_editorController);
+    if (windowed != null) {
+      windowed.revealOffset(charOffset, fraction: 0.05, duration: const Duration(milliseconds: 500));
+      return;
     }
 
     final zoomLevel = context.read<EditorProvider>().zoomLevel;

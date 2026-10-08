@@ -21,6 +21,7 @@ dependencies:
   github: ^9.25.0
   googleapis: 16.0.0
   htmltopdfwidgets: ^2.1.1
+  html: ^0.15.6
   http: 1.6.0
   intl: ^0.20.2
   macos_secure_bookmarks: ^0.2.1

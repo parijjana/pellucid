@@ -130,6 +130,9 @@ class MainFlutterWindow: NSWindow {
         result(nil)
       case "getMarkdown":
         result(pasteboard.string(forType: markdownType))
+      case "getHtml":
+        // Pasting formatted text (item 22): the HTML other apps put on the pasteboard.
+        result(pasteboard.string(forType: .html))
       default:
         result(FlutterMethodNotImplemented)
       }

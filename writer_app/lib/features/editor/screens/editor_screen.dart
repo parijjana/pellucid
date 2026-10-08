@@ -35,6 +35,7 @@ import '../../search/widgets/search_popup.dart';
 import '../widgets/sidebar_pulltab.dart';
 import '../widgets/mobile_persistent_toolbar.dart';
 import '../widgets/cheatsheet_overlay.dart';
+import '../widgets/typewriter_pause.dart';
 import '../widgets/typewriter_scroll.dart';
 import '../utils/toc_parser.dart';
 import '../../../core/platform_context.dart';
@@ -64,6 +65,8 @@ class _EditorScreenState extends State<EditorScreen> {
   // the editor text changes (never inside build()).
   List<TocHeader> _tocHeaders = const [];
   double _initialScaleZoom = 1.0;
+  final TypewriterPause _typewriterPause = TypewriterPause();
+  bool _typewriterForce = false;
   int _typewriterCaretLine = -1;
   String _typewriterText = '';
 
@@ -231,6 +234,12 @@ class _EditorScreenState extends State<EditorScreen> {
     if (!selection.isValid || !_scrollController.hasClients) return;
 
     final text = _editorController.text;
+    // Mouse selection in progress (item 18): hold still. Text typed without a
+    // key event (IME, soft keyboard, paste from a menu) also ends the pause.
+    if (_typewriterPause.suspended) {
+      if (text == _typewriterText) return;
+      _typewriterPause.suspended = false;
+    }
     final caret = selection.extentOffset;
     int caretLine = 0;
     final limit = caret < text.length ? caret : text.length;
@@ -238,7 +247,8 @@ class _EditorScreenState extends State<EditorScreen> {
       if (text.codeUnitAt(i) == 10) caretLine++;
     }
     final bool textChanged = text != _typewriterText;
-    if (caretLine == _typewriterCaretLine && !textChanged) return;
+    if (caretLine == _typewriterCaretLine && !textChanged && !_typewriterForce) return;
+    _typewriterForce = false;
     _typewriterCaretLine = caretLine;
     _typewriterText = text;
 
@@ -257,6 +267,23 @@ class _EditorScreenState extends State<EditorScreen> {
       duration: const Duration(milliseconds: 100),
       curve: Curves.easeOut,
     );
+  }
+
+  /// Key path of item 18: a text-changing or caret-moving key ends the
+  /// mouse-selection pause and re-centres once, after the key has been applied.
+  bool _onTypewriterKey(KeyEvent event) {
+    if (!_typewriterPause.suspended || !_editorFocusNode.hasFocus) return false;
+    final kb = HardwareKeyboard.instance;
+    if (!TypewriterPause.resumes(event,
+        ctrlOrMeta: kb.isControlPressed || kb.isMetaPressed, alt: kb.isAltPressed)) {
+      return false;
+    }
+    _typewriterPause.suspended = false;
+    _typewriterForce = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isDeactivated) _onTypewriterUpdate();
+    });
+    return false;
   }
 
   /// Scrolls so the character at [charOffset] sits a third of the way down
@@ -340,6 +367,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _editorController.addListener(_onEditorTextChanged);
     _editorController.addListener(_onSelectionChanged);
     _editorController.addListener(_onTypewriterUpdate);
+    HardwareKeyboard.instance.addHandler(_onTypewriterKey);
     HardwareKeyboard.instance.addHandler(_handleGlobalKey);
 
     _editorProvider = context.read<EditorProvider>();
@@ -363,6 +391,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _editorController.removeListener(_onEditorTextChanged);
     _editorController.removeListener(_onSelectionChanged);
     _editorController.removeListener(_onTypewriterUpdate);
+    HardwareKeyboard.instance.removeHandler(_onTypewriterKey);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _editorProvider.removeListener(_onEditorProviderChanged);
     _editorProvider.onMirrorEditAttempt = null;
@@ -570,6 +599,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         provider: editorProvider,
                                         controller: _editorController,
                                         scrollController: _scrollController,
+                                        typewriterPause: _typewriterPause,
                                         focusNode: _editorFocusNode,
                                         codexEnabled: settings.codexLinkingEnabled && !isCompactLayout,
                                         codexIndex: _editorController.codexIndex,

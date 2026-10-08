@@ -51,6 +51,7 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 - Ctrl + B: Toggle Bold on selection / Cmd + B on macOS
 - Ctrl + I: Toggle Italic on selection / Cmd + I on macOS
 - Alt + X: Toggle Strikethrough (~~text~~) on selection / Cmd + Opt + X on macOS
+- Ctrl + Shift + V: Paste as plain text (no conversion of formatted text) / Cmd + Shift + V on macOS
 
 ### Notes and Attribution Workflow:
 - Alt + N: Create a new Research Note / Cmd + Opt + N on macOS

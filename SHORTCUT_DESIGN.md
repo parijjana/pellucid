@@ -23,6 +23,7 @@ Supports all standard OS text interactions.
 | Toggle Strikethrough (`~~`) | `Alt + X` | `Cmd + Opt + X` |
 | Copy | `Ctrl + C` OR `Ctrl + Insert` | `Cmd + C` |
 | Paste | `Ctrl + V` OR `Shift + Insert` | `Cmd + V` |
+| Paste as plain text (formatted text from Word, web pages and mail is otherwise converted to Markdown) | `Ctrl + Shift + V` | `Cmd + Shift + V` |
 | Cut | `Ctrl + X` | `Cmd + X` |
 | Undo / Redo | `Ctrl + Z` / `Ctrl + Shift + Z` OR `Ctrl + Y` | `Cmd + Z` / `Cmd + Shift + Z` |
 

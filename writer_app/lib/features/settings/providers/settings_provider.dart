@@ -87,7 +87,7 @@ class SettingsProvider extends ChangeNotifier {
   // Editing on/off switches (backlog item 26), all on by default.
   bool _grammarHintsEnabled = true;
   bool _smartPunctuationEnabled = true;
-  // TODO(slice 5): the list auto-continue feature reads autoContinueListsEnabled.
+  // Read by the list Enter rule (list_editing.dart: listAutoContinueEnabled), set from the editor screen.
   bool _autoContinueListsEnabled = true;
   // Read by the attribution list (note_editor_dialog.dart) for the duplicate tint.
   bool _attributionDuplicateHighlightEnabled = true;

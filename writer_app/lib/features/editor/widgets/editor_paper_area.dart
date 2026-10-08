@@ -16,6 +16,8 @@ import 'spell_check_driver.dart';
 import 'typewriter_pause.dart';
 import 'grammar_hints.dart';
 import 'smart_punctuation_scope.dart';
+import 'checklist_tap.dart';
+import '../list_editing.dart';
 
 /// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
 Map<ShortcutActivator, Intent> get _redoShortcuts =>
@@ -81,6 +83,18 @@ class EditorPaperArea extends StatelessWidget {
     this.smartPunctuationEnabled = false,
   });
 
+  /// Tab / Shift+Tab inside a list moves the item one level. True when the
+  /// key was a list key (even if nothing could move), false elsewhere.
+  bool _indentList({required bool outdent}) {
+    if (!selectionTouchesList(controller.text, controller.selection)) return false;
+    final next = indentLines(controller.value, outdent: outdent);
+    if (next != null) {
+      controller.value = next;
+      onChanged(next.text);
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final zoomLevel = provider.zoomLevel;
@@ -110,7 +124,15 @@ class EditorPaperArea extends StatelessWidget {
           padding: const EdgeInsets.all(60),
           child: CallbackShortcuts(
             bindings: {
+              const SingleActivator(LogicalKeyboardKey.tab, shift: true): () {
+                // In a list: unindent the item. Elsewhere Shift+Tab is what it
+                // always was (previous focus).
+                if (_indentList(outdent: true)) return;
+                focusNode.previousFocus();
+              },
               const SingleActivator(LogicalKeyboardKey.tab): () {
+                // In a list: indent the item (backlog items 2 and 8).
+                if (_indentList(outdent: false)) return;
                 final text = controller.text;
                 final selection = controller.selection;
                 if (selection.isValid) {
@@ -129,7 +151,11 @@ class EditorPaperArea extends StatelessWidget {
             // only bind Ctrl+Shift+Z (and Cmd+Shift+Z on macOS).
             child: Shortcuts(
               shortcuts: _redoShortcuts,
-              child: CodexMentionDetector(
+              child: ChecklistTapListener(
+                controller: controller,
+                focusNode: focusNode,
+                onChanged: onChanged,
+                child: CodexMentionDetector(
               enabled: codexEnabled,
               theme: theme,
               index: codexIndex,
@@ -151,6 +177,7 @@ class EditorPaperArea extends StatelessWidget {
                 onChanged: onChanged,
                 builder: (context, formatters) => MarkerAwareEditing(
                 controller: controller,
+                onTextChanged: onChanged,
                 child: Listener(
                 onPointerDown: (_) => typewriterPause?.pointerDown(),
                 child: TextField(
@@ -185,6 +212,7 @@ class EditorPaperArea extends StatelessWidget {
                 ),
                 ),
                 ),
+              ),
               ),
               ),
             ),

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../word_count.dart';
 import '../caret_formatting.dart';
+import '../list_editing.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import '../providers/editor_provider.dart';
@@ -481,6 +482,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _editorController.theme = theme;
     _editorController.searchQuery = searchProvider.query;
     _editorController.paragraphFocusEnabled = settings.paragraphFocusEnabled;
+    listAutoContinueEnabled = settings.autoContinueListsEnabled;
     _editorController.codexLinkingEnabled = settings.codexLinkingEnabled;
     _editorController.codexTitles = [
       for (final c in notesProvider.cards)
@@ -503,6 +505,10 @@ class _EditorScreenState extends State<EditorScreen> {
         SingleActivator(LogicalKeyboardKey.keyX, alt: true, meta: usesCommandModifier): const ToggleStrikethroughIntent(),
         SingleActivator(LogicalKeyboardKey.keyG, alt: true, meta: usesCommandModifier): const SetBodyIntent(),
         SingleActivator(LogicalKeyboardKey.keyL, alt: true, meta: usesCommandModifier): const SetBulletIntent(),
+        SingleActivator(LogicalKeyboardKey.keyO, alt: true, meta: usesCommandModifier): const SetNumberedIntent(),
+        SingleActivator(LogicalKeyboardKey.keyV, alt: true, meta: usesCommandModifier): const SetChecklistIntent(),
+        SingleActivator(LogicalKeyboardKey.bracketRight, control: !usesCommandModifier, meta: usesCommandModifier): const IndentIntent(),
+        SingleActivator(LogicalKeyboardKey.bracketLeft, control: !usesCommandModifier, meta: usesCommandModifier): const OutdentIntent(),
         SingleActivator(LogicalKeyboardKey.keyB, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleBoldIntent(),
         SingleActivator(LogicalKeyboardKey.keyI, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleItalicIntent(),
         SingleActivator(LogicalKeyboardKey.keyU, control: !usesCommandModifier, meta: usesCommandModifier): const ToggleUnderlineIntent(),
@@ -538,6 +544,10 @@ class _EditorScreenState extends State<EditorScreen> {
           ToggleStrikethroughIntent: CallbackAction<ToggleStrikethroughIntent>(onInvoke: (_) => _applyFormat('~~')),
           SetBodyIntent: CallbackAction<SetBodyIntent>(onInvoke: (_) => _applyFormat('body')),
           SetBulletIntent: CallbackAction<SetBulletIntent>(onInvoke: (_) => _applyFormat('- ')),
+          SetNumberedIntent: CallbackAction<SetNumberedIntent>(onInvoke: (_) => _applyFormat('1. ')),
+          SetChecklistIntent: CallbackAction<SetChecklistIntent>(onInvoke: (_) => _applyFormat('- [ ] ')),
+          IndentIntent: CallbackAction<IndentIntent>(onInvoke: (_) => _applyFormat('indent')),
+          OutdentIntent: CallbackAction<OutdentIntent>(onInvoke: (_) => _applyFormat('outdent')),
           ToggleBoldIntent: CallbackAction<ToggleBoldIntent>(onInvoke: (_) => _applyFormat('**')),
           ToggleItalicIntent: CallbackAction<ToggleItalicIntent>(onInvoke: (_) => _applyFormat('*')),
           ToggleUnderlineIntent: CallbackAction<ToggleUnderlineIntent>(onInvoke: (_) => _applyFormat('<u>')),

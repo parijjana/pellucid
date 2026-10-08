@@ -16,6 +16,17 @@ const fixtures = <String>[
   '## Heading',
   '### Sub',
   '- bullet *it*',
+  '# Title with **raw** stars',
+  '1. first **bold**',
+  '12. twelfth',
+  '    - nested *it*',
+  '        7. deep ~~x~~',
+  '- [ ] open **task**',
+  '    - [x] done',
+  '  3. two-space nested',
+  '- [ ]no space',
+  '10.no space',
+  '    ',
   '-not a bullet **b**',
   '#not a heading',
   '**** empty bold',
@@ -44,17 +55,25 @@ void main() {
     }));
     final out = <TextRange>[];
     int offset = 0;
+    bool afterMarker = false;
     void walk(InlineSpan span) {
       if (span is! TextSpan) return;
       final t = span.text;
       if (t != null && t.isNotEmpty) {
-        // Since slice 3 the bullet's "- " is drawn as "• " in its place (same
-        // length, so offsets stay aligned). It is still a marker the caret
-        // must not land inside, so it counts as hidden here.
-        final atLineStart = offset == 0 || text.codeUnitAt(offset - 1) == 0x0A;
-        final bulletGlyph = t == '• ' && atLineStart && text.startsWith('- ', offset);
-        final hidden = bulletGlyph || span.style?.color == Colors.transparent;
-        if (hidden) out.add(TextRange(start: offset, end: offset + t.length));
+        // A list marker is drawn as a glyph in place of the stored marker
+        // (same length): it is a marker the caret must not land inside, so it
+        // counts as hidden here. The renderer tags those spans.
+        final isMarker = MarkdownEditingController.isListMarkerSpan(span);
+        final hidden = isMarker || span.style?.color == Colors.transparent;
+        if (hidden) {
+          // Invisible filler right after a list glyph belongs to the same marker.
+          if (!isMarker && afterMarker && out.isNotEmpty) {
+            out[out.length - 1] = TextRange(start: out.last.start, end: offset + t.length);
+          } else {
+            out.add(TextRange(start: offset, end: offset + t.length));
+          }
+        }
+        afterMarker = isMarker;
         offset += t.length;
       }
       span.children?.forEach(walk);
@@ -146,7 +165,7 @@ void main() {
   });
 
   test('visibleText drops hidden markers and draws bullets', () {
-    // Block lines do not render inline styles (yet), so their stars show.
-    expect(visibleText('# T\n- a **b**\n<u>u</u> *i*'), 'T\n• a **b**\nu i');
+    // Block lines render inline styles too, so their stars are hidden.
+    expect(visibleText('# T\n- a **b**\n<u>u</u> *i*'), 'T\n• a b\nu i');
   });
 }

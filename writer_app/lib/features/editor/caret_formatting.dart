@@ -5,12 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'hidden_markers.dart';
+import 'list_marker.dart';
 
 enum BlockStyle { title, heading, subheading, quote, body }
 
-/// List kind of the caret's line. Numbered lists and checklists arrive with
-/// their own backlog items; the renderer only knows bullets today.
-enum ListStyle { none, bullet }
+/// List kind of the caret's line.
+enum ListStyle { none, bullet, numbered, checklist }
 
 @immutable
 class FormattingState {
@@ -59,14 +59,19 @@ FormattingState formattingAt(String text, TextSelection selection) {
   if (!selection.isValid || selection.end > text.length) return FormattingState.none;
   final int s = selection.start;
   final first = scanLineAt(text, s);
-  final BlockStyle block = switch (first.prefix) {
+  final BlockStyle block = switch (first.list != null ? null : first.prefix) {
     '# ' => BlockStyle.title,
     '## ' => BlockStyle.heading,
     '### ' => BlockStyle.subheading,
     '> ' => BlockStyle.quote,
     _ => BlockStyle.body,
   };
-  final ListStyle list = first.prefix == '- ' ? ListStyle.bullet : ListStyle.none;
+  final ListStyle list = switch (first.list?.kind) {
+    ListKind.bullet => ListStyle.bullet,
+    ListKind.number => ListStyle.numbered,
+    ListKind.check => ListStyle.checklist,
+    null => ListStyle.none,
+  };
 
   if (selection.isCollapsed) {
     bool b = false, i = false, u = false, st = false;

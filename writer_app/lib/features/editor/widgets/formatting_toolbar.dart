@@ -45,6 +45,10 @@ class FormattingToolbar extends StatelessWidget {
           _labelButton('SUBHEAD', () => onApplyFormat('### '), f.block == BlockStyle.subheading),
           _labelButton('BODY', () => onApplyFormat('body'), f.block == BlockStyle.body && f.list == ListStyle.none),
           _labelButton('BULLET', () => onApplyFormat('- '), f.list == ListStyle.bullet),
+          _labelButton('NUMBER', () => onApplyFormat('1. '), f.list == ListStyle.numbered),
+          _labelButton('CHECKLIST', () => onApplyFormat('- [ ] '), f.list == ListStyle.checklist),
+          _labelButton('OUTDENT', () => onApplyFormat('outdent'), false),
+          _labelButton('INDENT', () => onApplyFormat('indent'), false),
           _labelButton('QUOTE', () => onApplyFormat('> '), f.block == BlockStyle.quote),
           const SizedBox(width: 12),
           Container(

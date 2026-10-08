@@ -7,8 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/platform_context.dart';
 import 'hidden_markers.dart';
 import 'html_to_markdown.dart';
+import 'list_editing.dart';
 import 'marker_edit_rules.dart';
 import 'rich_clipboard.dart';
 
@@ -22,7 +24,11 @@ class MarkerAwareEditing extends StatelessWidget {
   final TextEditingController controller;
   final Widget child;
 
-  const MarkerAwareEditing({super.key, required this.controller, required this.child});
+  /// Called with the new text when an Undo of an automatic list marker changes
+  /// the text outside the field's own edit path (so it is autosaved).
+  final ValueChanged<String>? onTextChanged;
+
+  const MarkerAwareEditing({super.key, required this.controller, required this.child, this.onTextChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +37,18 @@ class MarkerAwareEditing extends StatelessWidget {
       shortcuts: <ShortcutActivator, Intent>{
         // Paste as plain text (item 22): Cmd+Shift+V on Mac, Ctrl+Shift+V elsewhere.
         SingleActivator(LogicalKeyboardKey.keyV, shift: true, meta: mac, control: !mac): const PastePlainTextIntent(),
+        SingleActivator(LogicalKeyboardKey.keyZ, meta: usesCommandModifier, control: !usesCommandModifier):
+            const _AutoMarkerUndoIntent(),
       },
-      child: Actions(
+      child: _actions(),
+    );
+  }
+
+  Widget _actions() {
+    return Actions(
       actions: <Type, Action<Intent>>{
         PastePlainTextIntent: _PastePlainAction(),
+        _AutoMarkerUndoIntent: _AutoMarkerUndoAction(controller, onTextChanged),
         ExtendSelectionByCharacterIntent: _StepAction(controller),
         CopySelectionTextIntent: _CopyAction(controller),
         PasteTextIntent: _PasteAction(controller),
@@ -42,7 +56,6 @@ class MarkerAwareEditing extends StatelessWidget {
         RedoTextIntent: _UndoRedoAction<RedoTextIntent>(),
       },
       child: child,
-      ),
     );
   }
 
@@ -240,5 +253,32 @@ class _UndoRedoAction<T extends Intent> extends ContextAction<T> {
     } finally {
       markerRulesSuspended--;
     }
+  }
+}
+
+class _AutoMarkerUndoIntent extends Intent {
+  const _AutoMarkerUndoIntent();
+}
+
+/// Undo straight after an automatic list marker (Enter continued a list)
+/// removes just the marker and keeps the line break. Disabled otherwise, so
+/// the key carries on to the field's own Undo.
+class _AutoMarkerUndoAction extends Action<_AutoMarkerUndoIntent> {
+  final TextEditingController controller;
+  final ValueChanged<String>? onChanged;
+  _AutoMarkerUndoAction(this.controller, this.onChanged);
+
+  @override
+  bool isEnabled(_AutoMarkerUndoIntent intent) => lastAutoMarker?.applies(controller.value) ?? false;
+
+  @override
+  Object? invoke(_AutoMarkerUndoIntent intent) {
+    final marker = lastAutoMarker;
+    if (marker == null || !marker.applies(controller.value)) return null;
+    lastAutoMarker = null;
+    final value = marker.undo();
+    controller.value = value;
+    onChanged?.call(value.text);
+    return null;
   }
 }

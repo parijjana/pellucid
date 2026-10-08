@@ -76,6 +76,30 @@ class MobilePersistentToolbar extends StatelessWidget {
                     onPressed: () => onApplyFormat('- '),
                   ),
                   _ToolbarTextButton(
+                    label: 'NUMBER',
+                    theme: theme,
+                    active: f.list == ListStyle.numbered,
+                    onPressed: () => onApplyFormat('1. '),
+                  ),
+                  _ToolbarTextButton(
+                    label: 'CHECKLIST',
+                    theme: theme,
+                    active: f.list == ListStyle.checklist,
+                    onPressed: () => onApplyFormat('- [ ] '),
+                  ),
+                  _ToolbarTextButton(
+                    label: 'OUTDENT',
+                    theme: theme,
+                    active: false,
+                    onPressed: () => onApplyFormat('outdent'),
+                  ),
+                  _ToolbarTextButton(
+                    label: 'INDENT',
+                    theme: theme,
+                    active: false,
+                    onPressed: () => onApplyFormat('indent'),
+                  ),
+                  _ToolbarTextButton(
                     label: 'QUOTE',
                     theme: theme,
                     active: f.block == BlockStyle.quote,

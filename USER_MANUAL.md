@@ -47,7 +47,12 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 - Alt + J: Format current line as Subheading (###) / Cmd + Opt + J on macOS
 - Alt + Q: Format current line as Block Quote (> ) / Cmd + Opt + Q on macOS
 - Alt + G: Format current line as Body text / Cmd + Opt + G on macOS
-- Alt + L: Format current line as Bullet point / Cmd + Opt + L on macOS
+- Alt + L: Toggle Bullet list on the current line / Cmd + Opt + L on macOS
+- Alt + O: Toggle Numbered list on the current line / Cmd + Opt + O on macOS
+- Alt + V: Toggle Checklist (- [ ] ) on the current line / Cmd + Opt + V on macOS (click a box to tick it)
+- Tab / Shift + Tab: Indent / unindent the list item (four spaces per level); Tab outside a list still types four spaces
+- Ctrl + ] / Ctrl + [: Indent / unindent list items (Cmd + ] and Cmd + [ on macOS)
+- Enter at the end of a list item starts the next item; Enter on an empty item ends the list (Settings > Auto-continue Lists turns this off)
 - Ctrl + B: Toggle Bold on selection / Cmd + B on macOS
 - Ctrl + I: Toggle Italic on selection / Cmd + I on macOS
 - Alt + X: Toggle Strikethrough (~~text~~) on selection / Cmd + Opt + X on macOS

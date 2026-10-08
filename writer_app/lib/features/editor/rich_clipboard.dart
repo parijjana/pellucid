@@ -149,7 +149,7 @@ class RichClipboard {
           isSupportedOn(defaultTargetPlatform) &&
           !Platform.environment.containsKey('FLUTTER_TEST'));
 
-  /// Platforms with a native `setRich` / `getMarkdown` handler.
+  /// Platforms with a native `setRich` / `getMarkdown` / `getHtml` handler.
   static bool isSupportedOn(TargetPlatform p) => p == TargetPlatform.macOS || p == TargetPlatform.iOS;
 
   /// Copies `[start, end)` of [text].
@@ -175,8 +175,8 @@ class RichClipboard {
 
   /// The HTML another app put on the clipboard (Word, a browser, mail), or null
   /// when there is none or this platform cannot read it.
-  /// TODO(item 22): iOS (UIPasteboard, "public.html") and Windows ("HTML Format")
-  /// need a native clipboard channel first; until then they paste plain text.
+  /// macOS (NSPasteboard) and iOS (UIPasteboard, "public.html") read it natively.
+  /// TODO(item 22): Windows ("HTML Format") needs a native channel; until then it pastes plain text.
   static Future<String?> readHtml() async {
     if (!isSupported) return null;
     try {

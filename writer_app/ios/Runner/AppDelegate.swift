@@ -116,6 +116,13 @@ import UIKit
         } else {
           result(pasteboard.value(forPasteboardType: markdownType) as? String)
         }
+      case "getHtml":
+        // Pasting formatted text (item 22): the HTML other apps put on the pasteboard.
+        if let data = pasteboard.data(forPasteboardType: "public.html") {
+          result(String(data: data, encoding: .utf8))
+        } else {
+          result(pasteboard.value(forPasteboardType: "public.html") as? String)
+        }
       default:
         result(FlutterMethodNotImplemented)
       }

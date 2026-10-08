@@ -8,7 +8,9 @@ import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
 void main() {
   tearDown(() => debugForceWindowedEditor = false);
 
-  test('off unless the flag is on', () {
+  test('on by default for long documents; the flag turns it off', () {
+    expect(kWindowedEditorFlag, isTrue, reason: 'default build (no dart-define)');
+    expect(kWindowedEditorMinWords, 15000);
     final c = MarkdownEditingController(text: 'x' * 200000, theme: WriterTheme.presets[0]);
     expect(useWindowedEditor(c), kWindowedEditorFlag);
   });

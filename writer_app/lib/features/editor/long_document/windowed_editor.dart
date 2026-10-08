@@ -37,8 +37,9 @@ import '../utils/grammar_checker.dart';
 import '../widgets/markdown_controller.dart';
 import 'document_buffer.dart';
 
-/// Developer switch for phase 1: `--dart-define=PELLUCID_WINDOWED_EDITOR=true`.
-const bool kWindowedEditorFlag = bool.fromEnvironment('PELLUCID_WINDOWED_EDITOR');
+/// On by default for long documents (1.1.0). Escape hatch back to the single
+/// editor for every document: `--dart-define=PELLUCID_WINDOWED_EDITOR=false`.
+const bool kWindowedEditorFlag = bool.fromEnvironment('PELLUCID_WINDOWED_EDITOR', defaultValue: true);
 
 /// Documents at or above this many words open in the windowed editor when the
 /// flag is on (PLAN_3b_EDITOR.md owner question 1, recommended answer).
@@ -858,7 +859,12 @@ class WindowedEditorState extends State<WindowedEditor> {
 
   void _onPointerMove(PointerMoveEvent e) {
     final int? anchor = _dragAnchor;
-    if (anchor == null || e.kind != PointerDeviceKind.mouse) return;
+    if (anchor == null) return;
+    if (e.kind != PointerDeviceKind.mouse) {
+      // A finger moving on static lines scrolls; it is not a tap.
+      if ((e.position - _downPos).distance > kTouchSlop) _dragAnchor = null;
+      return;
+    }
     if (!_dragging && (e.position - _downPos).distance < 4) return;
     _dragging = true;
     final hit = _hitDoc(e.position);

@@ -1,7 +1,7 @@
 name: pellucid
 description: "A local-first Markdown writing app for long-form fiction, with optional Google Drive backup."
 publish_to: 'none'
-version: 1.0.1+3
+version: 1.1.0+4
 
 environment:
   sdk: ^3.11.4
@@ -68,7 +68,7 @@ msix_config:
   publisher_display_name: OverEngineeredHobbies
   identity_name: OverEngineeredHobbies.Pellucid
   publisher: "CN=DC2CEF40-679E-422D-881F-9B5352D05AEB"
-  msix_version: 1.0.1.0
+  msix_version: 1.1.0.0
   logo_path: windows/msix/pellucid_logo.png
   capabilities: internetClient
   languages: en-us

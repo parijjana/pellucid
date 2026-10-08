@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pellucid/features/editor/long_document/document_buffer.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
 import 'package:pellucid/features/editor/long_document/windowed_editor.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
@@ -13,27 +14,32 @@ import '../large_document_fixture.dart';
 
 const _style = TextStyle(fontSize: 16, height: 1.8, color: Colors.black);
 
-Future<WindowedEditorState> _pump(WidgetTester tester, MarkdownEditingController doc,
-    {ValueChanged<String>? onChanged}) async {
+Future<WindowedEditorState> _pump(
+  WidgetTester tester,
+  MarkdownEditingController doc, {
+  ValueChanged<String>? onChanged,
+}) async {
   tester.view.physicalSize = const Size(1000, 1400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final key = GlobalKey<WindowedEditorState>();
-  await tester.pumpWidget(MaterialApp(
-    home: Scaffold(
-      body: WindowedEditor(
-        key: key,
-        controller: doc,
-        focusNode: FocusNode(),
-        theme: doc.theme,
-        style: _style,
-        pageWidth: 800,
-        horizontalPosition: 0.5,
-        cursorColor: Colors.black,
-        onChanged: onChanged ?? (_) {},
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: WindowedEditor(
+          key: key,
+          controller: doc,
+          focusNode: FocusNode(),
+          theme: doc.theme,
+          style: _style,
+          pageWidth: 800,
+          horizontalPosition: 0.5,
+          cursorColor: Colors.black,
+          onChanged: onChanged ?? (_) {},
+        ),
       ),
     ),
-  ));
+  );
   await tester.pump();
   return key.currentState!;
 }
@@ -137,7 +143,10 @@ void main() {
     final s = await _pump(tester, doc);
     final int far = reference.length - 50;
     reference = reference.replaceRange(far, far + 4, 'EDIT');
-    doc.value = TextEditingValue(text: reference, selection: TextSelection.collapsed(offset: far + 4));
+    doc.value = TextEditingValue(
+      text: reference,
+      selection: TextSelection.collapsed(offset: far + 4),
+    );
     await tester.pump();
     await tester.pump();
     _expectCoherent(s, doc, reference);
@@ -190,7 +199,10 @@ void main() {
     await tester.pump();
     expect(s.windowMoves, moves, reason: 'no move while composing');
     // Commit: é replaces the composing accent.
-    w.value = TextEditingValue(text: '${w.text.substring(0, end)}é', selection: TextSelection.collapsed(offset: end + 1));
+    w.value = TextEditingValue(
+      text: '${w.text.substring(0, end)}é',
+      selection: TextSelection.collapsed(offset: end + 1),
+    );
     await tester.pump();
     await tester.pump();
     expect(s.windowMoves, greaterThan(moves));
@@ -295,7 +307,13 @@ void main() {
     await tester.pump();
     expect(doc.selection, sel);
     expect(s.window.windowStart, lessThanOrEqualTo(sel.start), reason: 'the window now holds the selection');
-    expect(s.window.selection, TextSelection(baseOffset: sel.baseOffset - s.window.windowStart, extentOffset: sel.extentOffset - s.window.windowStart));
+    expect(
+      s.window.selection,
+      TextSelection(
+        baseOffset: sel.baseOffset - s.window.windowStart,
+        extentOffset: sel.extentOffset - s.window.windowStart,
+      ),
+    );
     _expectCoherent(s, doc, text);
   });
 
@@ -308,7 +326,10 @@ void main() {
     s.scroll.jumpTo(-600);
     await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
-    await tester.tapAt(tester.getTopLeft(find.byType(RichText).first) + const Offset(2, 2), kind: PointerDeviceKind.mouse);
+    await tester.tapAt(
+      tester.getTopLeft(find.byType(RichText).first) + const Offset(2, 2),
+      kind: PointerDeviceKind.mouse,
+    );
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
     await tester.pump();
     await tester.pump();
@@ -335,5 +356,110 @@ void main() {
     final word = text.substring(sel.start, sel.end);
     expect(word.contains(' '), isFalse, reason: word);
     expect(word.isNotEmpty, isTrue);
+  });
+
+  testWidgets('revealOffset scrolls a far line into view without moving the caret', (tester) async {
+    final text = generateManuscript(20000, seed: 18);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = const TextSelection.collapsed(offset: 100);
+    final s = await _pump(tester, doc);
+    final caret = doc.selection;
+    final int target = text.length - 2000;
+    final future = s.revealOffset(target, duration: Duration.zero);
+    for (int i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+    await future;
+    expect(doc.selection, caret);
+    final line = s.buffer.lineOfOffset(target);
+    final shown = find.byKey(ValueKey('L$line'));
+    expect(shown, findsOneWidget, reason: 'line $line is built');
+    final top = tester.getTopLeft(find.byType(CustomScrollView)).dy;
+    final y = tester.getTopLeft(shown).dy - top;
+    expect(y, lessThan(1400 / 3 + 10), reason: 'at or above a third of the view');
+    expect(tester.getBottomLeft(shown).dy - top, greaterThan(1400 / 3 - 10));
+  });
+
+  testWidgets('new spelling results repaint static lines', (tester) async {
+    final text = generateManuscript(12000, seed: 19);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    s.scroll.jumpTo(-600);
+    await tester.pump();
+    int line = s.span.first - 1;
+    while (s.buffer.line(line).length < 10 || find.byKey(ValueKey('L$line')).evaluate().isEmpty) {
+      line--;
+    }
+    bool underlined() {
+      bool any = false;
+      tester
+          .widget<RichText>(find.descendant(of: find.byKey(ValueKey('L$line')), matching: find.byType(RichText)))
+          .text
+          .visitChildren((span) {
+            if (span.style?.decorationStyle == TextDecorationStyle.wavy) any = true;
+            return true;
+          });
+      return any;
+    }
+
+    expect(underlined(), isFalse);
+    final int ls = s.buffer.lineStart(line);
+    doc.setMisspellings([TextRange(start: ls, end: ls + 3)]);
+    // What the spelling driver does: rebuild the field's spans in place.
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    editable.renderEditable.text = editable.buildTextSpan();
+    await tester.pump();
+    await tester.pump();
+    expect(underlined(), isTrue);
+  });
+
+  testWidgets('a click on a static checkbox ticks it', (tester) async {
+    final text = List.generate(3000, (i) => '- [ ] task number $i with a few more words').join('\n');
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    s.scroll.jumpTo(-600);
+    await tester.pump();
+    final int line = s.span.first - 5;
+    final box = find.byKey(ValueKey('L$line'));
+    expect(box, findsOneWidget);
+    await tester.tapAt(tester.getTopLeft(box) + const Offset(3, 8), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    await tester.pump();
+    final ls = s.buffer.lineStart(line);
+    expect(doc.text.substring(ls, ls + 5), '- [x]');
+    s.undo();
+    await tester.pump();
+    expect(doc.text, text);
+  });
+
+  testWidgets('slice 5b: indents and the bullet style reach static lines and the window', (tester) async {
+    final body = generateManuscript(12000, seed: 20);
+    const listing = '  An indented paragraph\n- item\n    - nested item\n - [ ] indented check';
+    final text = '$listing\n$body';
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2)
+      ..bulletStyle = BulletStyle.arrows;
+    final s = await _pump(tester, doc);
+    expect(s.window.bulletStyle, BulletStyle.arrows);
+    final reveal = s.revealOffset(0, fraction: 0, duration: Duration.zero);
+    for (int i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+    await reveal;
+    String shown(int line) => tester
+        .widget<RichText>(find.descendant(of: find.byKey(ValueKey('L$line')), matching: find.byType(RichText)))
+        .text
+        .toPlainText();
+    expect(shown(1).length, '- item'.length);
+    expect(shown(1), contains('▸'));
+    for (int i = 0; i < 4; i++) {
+      expect(shown(i).length, s.buffer.line(i).length, reason: 'line $i keeps its length');
+    }
+    doc.bulletStyle = BulletStyle.circles;
+    (s.context as Element).markNeedsBuild();
+    await tester.pump();
+    expect(shown(1), contains('●'));
   });
 }

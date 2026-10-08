@@ -45,17 +45,16 @@ bool useWindowedEditor(TextEditingController controller) {
 Widget? windowedPaperArea(EditorPaperArea area) {
   if (!useWindowedEditor(area.controller)) return null;
   final doc = area.controller as MarkdownEditingController;
-  final style = area.editorFont.apply(TextStyle(
-    color: area.theme.foregroundColor,
-    fontSize: 16 * area.provider.zoomLevel,
-    height: 1.8,
-  ));
+  final style = area.editorFont.apply(
+    TextStyle(color: area.theme.foregroundColor, fontSize: 16 * area.provider.zoomLevel, height: 1.8),
+  );
   return CodexMentionDetector(
     enabled: area.codexEnabled,
     theme: area.theme,
     index: area.codexIndex,
     notes: area.notes,
     onActivate: area.onOpenNote,
+    offsetAt: (global) => windowedEditorFor(doc)?.docOffsetAtPoint(global),
     child: SpellCheckDriver(
       enabled: area.spellCheckEnabled,
       focusNode: area.focusNode,
@@ -76,7 +75,11 @@ Widget? windowedPaperArea(EditorPaperArea area) {
           cursorColor: area.theme.foregroundColor.withValues(alpha: 0.3),
           readOnly: area.provider.documentLoadFailed,
           inputFormatters: const <TextInputFormatter>[MarkerEditFormatter()],
-          contextMenuBuilder: (context, editableTextState) => buildEditorContextMenu(context, editableTextState),
+          contextMenuBuilder: (context, editableTextState) => buildEditorContextMenu(
+            context,
+            editableTextState,
+            documentOffset: windowedEditorFor(doc)?.window.windowStart ?? 0,
+          ),
           onChanged: area.onChanged,
           // Everything that edits the field's text acts on the window; the
           // windowed editor mirrors each change into the document (and
@@ -94,10 +97,7 @@ Widget? windowedPaperArea(EditorPaperArea area) {
                 builder: (context, formatters) => MarkerAwareEditing(
                   controller: window,
                   onTextChanged: (_) {},
-                  child: Listener(
-                    onPointerDown: (_) => area.typewriterPause?.pointerDown(),
-                    child: field(formatters),
-                  ),
+                  child: Listener(onPointerDown: (_) => area.typewriterPause?.pointerDown(), child: field(formatters)),
                 ),
               ),
             ),

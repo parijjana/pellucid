@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../list_editing.dart';
 import '../marker_aware_editing.dart';
 import '../providers/theme_provider.dart';
 import '../rich_clipboard.dart';
@@ -99,9 +100,21 @@ class WindowFieldController extends MarkdownEditingController {
   /// Document offset of this controller's text start.
   int windowStart = 0;
 
+  /// Called when a span build sees new spelling or grammar results on the
+  /// document (the drivers repaint the field only), so static lines refresh.
+  VoidCallback? onDecorationsChanged;
+  Object? _seenMisspellings;
+  Object? _seenGrammar;
+
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
     final int end = windowStart + text.length;
+    if (!identical(document.misspellings, _seenMisspellings) || !identical(document.grammarIssues, _seenGrammar)) {
+      final bool first = _seenMisspellings == null && _seenGrammar == null;
+      _seenMisspellings = document.misspellings;
+      _seenGrammar = document.grammarIssues;
+      if (!first) onDecorationsChanged?.call();
+    }
     setMisspellings(rangesInside(document.misspellings, windowStart, end));
     setGrammarIssues(grammarInside(document.grammarIssues, windowStart, end));
     return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
@@ -209,6 +222,11 @@ class WindowedEditor extends StatefulWidget {
   State<WindowedEditor> createState() => WindowedEditorState();
 }
 
+/// The windowed editor showing [controller], or null when the document is in
+/// the single editor. The screen asks it to scroll (typewriter, Find, TOC).
+WindowedEditorState? windowedEditorFor(TextEditingController controller) => _editors[controller];
+final Expando<WindowedEditorState> _editors = Expando<WindowedEditorState>('windowedEditors');
+
 class WindowedEditorState extends State<WindowedEditor> {
   late DocumentBuffer buffer;
   late WindowFieldController window;
@@ -251,7 +269,8 @@ class WindowedEditorState extends State<WindowedEditor> {
     super.initState();
     buffer = DocumentBuffer(doc.text);
     _lastDocText = doc.text;
-    window = WindowFieldController(theme: doc.theme, document: doc);
+    window = WindowFieldController(theme: doc.theme, document: doc)..onDecorationsChanged = _decorationsChanged;
+    _editors[doc] = this;
     _copySettings();
     final sel = doc.selection.isValid ? doc.selection : const TextSelection.collapsed(offset: 0);
     _load(planWindow(buffer, sel.start, sel.end), sel);
@@ -264,7 +283,9 @@ class WindowedEditorState extends State<WindowedEditor> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onDocChanged);
+      if (identical(_editors[oldWidget.controller], this)) _editors[oldWidget.controller] = null;
       widget.controller.addListener(_onDocChanged);
+      _editors[widget.controller] = this;
       _resetFromDoc();
     }
   }
@@ -273,6 +294,7 @@ class WindowedEditorState extends State<WindowedEditor> {
   void dispose() {
     window.removeListener(_onWindowChanged);
     doc.removeListener(_onDocChanged);
+    if (identical(_editors[doc], this)) _editors[doc] = null;
     window.dispose();
     scroll.dispose();
     super.dispose();
@@ -584,6 +606,7 @@ class WindowedEditorState extends State<WindowedEditor> {
     window.activeMatchOffset = active >= 0 && rel >= 0 && rel <= _lastWindowText.length ? rel : -1;
     window.paragraphFocusEnabled = doc.paragraphFocusEnabled;
     window.codexLinkingEnabled = doc.codexLinkingEnabled;
+    window.bulletStyle = doc.bulletStyle;
     if (!identical(window.codexTitles, doc.codexTitles)) window.codexTitles = doc.codexTitles;
   }
 
@@ -653,6 +676,77 @@ class WindowedEditorState extends State<WindowedEditor> {
     final String removed = buffer.text.substring(start, end);
     _applyEdit(start, end, inserted, selection, deferMove: deferMove);
     _record(start, removed, inserted, before, selection);
+  }
+
+  bool _decorationsQueued = false;
+
+  void _decorationsChanged() {
+    if (_decorationsQueued) return;
+    _decorationsQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _decorationsQueued = false;
+      if (mounted) setState(() {});
+    });
+  }
+
+  // ------------------------------------------------- scrolling for the screen
+
+  double _viewportTop() {
+    final box = context.findRenderObject() as RenderBox?;
+    return box == null || !box.attached ? 0 : box.localToGlobal(Offset.zero).dy;
+  }
+
+  /// Scrolls so [offset] sits [fraction] of the way down the view, without
+  /// moving the caret (Find, TOC, typewriter). Lines not yet built are reached
+  /// by an estimate from the window's height per character, then corrected.
+  Future<void> revealOffset(
+    int offset, {
+    double fraction = 1 / 3,
+    Duration duration = const Duration(milliseconds: 300),
+  }) async {
+    if (!scroll.hasClients) return;
+    final int target = offset.clamp(0, buffer.length);
+    for (int attempt = 0; attempt < 4 && mounted && scroll.hasClients; attempt++) {
+      final double viewport = scroll.position.viewportDimension;
+      final double? y = _docOffsetScreenY(target);
+      if (y != null) {
+        final double to = (scroll.offset + (y - _viewportTop()) - viewport * fraction).clamp(
+          scroll.position.minScrollExtent,
+          scroll.position.maxScrollExtent,
+        );
+        if ((to - scroll.offset).abs() < 1) return;
+        if (duration == Duration.zero || attempt > 0) {
+          scroll.jumpTo(to);
+        } else {
+          await scroll.animateTo(to, duration: duration, curve: Curves.easeInOut);
+        }
+        return;
+      }
+      final re = _fieldRender();
+      final double fieldHeight = re != null && re.hasSize ? re.size.height : 0;
+      final double perChar = fieldHeight > 0 && _lastWindowText.isNotEmpty ? fieldHeight / _lastWindowText.length : 0.4;
+      final int ws = window.windowStart, we = ws + _lastWindowText.length;
+      final double estimate = target < ws ? -(ws - target) * perChar : fieldHeight + (target - we) * perChar;
+      scroll.jumpTo(
+        (estimate - viewport * fraction).clamp(scroll.position.minScrollExtent, scroll.position.maxScrollExtent),
+      );
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
+  /// The document offset of the text under [global] (null on blank space):
+  /// Codex mentions in the live field and on static lines.
+  int? docOffsetAtPoint(Offset global) {
+    final hit = _hitDoc(global);
+    if (hit == null) return null;
+    if (hit.onField) {
+      final re = _fieldRender()!;
+      final pos = re.getPositionForPoint(global);
+      final caret = re.getLocalRectForCaret(pos);
+      final local = re.globalToLocal(global);
+      if (local.dy < caret.top - 2 || local.dy > caret.bottom + 2) return null;
+    }
+    return hit.offset;
   }
 
   // ------------------------------------------------- selection actions
@@ -804,6 +898,13 @@ class WindowedEditorState extends State<WindowedEditor> {
     widget.focusNode.requestFocus();
     final int clicks = _countClick(e.position);
     _setDocSelection(clicks >= 2 ? _unitAt(anchor, clicks) : TextSelection.collapsed(offset: anchor));
+    // A click on a static checkbox ticks it, as in the live field.
+    if (clicks == 1 && !widget.readOnly) {
+      final int at = anchor - window.windowStart;
+      final int? lineStart = at >= 0 && at <= window.text.length ? checkboxLineAt(window.text, at) : null;
+      final next = lineStart == null ? null : toggleCheckbox(window.value, lineStart);
+      if (next != null) window.value = next;
+    }
   }
 
   // ------------------------------------------------------------ build
@@ -855,6 +956,7 @@ class WindowedEditorState extends State<WindowedEditor> {
 
   @override
   Widget build(BuildContext context) {
+    _copySettings();
     _static.prepare(widget.theme, widget.style);
     final focus = _focusLines();
     _paintedWide = _isWide(doc.selection);
@@ -1068,6 +1170,7 @@ class _StaticLines {
   final Map<String, List<InlineSpan>> _cache = {};
   WriterTheme? _theme;
   TextStyle? _style;
+  Object? _bullets;
   String? _query;
   bool? _codex;
   Object? _titles;
@@ -1077,8 +1180,10 @@ class _StaticLines {
         style != _style ||
         document.searchQuery != _query ||
         document.codexLinkingEnabled != _codex ||
-        !identical(document.codexTitles, _titles)) {
+        !identical(document.codexTitles, _titles) ||
+        document.bulletStyle != _bullets) {
       _cache.clear();
+      _bullets = document.bulletStyle;
       _theme = theme;
       _style = style;
       _query = document.searchQuery;
@@ -1088,7 +1193,8 @@ class _StaticLines {
         ..theme = theme
         ..searchQuery = document.searchQuery
         ..codexLinkingEnabled = document.codexLinkingEnabled
-        ..codexTitles = document.codexTitles;
+        ..codexTitles = document.codexTitles
+        ..bulletStyle = document.bulletStyle;
     }
     if (_cache.length > 4000) _cache.clear();
   }

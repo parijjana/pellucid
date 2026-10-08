@@ -22,6 +22,10 @@ class CodexMentionDetector extends StatefulWidget {
   final void Function(String noteId) onActivate;
   final Widget child;
 
+  /// Maps a pointer to a document offset when the child is not one field
+  /// (the long-document editor, slice 3b); null uses the child's field.
+  final int? Function(Offset global)? offsetAt;
+
   const CodexMentionDetector({
     super.key,
     required this.enabled,
@@ -30,6 +34,7 @@ class CodexMentionDetector extends StatefulWidget {
     required this.notes,
     required this.onActivate,
     required this.child,
+    this.offsetAt,
   });
 
   @override
@@ -70,6 +75,11 @@ class _CodexMentionDetectorState extends State<CodexMentionDetector> {
 
   /// Resolves [global] to a mention note id via the field's own layout, or null.
   String? _noteIdAt(Offset global) {
+    final offsetAt = widget.offsetAt;
+    if (offsetAt != null) {
+      final int? offset = offsetAt(global);
+      return offset == null ? null : widget.index.noteIdAt(offset);
+    }
     final re = _renderEditable();
     if (re == null) return null;
     final TextPosition pos = re.getPositionForPoint(global);

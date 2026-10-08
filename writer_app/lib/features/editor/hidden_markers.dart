@@ -266,7 +266,7 @@ int stepLeft(String text, int offset) {
 
 /// The plain text a reader sees: hidden markers removed, a bullet prefix
 /// shown as the glyph the editor draws.
-String visibleText(String text) {
+String visibleText(String text, {BulletStyle bullets = BulletStyle.classic}) {
   final out = StringBuffer();
   int ls = 0;
   while (ls <= text.length) {
@@ -277,7 +277,7 @@ String visibleText(String text) {
     if (lm != null) {
       // The drawn glyph stands in for the stored marker (and may sit over the
       // end of the indent).
-      final g = listGlyph(lm);
+      final g = listGlyph(lm, bullets);
       out.write(lm.indent.substring(0, lm.indent.length - g.absorbed));
       out.write(g.shown);
     }

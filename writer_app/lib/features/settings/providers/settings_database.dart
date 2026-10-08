@@ -41,6 +41,7 @@ class SettingsDatabase {
     'grammar_hints_enabled': 1,
     'smart_punctuation_enabled': 1,
     'auto_continue_lists_enabled': 1,
+    'bullet_style': 'classic',
     'attribution_duplicate_highlight_enabled': 1,
     'last_full_backup_time': null,
   };
@@ -51,8 +52,9 @@ class SettingsDatabase {
 
   SettingsDatabase._init();
 
-  /// 19: editor_font (item 14); 20: language/editing on-off switches (item 26).
-  static const int schemaVersion = 20;
+  /// 19: editor_font (item 14); 20: language/editing on-off switches (item 26);
+  /// 21: bullet_style (slice 5b).
+  static const int schemaVersion = 21;
 
   @visibleForTesting
   Future<void> createForTest(Database db) => _createDB(db, schemaVersion);
@@ -120,7 +122,8 @@ class SettingsDatabase {
         grammar_hints_enabled INTEGER DEFAULT 1,
         smart_punctuation_enabled INTEGER DEFAULT 1,
         auto_continue_lists_enabled INTEGER DEFAULT 1,
-        attribution_duplicate_highlight_enabled INTEGER DEFAULT 1
+        attribution_duplicate_highlight_enabled INTEGER DEFAULT 1,
+        bullet_style TEXT DEFAULT 'classic'
       )
     ''');
 
@@ -172,6 +175,7 @@ class SettingsDatabase {
       'grammar_hints_enabled': 1,
       'smart_punctuation_enabled': 1,
       'auto_continue_lists_enabled': 1,
+      'bullet_style': 'classic',
       'attribution_duplicate_highlight_enabled': 1,
     });
   }
@@ -256,6 +260,9 @@ class SettingsDatabase {
       await db.execute('ALTER TABLE settings ADD COLUMN smart_punctuation_enabled INTEGER DEFAULT 1');
       await db.execute('ALTER TABLE settings ADD COLUMN auto_continue_lists_enabled INTEGER DEFAULT 1');
       await db.execute('ALTER TABLE settings ADD COLUMN attribution_duplicate_highlight_enabled INTEGER DEFAULT 1');
+    }
+    if (oldVersion < 21) {
+      await db.execute("ALTER TABLE settings ADD COLUMN bullet_style TEXT DEFAULT 'classic'");
     }
   }
 

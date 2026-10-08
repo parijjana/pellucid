@@ -483,6 +483,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _editorController.searchQuery = searchProvider.query;
     _editorController.paragraphFocusEnabled = settings.paragraphFocusEnabled;
     listAutoContinueEnabled = settings.autoContinueListsEnabled;
+    _editorController.bulletStyle = settings.bulletStyle;
     _editorController.codexLinkingEnabled = settings.codexLinkingEnabled;
     _editorController.codexTitles = [
       for (final c in notesProvider.cards)

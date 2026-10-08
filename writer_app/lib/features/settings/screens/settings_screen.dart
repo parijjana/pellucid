@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:file_selector/file_selector.dart';
 import '../providers/settings_provider.dart';
+import '../../editor/list_marker.dart';
 import '../../editor/providers/editor_font.dart';
 import '../../editor/providers/editor_provider.dart';
 import '../../editor/providers/theme_provider.dart';
@@ -152,6 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _exportEpub(BuildContext context, String content, String projectName, String? projectPath) async {
     final font = context.read<SettingsProvider>().editorFont;
+    final bullets = context.read<SettingsProvider>().bulletStyle;
     final FileSaveLocation? result = await getSaveLocation(
       suggestedName: '$projectName.epub',
       initialDirectory: projectPath,
@@ -165,6 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         author: 'Pellucid',
         filePath: result.path,
         font: font,
+        bullets: bullets,
       );
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to ${result.path}')));
     } catch (e) {
@@ -977,6 +980,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _buildToggleRow(label: 'TOC Word Counts', value: settings.tocWordCountsEnabled, onChanged: settings.toggleTocWordCounts, theme: theme),
         _buildDailyGoalRow(settings, theme),
         _buildFontRow(settings, theme),
+        _buildBulletStyleRow(settings, theme),
         _buildToggleRow(label: 'Battery Guard', value: settings.batteryGuardEnabled, onChanged: settings.toggleBatteryGuard, theme: theme),
         if (settings.batteryGuardEnabled) ...[
           Padding(
@@ -1041,6 +1045,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(f.label, style: f.apply()),
               );
             }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Bullet glyph set for lists: display only, files keep `-` (slice 5b).
+  Widget _buildBulletStyleRow(SettingsProvider settings, WriterTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Bullet Style', style: TextStyle(color: theme.foregroundColor, fontSize: 13)),
+          DropdownButton<BulletStyle>(
+            key: const Key('bullet_style_dropdown'),
+            value: settings.bulletStyle,
+            dropdownColor: theme.sidebarColor,
+            style: TextStyle(color: theme.foregroundColor, fontSize: 13),
+            underline: const SizedBox(),
+            onChanged: (BulletStyle? value) {
+              if (value != null) settings.setBulletStyle(value);
+            },
+            items: BulletStyle.values
+                .map((b) => DropdownMenuItem<BulletStyle>(value: b, child: Text('${b.label}  ${b.sample}')))
+                .toList(),
           ),
         ],
       ),

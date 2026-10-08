@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file/memory.dart';
 import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'settings_database.dart';
+import '../../editor/list_marker.dart';
 import '../../editor/providers/editor_font.dart';
 import 'project_stats.dart';
 import '../../editor/providers/storage_service.dart';
@@ -89,6 +90,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _smartPunctuationEnabled = true;
   // Read by the list Enter rule (list_editing.dart: listAutoContinueEnabled), set from the editor screen.
   bool _autoContinueListsEnabled = true;
+  BulletStyle _bulletStyle = BulletStyle.defaultStyle;
   // Read by the attribution list (note_editor_dialog.dart) for the duplicate tint.
   bool _attributionDuplicateHighlightEnabled = true;
 
@@ -134,6 +136,7 @@ class SettingsProvider extends ChangeNotifier {
     _grammarHintsEnabled = (settings['grammar_hints_enabled'] ?? 1) == 1;
     _smartPunctuationEnabled = (settings['smart_punctuation_enabled'] ?? 1) == 1;
     _autoContinueListsEnabled = (settings['auto_continue_lists_enabled'] ?? 1) == 1;
+    _bulletStyle = BulletStyle.fromId(settings['bullet_style'] as String?);
     _attributionDuplicateHighlightEnabled = (settings['attribution_duplicate_highlight_enabled'] ?? 1) == 1;
     _googleClientId = settings['google_client_id'];
     _googleClientSecret = await _loadCustomClientSecret(settings['google_client_secret']);
@@ -221,6 +224,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get grammarHintsEnabled => _grammarHintsEnabled;
   bool get smartPunctuationEnabled => _smartPunctuationEnabled;
   bool get autoContinueListsEnabled => _autoContinueListsEnabled;
+  BulletStyle get bulletStyle => _bulletStyle;
   bool get attributionDuplicateHighlightEnabled => _attributionDuplicateHighlightEnabled;
 
   String? get currentProjectPath {
@@ -306,6 +310,13 @@ class SettingsProvider extends ChangeNotifier {
   void toggleSmartPunctuation(bool enabled) {
     _smartPunctuationEnabled = enabled;
     _db.updateSetting('smart_punctuation_enabled', enabled);
+    notifyListeners();
+  }
+
+  void setBulletStyle(BulletStyle style) {
+    if (_bulletStyle == style) return;
+    _bulletStyle = style;
+    _db.updateSetting('bullet_style', style.id);
     notifyListeners();
   }
 

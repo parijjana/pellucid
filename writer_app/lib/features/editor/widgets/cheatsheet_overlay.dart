@@ -83,7 +83,7 @@ class CheatsheetOverlayContent extends StatelessWidget {
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + O', isMac), description: 'Numbered List'),
                     _CheatsheetItem(theme: theme, keys: _getKeys('Alt + V', isMac), description: 'Checklist'),
                     _CheatsheetItem(theme: theme, keys: 'Tab / Shift + Tab', description: 'Indent / Unindent Item'),
-                    _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + ] / [' : 'Ctrl + ] / [', description: 'Indent / Unindent'),
+                    _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + ] / [' : 'Ctrl + ] / [', description: 'Indent / Unindent List & Para'),
                     _CheatsheetItem(theme: theme, keys: isMac ? 'Cmd + Shift + V' : 'Ctrl + Shift + V', description: 'Paste as Plain Text'),
                   ],
                 ),

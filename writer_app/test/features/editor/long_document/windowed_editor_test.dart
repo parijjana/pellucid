@@ -1,6 +1,8 @@
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pellucid/features/editor/long_document/document_buffer.dart';
 import 'package:pellucid/features/editor/long_document/windowed_editor.dart';
@@ -43,7 +45,9 @@ void _expectCoherent(WindowedEditorState s, MarkdownEditingController doc, Strin
   expect(s.buffer.text, reference);
   expect(s.window.windowStart, s.buffer.lineStart(s.span.first));
   expect(s.window.text, s.buffer.textOfLines(s.span.first, s.span.last));
-  if (s.window.selection.isValid && doc.selection.isValid) {
+  final ws = s.window.windowStart, we = ws + s.window.text.length;
+  final wide = doc.selection.isValid && (doc.selection.start < ws || doc.selection.end > we);
+  if (s.window.selection.isValid && doc.selection.isValid && !wide) {
     expect(doc.selection.baseOffset, s.window.selection.baseOffset + s.window.windowStart);
     expect(doc.selection.extentOffset, s.window.selection.extentOffset + s.window.windowStart);
   }
@@ -221,5 +225,115 @@ void main() {
       final spans = scratch.buildLineSpans(dim: false, style: _style);
       expect(TextSpan(children: spans).toPlainText().length, line.length, reason: line);
     }
+  });
+
+  testWidgets('Select All then typing replaces the whole document; undo brings it back', (tester) async {
+    final text = generateManuscript(20000, seed: 13);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    final first = s.span.first;
+    s.selectAll();
+    await tester.pump();
+    expect(doc.selection, TextSelection(baseOffset: 0, extentOffset: text.length));
+    expect(s.span.first, first, reason: 'Select All does not move the window');
+    expect(s.window.selection, TextSelection(baseOffset: 0, extentOffset: s.window.text.length));
+    // The field replaces what it sees; the document replaces everything.
+    _typeInWindow(s, 0, s.window.text.length, 'x');
+    await tester.pump();
+    await tester.pump();
+    expect(doc.text, 'x');
+    _expectCoherent(s, doc, 'x');
+    s.undo();
+    await tester.pump();
+    await tester.pump();
+    expect(doc.text, text);
+    _expectCoherent(s, doc, text);
+  });
+
+  testWidgets('a backspace over a selection reaching past the window deletes all of it', (tester) async {
+    final text = generateManuscript(40000, seed: 14);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    final int a = s.window.windowStart + 10;
+    final int b = text.length - 100; // far below the window, > the cap
+    expect(b - a, greaterThan(kWindowSelectionCapChars));
+    doc.selection = TextSelection(baseOffset: a, extentOffset: b);
+    await tester.pump();
+    await tester.pump();
+    final clamped = s.window.selection;
+    expect(clamped.isCollapsed, isFalse);
+    _typeInWindow(s, clamped.start, clamped.end - clamped.start, '');
+    await tester.pump();
+    await tester.pump();
+    final expected = text.replaceRange(a, b, '');
+    _expectCoherent(s, doc, expected);
+    expect(doc.selection, TextSelection.collapsed(offset: a));
+  });
+
+  testWidgets('mouse drag across static lines selects them, then the window takes the selection', (tester) async {
+    final text = generateManuscript(12000, seed: 15);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    final before = s.span.first;
+    s.scroll.jumpTo(-900);
+    await tester.pump();
+    final lines = find.byType(RichText);
+    final from = tester.getTopLeft(lines.at(1)) + const Offset(3, 4);
+    final to = tester.getTopLeft(lines.at(3)) + const Offset(20, 4);
+    final g = await tester.startGesture(from, kind: PointerDeviceKind.mouse);
+    await g.moveTo(from + const Offset(10, 0));
+    await g.moveTo(to);
+    await tester.pump();
+    final sel = doc.selection;
+    expect(sel.isCollapsed, isFalse);
+    expect(sel.end, lessThan(s.buffer.lineStart(before)), reason: 'all on static lines above the window');
+    await g.up();
+    await tester.pump();
+    await tester.pump();
+    expect(doc.selection, sel);
+    expect(s.window.windowStart, lessThanOrEqualTo(sel.start), reason: 'the window now holds the selection');
+    expect(s.window.selection, TextSelection(baseOffset: sel.baseOffset - s.window.windowStart, extentOffset: sel.extentOffset - s.window.windowStart));
+    _expectCoherent(s, doc, text);
+  });
+
+  testWidgets('shift-click on a static line extends the selection from the caret', (tester) async {
+    final text = generateManuscript(12000, seed: 16);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    final int caret = doc.selection.baseOffset;
+    s.scroll.jumpTo(-600);
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+    await tester.tapAt(tester.getTopLeft(find.byType(RichText).first) + const Offset(2, 2), kind: PointerDeviceKind.mouse);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+    await tester.pump();
+    await tester.pump();
+    expect(doc.selection.baseOffset, caret);
+    expect(doc.selection.extentOffset, lessThan(caret));
+    _expectCoherent(s, doc, text);
+  });
+
+  testWidgets('double click on a static line selects the word', (tester) async {
+    final text = generateManuscript(12000, seed: 17);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    s.scroll.jumpTo(-600);
+    await tester.pump();
+    final at = tester.getTopLeft(find.byType(RichText).first) + const Offset(12, 6);
+    await tester.tapAt(at, kind: PointerDeviceKind.mouse);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tapAt(at, kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    await tester.pump();
+    final sel = doc.selection;
+    expect(sel.isCollapsed, isFalse, reason: '$sel');
+    final word = text.substring(sel.start, sel.end);
+    expect(word.contains(' '), isFalse, reason: word);
+    expect(word.isNotEmpty, isTrue);
   });
 }

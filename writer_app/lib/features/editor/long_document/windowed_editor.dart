@@ -15,15 +15,23 @@
 //
 // Behind a flag until it does everything the single editor does
 // (PLAN_3b_EDITOR.md). Phase 1: typing, caret and window moves, clicks on
-// static lines, styling parity, document-level undo/redo.
+// static lines, styling parity, document-level undo/redo. Phase 2: selections
+// past the window (mouse drag and shift-click on static lines, Select All):
+// the document controller holds the real selection, the field shows the part
+// inside the window, static lines paint the rest, and copy, cut, delete and
+// typing act on the whole selection.
 
+import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../marker_aware_editing.dart';
 import '../providers/theme_provider.dart';
+import '../rich_clipboard.dart';
 import '../utils/grammar_checker.dart';
 import '../widgets/markdown_controller.dart';
 import 'document_buffer.dart';
@@ -42,6 +50,11 @@ const int kWindowBudgetChars = 4000;
 /// The window moves when the caret comes this close to one of its edges.
 const int kWindowEdgeMarginChars = 600;
 const int kWindowEdgeMarginLines = 2;
+
+/// A selection up to this size is loaded whole into the window (about 20k
+/// words), so the field draws it and shift+arrows extend it. A larger one
+/// (Select All on a long document) stays a document selection.
+const int kWindowSelectionCapChars = 120000;
 
 /// Lines [first, last) of the document are live; the rest are static.
 class EditorWindow {
@@ -113,9 +126,7 @@ int _firstEndingAfter<T>(List<T> items, int offset, int Function(T) endOf) {
 /// [start] is 0.
 List<TextRange> rangesInside(List<TextRange> ranges, int start, int end) {
   final out = <TextRange>[];
-  for (int i = _firstEndingAfter(ranges, start, (r) => r.end);
-      i < ranges.length && ranges[i].start < end;
-      i++) {
+  for (int i = _firstEndingAfter(ranges, start, (r) => r.end); i < ranges.length && ranges[i].start < end; i++) {
     final r = ranges[i];
     out.add(TextRange(start: max(r.start, start) - start, end: min(r.end, end) - start));
   }
@@ -124,18 +135,22 @@ List<TextRange> rangesInside(List<TextRange> ranges, int start, int end) {
 
 List<GrammarIssue> grammarInside(List<GrammarIssue> issues, int start, int end) {
   final out = <GrammarIssue>[];
-  for (int i = _firstEndingAfter(issues, start, (g) => g.range.end);
-      i < issues.length && issues[i].range.start < end;
-      i++) {
+  for (
+    int i = _firstEndingAfter(issues, start, (g) => g.range.end);
+    i < issues.length && issues[i].range.start < end;
+    i++
+  ) {
     final g = issues[i];
     if (g.range.start < start || g.range.end > end) continue;
-    out.add(GrammarIssue(
-      range: TextRange(start: g.range.start - start, end: g.range.end - start),
-      fixRange: TextRange(start: g.fixRange.start - start, end: g.fixRange.end - start),
-      replacement: g.replacement,
-      ruleId: g.ruleId,
-      message: g.message,
-    ));
+    out.add(
+      GrammarIssue(
+        range: TextRange(start: g.range.start - start, end: g.range.end - start),
+        fixRange: TextRange(start: g.fixRange.start - start, end: g.fixRange.end - start),
+        replacement: g.replacement,
+        ruleId: g.ruleId,
+        message: g.message,
+      ),
+    );
   }
   return out;
 }
@@ -172,8 +187,7 @@ class WindowedEditor extends StatefulWidget {
   /// Wraps the live field (MarkerAwareEditing, SmartPunctuationScope, ...)
   /// with the window controller those wrappers must act on; [field] builds
   /// the field with any extra input formatters a wrapper supplies.
-  final Widget Function(WindowFieldController window, Widget Function(List<TextInputFormatter> extra) field)?
-      wrapField;
+  final Widget Function(WindowFieldController window, Widget Function(List<TextInputFormatter> extra) field)? wrapField;
 
   const WindowedEditor({
     super.key,
@@ -213,6 +227,19 @@ class WindowedEditorState extends State<WindowedEditor> {
   static const Duration _coalesceGap = Duration(milliseconds: 800);
 
   late final _StaticLines _static = _StaticLines(widget.controller);
+  final Map<int, _RenderStaticLine> _built = {};
+
+  // Pointer state: a press on the field defers window moves until release
+  // (the field's drag gesture keeps window offsets); a press on a static line
+  // is a click or a drag-select handled here.
+  bool _fieldPointer = false;
+  int? _dragAnchor;
+  Offset _downPos = Offset.zero;
+  bool _dragging = false;
+  DateTime _lastClickAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Offset _lastClickPos = Offset.zero;
+  int _clickCount = 0;
+  bool _reloadPending = false;
 
   /// Number of window moves (tests and the perf harness read it).
   int windowMoves = 0;
@@ -286,8 +313,14 @@ class WindowedEditorState extends State<WindowedEditor> {
   /// Moves the window so [docSelection] sits in its middle, keeping the caret
   /// at the same place on screen.
   void moveWindowTo(TextSelection docSelection) {
-    final double? before = _caretScreenY();
-    _load(planWindow(buffer, docSelection.start, docSelection.end), docSelection);
+    final double? before = _docOffsetScreenY(docSelection.extentOffset);
+    final bool fits = docSelection.end - docSelection.start <= kWindowSelectionCapChars;
+    _load(
+      fits
+          ? planWindow(buffer, docSelection.start, docSelection.end)
+          : planWindow(buffer, docSelection.extentOffset, docSelection.extentOffset),
+      docSelection,
+    );
     windowMoves++;
     setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -322,6 +355,26 @@ class WindowedEditorState extends State<WindowedEditor> {
     return found;
   }
 
+  /// Screen Y of [offset]: the field's caret inside the window, the built
+  /// static line's text outside it; null when off screen.
+  double? _docOffsetScreenY(int offset) {
+    final int ws = window.windowStart;
+    if (offset >= ws && offset <= ws + _lastWindowText.length) {
+      final re = _fieldRender();
+      if (re == null || !re.attached || !re.hasSize) return null;
+      final rect = re.getLocalRectForCaret(TextPosition(offset: offset - ws));
+      return re.localToGlobal(rect.topLeft).dy;
+    }
+    final int line = buffer.lineOfOffset(offset);
+    final ro = _built[line];
+    if (ro == null || !ro.attached || !ro.hasSize) return null;
+    final para = ro.paragraph;
+    final double dy = para == null
+        ? 0
+        : para.getOffsetForCaret(TextPosition(offset: offset - buffer.lineStart(line)), Rect.zero).dy;
+    return ro.localToGlobal(Offset(0, dy)).dy;
+  }
+
   double? _caretScreenY() {
     final re = _fieldRender();
     if (re == null || !re.attached || !re.hasSize || !window.selection.isValid) return null;
@@ -337,19 +390,28 @@ class WindowedEditorState extends State<WindowedEditor> {
     final int loLine = buffer.lineOfOffset(lo + window.windowStart) - span.first;
     final int hiLine = buffer.lineOfOffset(hi + window.windowStart) - span.first;
     final bool nearTop = topOpen && (lo < kWindowEdgeMarginChars || loLine < kWindowEdgeMarginLines);
-    final bool nearBottom = bottomOpen &&
+    final bool nearBottom =
+        bottomOpen &&
         (window.text.length - hi < kWindowEdgeMarginChars || span.lineCount - 1 - hiLine < kWindowEdgeMarginLines);
     return nearTop || nearBottom;
   }
 
   bool get _composing => window.value.composing.isValid && !window.value.composing.isCollapsed;
 
+  /// The document selection reaches outside the window.
+  bool _isWide(TextSelection s) =>
+      s.isValid &&
+      !s.isCollapsed &&
+      (s.start < window.windowStart || s.end > window.windowStart + _lastWindowText.length);
+
   void _maybeMove() {
-    if (_composing) {
+    if (_composing || _fieldPointer) {
       _movePending = true;
       return;
     }
-    if (!_nearEdge(window.selection)) {
+    // A window grown to hold a long selection shrinks back once it is gone.
+    final bool oversized = window.selection.isCollapsed && _lastWindowText.length > 3 * kWindowBudgetChars;
+    if (!oversized && !_nearEdge(window.selection)) {
       _movePending = false;
       return;
     }
@@ -364,8 +426,20 @@ class WindowedEditorState extends State<WindowedEditor> {
   // ------------------------------------------------- window -> document
 
   void _onWindowChanged() {
-    if (_applying) return;
+    if (_applying || _reloadPending) return;
     final wv = window.value;
+    if (wv.text != _lastWindowText && _isWide(doc.selection) && _replaceWideSelection(wv.text)) return;
+    if (wv.text == _lastWindowText && _isWide(doc.selection)) {
+      // The field only sees the part of the selection inside the window.
+      final clamped = _toWindow(doc.selection);
+      if (wv.selection == clamped) return;
+      final TextSelection next = !wv.selection.isCollapsed && wv.selection.baseOffset == clamped.baseOffset
+          ? doc.selection.copyWith(extentOffset: wv.selection.extentOffset + window.windowStart)
+          : _toDoc(wv.selection);
+      _setDocSelection(next, move: false);
+      if (_movePending || _nearEdge(wv.selection)) _maybeMove();
+      return;
+    }
     if (wv.text != _lastWindowText) {
       final d = diffReplacement(_lastWindowText, wv.text);
       final int start = window.windowStart + d.start;
@@ -384,6 +458,31 @@ class WindowedEditorState extends State<WindowedEditor> {
       _applying = false;
     }
     if (_movePending || _nearEdge(wv.selection)) _maybeMove();
+  }
+
+  /// Typing, deleting or pasting over a selection that reaches outside the
+  /// window: the field replaced its visible part, the document replaces all of
+  /// it. False when the change is not a replacement of that part.
+  bool _replaceWideSelection(String now) {
+    final clamped = _toWindow(doc.selection);
+    final String old = _lastWindowText;
+    final int tail = old.length - clamped.end;
+    if (now.length < clamped.start + tail ||
+        !now.startsWith(old.substring(0, clamped.start)) ||
+        !now.endsWith(old.substring(clamped.end))) {
+      return false;
+    }
+    final String inserted = now.substring(clamped.start, now.length - tail);
+    _lastWindowText = now;
+    final sel = doc.selection;
+    _editDoc(
+      sel.start,
+      sel.end,
+      inserted,
+      TextSelection.collapsed(offset: sel.start + inserted.length),
+      deferMove: true,
+    );
+    return true;
   }
 
   void _applyToBuffer(int start, int end, String inserted) {
@@ -422,7 +521,29 @@ class WindowedEditorState extends State<WindowedEditor> {
       return;
     }
     _lastDocText = doc.text;
-    if (doc.selection != _toDoc(window.selection)) _syncWindowTo(doc.selection);
+    if (doc.selection != _toDoc(window.selection)) {
+      _syncWindowTo(doc.selection);
+    } else if (_paintedWide) {
+      setState(() {});
+    }
+  }
+
+  bool _paintedWide = false;
+
+  /// Sets the document selection; [move] lets the window follow it.
+  void _setDocSelection(TextSelection sel, {bool move = true}) {
+    _applying = true;
+    doc.value = doc.value.copyWith(selection: sel, composing: TextRange.empty);
+    _lastDocText = doc.text;
+    _applying = false;
+    if (move) {
+      _syncWindowTo(sel);
+      return;
+    }
+    _applying = true;
+    window.value = window.value.copyWith(selection: _toWindow(sel), composing: TextRange.empty);
+    _applying = false;
+    setState(() {});
   }
 
   void _syncWindowTo(TextSelection docSel, {bool force = false}) {
@@ -430,10 +551,17 @@ class WindowedEditorState extends State<WindowedEditor> {
     final int ws = buffer.lineStart(span.first.clamp(0, buffer.lineCount - 1));
     final int we = buffer.lineEnd((span.last - 1).clamp(0, buffer.lineCount - 1));
     final bool inside = sel.start >= ws && sel.end <= we;
-    if (inside && !force) {
+    // A selection too long for the window stays put while its moving end is
+    // in view (shift-click) or it covers the whole window (Select All).
+    final bool keep =
+        !inside &&
+        sel.end - sel.start > kWindowSelectionCapChars &&
+        ((sel.extentOffset >= ws && sel.extentOffset <= we) || (sel.start <= ws && sel.end >= we));
+    if ((inside || keep) && !force) {
       _applying = true;
       window.value = window.value.copyWith(selection: _toWindow(sel));
       _applying = false;
+      setState(() {});
       return;
     }
     moveWindowTo(sel);
@@ -503,22 +631,182 @@ class WindowedEditorState extends State<WindowedEditor> {
   }
 
   /// Applies a document edit that did not come from typing in the window.
-  void _applyEdit(int start, int end, String inserted, TextSelection selection) {
+  void _applyEdit(int start, int end, String inserted, TextSelection selection, {bool deferMove = false}) {
     buffer.replace(start, end, inserted);
     _writeDoc(start, end, inserted, selection, TextRange.empty);
     widget.onChanged(doc.text);
-    moveWindowTo(selection);
+    if (!deferMove) {
+      moveWindowTo(selection);
+      return;
+    }
+    // Called from the field's own update: reload once it has finished.
+    _reloadPending = true;
+    scheduleMicrotask(() {
+      _reloadPending = false;
+      if (mounted) moveWindowTo(selection);
+    });
+  }
+
+  /// A recorded (undoable) document edit made here rather than by typing.
+  void _editDoc(int start, int end, String inserted, TextSelection selection, {bool deferMove = false}) {
+    final before = doc.selection;
+    final String removed = buffer.text.substring(start, end);
+    _applyEdit(start, end, inserted, selection, deferMove: deferMove);
+    _record(start, removed, inserted, before, selection);
+  }
+
+  // ------------------------------------------------- selection actions
+
+  void selectAll() => _setDocSelection(TextSelection(baseOffset: 0, extentOffset: buffer.length));
+
+  void _copy({required bool cut}) {
+    final sel = doc.selection;
+    if (_isWide(sel)) {
+      RichClipboard.copy(doc.text, sel.start, sel.end);
+      if (cut && !widget.readOnly) _editDoc(sel.start, sel.end, '', TextSelection.collapsed(offset: sel.start));
+      return;
+    }
+    final state = _editableState();
+    if (state != null) markerCopy(state, cut: cut);
+  }
+
+  EditableTextState? _editableState() {
+    EditableTextState? found;
+    void visit(Element e) {
+      if (found != null) return;
+      if (e is StatefulElement && e.state is EditableTextState) {
+        found = e.state as EditableTextState;
+        return;
+      }
+      e.visitChildren(visit);
+    }
+
+    final ctx = _fieldKey.currentContext;
+    if (ctx is Element) visit(ctx);
+    return found;
+  }
+
+  // ------------------------------------------------- pointer on the page
+
+  /// The document offset under [global], and whether it is on the field.
+  ({int offset, bool onField})? _hitDoc(Offset global) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(result, global, View.of(context).viewId);
+    final field = _fieldRender();
+    for (final entry in result.path) {
+      final target = entry.target;
+      if (field != null && identical(target, field)) {
+        final pos = field.getPositionForPoint(global);
+        return (offset: window.windowStart + pos.offset.clamp(0, _lastWindowText.length), onField: true);
+      }
+      if (target is _RenderStaticLine) {
+        final para = target.paragraph;
+        final int len = buffer.line(target.line).length;
+        final int at = para == null ? 0 : para.getPositionForOffset(para.globalToLocal(global)).offset.clamp(0, len);
+        return (offset: buffer.lineStart(target.line) + at, onField: false);
+      }
+    }
+    return null;
+  }
+
+  int _countClick(Offset pos) {
+    final now = DateTime.now();
+    final bool again =
+        now.difference(_lastClickAt) < const Duration(milliseconds: 450) && (pos - _lastClickPos).distance < 6;
+    _clickCount = again ? _clickCount + 1 : 1;
+    _lastClickAt = now;
+    _lastClickPos = pos;
+    return _clickCount;
+  }
+
+  /// Word (2 clicks) or line (3 clicks) around [offset].
+  TextSelection _unitAt(int offset, int clicks) {
+    final int line = buffer.lineOfOffset(offset);
+    final int ls = buffer.lineStart(line);
+    final String text = buffer.line(line);
+    if (clicks >= 3) return TextSelection(baseOffset: ls, extentOffset: ls + text.length);
+    bool word(int i) {
+      final c = text.codeUnitAt(i);
+      return c == 0x27 ||
+          c == 0x2019 ||
+          c >= 0x80 ||
+          (c >= 0x30 && c <= 0x39) ||
+          ((c | 0x20) >= 0x61 && (c | 0x20) <= 0x7a);
+    }
+
+    int a = offset - ls, b = offset - ls;
+    while (a > 0 && word(a - 1)) {
+      a--;
+    }
+    while (b < text.length && word(b)) {
+      b++;
+    }
+    return TextSelection(baseOffset: ls + a, extentOffset: ls + b);
+  }
+
+  void _onPointerDown(PointerDownEvent e) {
+    final hit = _hitDoc(e.position);
+    if (hit == null) return;
+    if (hit.onField) {
+      _fieldPointer = true;
+      return;
+    }
+    if (e.kind == PointerDeviceKind.mouse && e.buttons != kPrimaryMouseButton) return;
+    _dragAnchor = hit.offset;
+    _downPos = e.position;
+    _dragging = false;
+    if (HardwareKeyboard.instance.isShiftPressed && doc.selection.isValid) {
+      _dragAnchor = doc.selection.baseOffset;
+      _dragging = true;
+      _setDocSelection(TextSelection(baseOffset: _dragAnchor!, extentOffset: hit.offset), move: false);
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent e) {
+    final int? anchor = _dragAnchor;
+    if (anchor == null || e.kind != PointerDeviceKind.mouse) return;
+    if (!_dragging && (e.position - _downPos).distance < 4) return;
+    _dragging = true;
+    final hit = _hitDoc(e.position);
+    if (hit == null) return;
+    _setDocSelection(TextSelection(baseOffset: anchor, extentOffset: hit.offset), move: false);
+  }
+
+  void _onPointerUp(PointerEvent e) {
+    if (_fieldPointer) {
+      _fieldPointer = false;
+      // A double click whose first click was on a static line: the window
+      // moved under the pointer, so the field saw a single click.
+      if (e is PointerUpEvent &&
+          _clickCount >= 1 &&
+          _lastClickAt.isAfter(DateTime.now().subtract(const Duration(milliseconds: 450)))) {
+        final int clicks = _countClick(e.position);
+        final hit = clicks >= 2 ? _hitDoc(e.position) : null;
+        if (hit != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _setDocSelection(_unitAt(hit.offset, clicks));
+          });
+        }
+      }
+      if (_movePending) _maybeMove();
+      return;
+    }
+    final int? anchor = _dragAnchor;
+    _dragAnchor = null;
+    if (anchor == null || e is! PointerUpEvent) return;
+    if (_dragging) {
+      _dragging = false;
+      // Bring a selection that fits into the field, so shift+arrows extend it.
+      final sel = doc.selection;
+      if (_isWide(sel) && sel.end - sel.start <= kWindowSelectionCapChars) moveWindowTo(sel);
+      return;
+    }
+    widget.focusNode.requestFocus();
+    final int clicks = _countClick(e.position);
+    _setDocSelection(clicks >= 2 ? _unitAt(anchor, clicks) : TextSelection.collapsed(offset: anchor));
   }
 
   // ------------------------------------------------------------ build
-
-  void _tapStatic(int line, TapUpDetails d, RenderParagraph? para) {
-    if (para == null) return;
-    final pos = para.getPositionForOffset(para.globalToLocal(d.globalPosition));
-    final int offset = buffer.lineStart(line) + pos.offset.clamp(0, buffer.line(line).length);
-    widget.focusNode.requestFocus();
-    moveWindowTo(TextSelection.collapsed(offset: offset));
-  }
 
   /// Which document lines paragraph focus leaves undimmed (the caret's
   /// paragraph: the run of non-blank lines around the caret line).
@@ -536,13 +824,32 @@ class WindowedEditorState extends State<WindowedEditor> {
     return (first: a, last: b);
   }
 
-  Widget _staticLine(BuildContext context, int line, ({int first, int last})? focus) {
+  Widget _staticLine(BuildContext context, int line, ({int first, int last})? focus, Color selectionColor) {
     final bool dim = focus != null && (line < focus.first || line > focus.last);
     final spans = _static.spansFor(buffer, line, dim, widget.style);
-    return _StaticLine(
+    // The part of a document selection on this line (collapsed: an empty
+    // line inside the selection).
+    TextSelection? selected;
+    final ds = doc.selection;
+    if (ds.isValid && !ds.isCollapsed) {
+      final int ls = buffer.lineStart(line), le = buffer.lineEnd(line);
+      if (ds.start <= le && ds.end > ls) {
+        selected = TextSelection(baseOffset: max(ds.start, ls) - ls, extentOffset: min(ds.end, le) - ls);
+      }
+    }
+    return MouseRegion(
       key: ValueKey('L$line'),
-      span: TextSpan(style: widget.style, children: spans),
-      onTapUp: (d, p) => _tapStatic(line, d, p),
+      cursor: SystemMouseCursors.text,
+      child: _StaticLine(
+        line: line,
+        registry: _built,
+        selection: selected,
+        selectionColor: selectionColor,
+        child: RichText(
+          text: TextSpan(style: widget.style, children: spans),
+          textScaler: TextScaler.noScaling,
+        ),
+      ),
     );
   }
 
@@ -550,38 +857,59 @@ class WindowedEditorState extends State<WindowedEditor> {
   Widget build(BuildContext context) {
     _static.prepare(widget.theme, widget.style);
     final focus = _focusLines();
+    _paintedWide = _isWide(doc.selection);
+    final Color selectionColor =
+        DefaultSelectionStyle.of(context).selectionColor ??
+        Theme.of(context).textSelectionTheme.selectionColor ??
+        const Color(0x663390FF);
     Widget field(List<TextInputFormatter> extra) => Actions(
-          // Document-level undo: nearer the field than MarkerAwareEditing's
-          // action, so it wins for this field.
-          actions: <Type, Action<Intent>>{
-            UndoTextIntent: CallbackAction<UndoTextIntent>(onInvoke: (_) {
-              undo();
-              return null;
-            }),
-            RedoTextIntent: CallbackAction<RedoTextIntent>(onInvoke: (_) {
-              redo();
-              return null;
-            }),
+      // Document-level undo: nearer the field than MarkerAwareEditing's
+      // action, so it wins for this field.
+      actions: <Type, Action<Intent>>{
+        UndoTextIntent: CallbackAction<UndoTextIntent>(
+          onInvoke: (_) {
+            undo();
+            return null;
           },
-          child: TextField(
-            key: _fieldKey,
-            controller: window,
-            focusNode: widget.focusNode,
-            maxLines: null,
-            inputFormatters: [...widget.inputFormatters, ...extra],
-            readOnly: widget.readOnly,
-            spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
-            cursorColor: widget.cursorColor,
-            style: widget.style,
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              isCollapsed: true,
-            ),
-            contextMenuBuilder: widget.contextMenuBuilder,
-          ),
-        );
+        ),
+        RedoTextIntent: CallbackAction<RedoTextIntent>(
+          onInvoke: (_) {
+            redo();
+            return null;
+          },
+        ),
+        SelectAllTextIntent: CallbackAction<SelectAllTextIntent>(
+          onInvoke: (_) {
+            selectAll();
+            return null;
+          },
+        ),
+        CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+          onInvoke: (intent) {
+            _copy(cut: intent.collapseSelection);
+            return null;
+          },
+        ),
+      },
+      child: TextField(
+        key: _fieldKey,
+        controller: window,
+        focusNode: widget.focusNode,
+        maxLines: null,
+        inputFormatters: [...widget.inputFormatters, ...extra],
+        readOnly: widget.readOnly,
+        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+        cursorColor: widget.cursorColor,
+        style: widget.style,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          isCollapsed: true,
+        ),
+        contextMenuBuilder: widget.contextMenuBuilder,
+      ),
+    );
     final Widget live = widget.wrapField?.call(window, field) ?? field(const []);
 
     const double pad = 60;
@@ -597,65 +925,138 @@ class WindowedEditorState extends State<WindowedEditor> {
             BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 40, offset: const Offset(0, 10)),
           ],
         ),
-        child: CustomScrollView(
-          controller: scroll,
-          center: _centerKey,
-          slivers: [
-            // Slivers before `center` grow upward: this padding is the page top.
-            const SliverToBoxAdapter(child: SizedBox(height: 160)),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: pad),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => _staticLine(context, span.first - 1 - i, focus),
-                  childCount: span.first,
+        child: Listener(
+          onPointerDown: _onPointerDown,
+          onPointerMove: _onPointerMove,
+          onPointerUp: _onPointerUp,
+          onPointerCancel: _onPointerUp,
+          child: CustomScrollView(
+            controller: scroll,
+            center: _centerKey,
+            slivers: [
+              // Slivers before `center` grow upward: this padding is the page top.
+              const SliverToBoxAdapter(child: SizedBox(height: 160)),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: pad),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => _staticLine(context, span.first - 1 - i, focus, selectionColor),
+                    childCount: span.first,
+                  ),
                 ),
               ),
-            ),
-            SliverPadding(
-              key: _centerKey,
-              padding: const EdgeInsets.symmetric(horizontal: pad),
-              sliver: SliverToBoxAdapter(child: live),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: pad),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => _staticLine(context, span.last + i, focus),
-                  childCount: max(0, buffer.lineCount - span.last),
+              SliverPadding(
+                key: _centerKey,
+                padding: const EdgeInsets.symmetric(horizontal: pad),
+                sliver: SliverToBoxAdapter(child: live),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: pad),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => _staticLine(context, span.last + i, focus, selectionColor),
+                    childCount: max(0, buffer.lineCount - span.last),
+                  ),
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 160)),
-          ],
+              const SliverToBoxAdapter(child: SizedBox(height: 160)),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// A static line: its spans, and a tap that moves the window there.
-class _StaticLine extends StatelessWidget {
-  final TextSpan span;
-  final void Function(TapUpDetails, RenderParagraph?) onTapUp;
-  const _StaticLine({super.key, required this.span, required this.onTapUp});
+/// A static line: hit-tested as a whole (the pointer handler asks it for its
+/// line), paints its part of a document selection behind the text, and
+/// registers itself so window moves can keep its text still on screen.
+class _StaticLine extends SingleChildRenderObjectWidget {
+  final int line;
+  final Map<int, _RenderStaticLine> registry;
+  final TextSelection? selection;
+  final Color selectionColor;
+  const _StaticLine({
+    required this.line,
+    required this.registry,
+    required this.selection,
+    required this.selectionColor,
+    required super.child,
+  });
 
-  static RenderParagraph? _paragraphIn(RenderObject? o) {
-    if (o == null || o is RenderParagraph) return o as RenderParagraph?;
-    RenderParagraph? found;
-    o.visitChildren((c) => found ??= _paragraphIn(c));
-    return found;
+  @override
+  _RenderStaticLine createRenderObject(BuildContext context) =>
+      _RenderStaticLine(line, registry, selection, selectionColor);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderStaticLine renderObject) {
+    renderObject
+      ..line = line
+      ..selection = selection
+      ..selectionColor = selectionColor;
+  }
+}
+
+class _RenderStaticLine extends RenderProxyBox {
+  _RenderStaticLine(this._line, this.registry, this._selection, this._selectionColor);
+  final Map<int, _RenderStaticLine> registry;
+
+  int _line;
+  int get line => _line;
+  set line(int v) {
+    if (v == _line) return;
+    if (identical(registry[_line], this)) registry.remove(_line);
+    _line = v;
+    if (attached) registry[_line] = this;
+  }
+
+  TextSelection? _selection;
+  set selection(TextSelection? v) {
+    if (v == _selection) return;
+    _selection = v;
+    markNeedsPaint();
+  }
+
+  Color _selectionColor;
+  set selectionColor(Color v) {
+    if (v == _selectionColor) return;
+    _selectionColor = v;
+    markNeedsPaint();
+  }
+
+  RenderParagraph? get paragraph => child is RenderParagraph ? child as RenderParagraph : null;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    registry[_line] = this;
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapUp: (d) => onTapUp(d, _paragraphIn(context.findRenderObject())),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.text,
-          child: RichText(text: span, textScaler: TextScaler.noScaling),
-        ),
-      );
+  void detach() {
+    if (identical(registry[_line], this)) registry.remove(_line);
+    super.detach();
+  }
+
+  @override
+  bool hitTestSelf(Offset position) => true;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final sel = _selection;
+    final para = paragraph;
+    if (sel != null && para != null) {
+      final paint = Paint()..color = _selectionColor;
+      if (sel.isCollapsed) {
+        context.canvas.drawRect(offset & Size(6, size.height), paint);
+      } else {
+        for (final box in para.getBoxesForSelection(sel)) {
+          context.canvas.drawRect(box.toRect().shift(offset), paint);
+        }
+      }
+    }
+    super.paint(context, offset);
+  }
 }
 
 /// Builds and caches the spans of static lines with one scratch controller,
@@ -700,7 +1101,8 @@ class _StaticLines {
     final grammar = grammarInside(document.grammarIssues, start, end);
     final int a = document.activeMatchOffset;
     final int active = a >= start && a < end ? a - start : -1;
-    final key = '${dim ? 1 : 0}|$active|${miss.map((r) => '${r.start}-${r.end}').join(',')}'
+    final key =
+        '${dim ? 1 : 0}|$active|${miss.map((r) => '${r.start}-${r.end}').join(',')}'
         '|${grammar.map((g) => '${g.range.start}-${g.range.end}').join(',')}|$text';
     return _cache.putIfAbsent(key, () {
       _scratch.value = TextEditingValue(text: text);

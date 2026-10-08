@@ -42,6 +42,26 @@ void main() {
     messenger.setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
+  test('iOS reads HTML and Pellucid markdown through the channel', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      expect(RichClipboard.isSupportedOn(defaultTargetPlatform), isTrue);
+      html = '<p>hi <b>there</b></p>';
+      markdown = 'hi **there**';
+      expect(await RichClipboard.readHtml(), html);
+      expect(await RichClipboard.readMarkdown(), markdown);
+      html = null;
+      expect(await RichClipboard.readHtml(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  test('Windows and Android are not gated in for rich reads', () {
+    expect(RichClipboard.isSupportedOn(TargetPlatform.windows), isFalse);
+    expect(RichClipboard.isSupportedOn(TargetPlatform.android), isFalse);
+  });
+
   /// Runs [body] with the platform overridden and restored before the test ends.
   void paste(
     String name,

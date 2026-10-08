@@ -51,7 +51,7 @@ Double-tap the Alt key (left or right Alt) on Windows/Linux, or the Option key (
 - Alt + O: Toggle Numbered list on the current line / Cmd + Opt + O on macOS
 - Alt + V: Toggle Checklist (- [ ] ) on the current line / Cmd + Opt + V on macOS (click a box to tick it)
 - Tab / Shift + Tab: Indent / unindent the list item (four spaces per level); Tab outside a list still types four spaces
-- Ctrl + ] / Ctrl + [: Indent / unindent list items (Cmd + ] and Cmd + [ on macOS)
+- Ctrl + ] / Ctrl + [: Indent / unindent list items and paragraphs (Cmd + ] and Cmd + [ on macOS). Each level adds an invisible em space to the paragraph start, up to 4 levels. At the start of an indented paragraph, Backspace removes one level. Enter carries the indent to the next line.
 - Enter at the end of a list item starts the next item; Enter on an empty item ends the list (Settings > Auto-continue Lists turns this off)
 - Ctrl + B: Toggle Bold on selection / Cmd + B on macOS
 - Ctrl + I: Toggle Italic on selection / Cmd + I on macOS
@@ -101,6 +101,8 @@ Rename a Project: You can rename a project in any of three ways. Each of them al
 - On macOS, use the menu bar: Projects → Rename Current Project…
 
 A name is rejected if it is empty, duplicates another project, or contains path characters (for example `/` or `..`). The seeded "User Manual" project cannot be renamed.
+
+Bullet Style: In Settings, choose how bullets appear in lists: Classic (• ◦ ▪), Dashes (– – –), Arrows (▸ ▹ ▸), or Circles (● ○ ●). This changes only the display; saved files always use the dash character (-).
 
 ## CHAPTER 6: ON A PHONE
 

@@ -83,6 +83,7 @@ List<_CopiedLine> _copiedLines(String text, int start, int end) {
 /// as typed, ☐ / ☑ for a checklist item. Other prefixes read as nothing.
 String _plainLead(String? prefix) {
   if (prefix == null) return '';
+  if (prefix.codeUnitAt(0) == 0x2003) return prefix; // paragraph indent stays as space
   if (prefix == '- ') return '• ';
   if (prefix.startsWith('- [')) return prefix.contains('[ ]') ? '$checkboxOff ' : '$checkboxOn ';
   if (RegExp(r'^\d').hasMatch(prefix)) return prefix;
@@ -147,7 +148,9 @@ String htmlFor(String text, int start, int end) {
             _ => 'p',
           };
     final glyph = isItem && p.startsWith('- [') ? _plainLead(p) : '';
-    sb.write('<$tag>$glyph$inline</$tag>');
+    final bool indented = p != null && p.codeUnitAt(0) == 0x2003;
+    final String open = indented ? '<p style="margin-left:${(paragraphIndentLevel(p) * 0.5)}in">' : '<$tag>';
+    sb.write('$open$glyph$inline</${indented ? 'p' : tag}>');
   }
   if (inList) sb.write('</$openList>');
   return sb.toString();

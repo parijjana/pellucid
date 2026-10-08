@@ -64,6 +64,9 @@ String _pdfSummary(List<int> bytes) {
   return 'fonts: ${fonts.join(', ')}\nembeddedFontFiles: $hasEmbeddedFontFile\ntext:\n${shown.join('\n')}\n';
 }
 
+// Paragraph indent (slice 5b): U+2003 em spaces at the start of a paragraph.
+const _indentDoc = '# Indent\n\n\u2003First level paragraph\n\u2003soft break\n\n\u2003\u2003\u2003Third level\n\nPlain paragraph\n\n```\n\u2003code keeps it\n```\n';
+
 void main() {
   final service = ExportService();
 
@@ -107,6 +110,16 @@ void main() {
       expect(shown, containsAllInOrder(['i.', 'deepest', '3.', 'third']));
       expect(shown, containsAllInOrder(['bullet', 'one', 'nested', 'bullet', 'deep', 'bullet', 'bullet', 'two']));
       expect(summary, isNot(contains('\u2610')));
+    });
+
+    test('paragraph indent snapshot: padded per level, em space never printed', () async {
+      final bytes = await service.buildPdf(_indentDoc, font: EditorFont.serif, compress: false);
+      final summary = _pdfSummary(bytes);
+      _matchesGolden('export_pdf_indent.txt', summary);
+      final shown = summary.split('text:\n').last;
+      expect(shown, contains('First'));
+      // Only the code block keeps its em space.
+      expect('\u2003'.allMatches(shown).length <= 1, isTrue);
     });
 
     test('each font uses its own standard family and embeds nothing', () async {
@@ -153,6 +166,15 @@ void main() {
       expect(summary, contains('ol ol { list-style-type: lower-alpha; }'));
       expect(summary, contains('ol ol ol { list-style-type: lower-roman; }'));
       expect(summary, contains('<li class="task">'));
+    });
+
+    test('paragraph indent snapshot: classes per level, no em space outside code', () {
+      final summary = epubSummary(EditorFont.serif, doc: _indentDoc);
+      _matchesGolden('export_epub_indent.txt', summary);
+      expect(summary, contains('<p class="in1">First level paragraph\nsoft break</p>'));
+      expect(summary, contains('<p class="in3">Third level</p>'));
+      expect(summary, contains('p.in3 { margin-left: 4.8em; }'));
+      expect('\u2003'.allMatches(summary).length, 1); // the code block only
     });
 
     test('stylesheet carries the chosen font', () {

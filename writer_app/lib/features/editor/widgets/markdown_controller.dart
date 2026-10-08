@@ -345,6 +345,19 @@ class MarkdownEditingController extends TextEditingController {
   WriterTheme? _cacheTheme;
   TextStyle? _cacheStyle;
   String? _cacheQuery;
+  BulletStyle? _cacheBullet;
+  double? _indentUnitSize;
+
+  BulletStyle _bulletStyle = BulletStyle.defaultStyle;
+
+  /// Settings > Bullet Style: the glyph set bullets are drawn with (display
+  /// only). A change redraws every list line, so it clears the line cache.
+  BulletStyle get bulletStyle => _bulletStyle;
+  set bulletStyle(BulletStyle value) {
+    if (_bulletStyle == value) return;
+    _bulletStyle = value;
+    notifyListeners();
+  }
 
   @visibleForTesting
   bool lineCacheEnabled = true;
@@ -366,8 +379,10 @@ class MarkdownEditingController extends TextEditingController {
       focusRange = paragraphLineRange(lines, selection.baseOffset);
     }
 
-    if (!identical(theme, _cacheTheme) || style != _cacheStyle || searchQuery != _cacheQuery) {
+    if (!identical(theme, _cacheTheme) || style != _cacheStyle || searchQuery != _cacheQuery || _bulletStyle != _cacheBullet) {
       _lineCache = {};
+      _cacheBullet = _bulletStyle;
+      _indentUnitSize = null;
       _cacheTheme = theme;
       _cacheStyle = style;
       _cacheQuery = searchQuery;
@@ -457,8 +472,40 @@ class MarkdownEditingController extends TextEditingController {
       _addListLine(children, line, lm, lineOffset, contentColor);
     } else {
       final baseStyle = style ?? const TextStyle();
+      final int indentCount = paragraphIndentCount(line);
+      if (indentCount > 0) {
+        // Paragraph indent (slice 5b): the em spaces are blank space of
+        // exactly one list level each, drawn in the stored length.
+        children.add(TextSpan(
+          text: line.substring(0, indentCount),
+          style: TextStyle(color: Colors.transparent, fontSize: _paragraphIndentFontSize(baseStyle)),
+        ));
+        line = line.substring(indentCount);
+        lineOffset += indentCount;
+      }
       _addInlineStyledText(children, line, contentColor != null ? baseStyle.copyWith(color: contentColor) : baseStyle, lineOffset);
     }
+  }
+
+  /// Font size at which one em space is as wide as one list level (four
+  /// spaces at 18 px, what a list item indents by) in the current font.
+  double _paragraphIndentFontSize(TextStyle base) {
+    final cached = _indentUnitSize;
+    if (cached != null) return cached;
+    double size = 17.5;
+    try {
+      double width(String t, double fontSize) {
+        final tp = TextPainter(text: TextSpan(text: t, style: base.copyWith(fontSize: fontSize)), textDirection: TextDirection.ltr)
+          ..layout();
+        final w = tp.width;
+        tp.dispose();
+        return w;
+      }
+
+      final double em = width(paragraphIndentChar, 100) / 100;
+      if (em > 0) size = (width('    ', 18) / em).clamp(8.0, 24.0);
+    } catch (_) {}
+    return _indentUnitSize = size;
   }
 
   /// Block quote (`> text`): marker hidden, content italic and slightly muted.
@@ -498,7 +545,7 @@ class MarkdownEditingController extends TextEditingController {
   /// another length shifted every offset after it. Filler characters are
   /// drawn invisibly, and a long label (viii.) sits over the end of the indent.
   void _addListLine(List<InlineSpan> children, String line, ListMarker m, int lineOffset, Color? dimColor) {
-    final glyph = listGlyph(m);
+    final glyph = listGlyph(m, _bulletStyle);
     final bool done = m.kind == ListKind.check && m.checked;
     final Color base = dimColor ?? theme.foregroundColor;
     final TextStyle contentStyle = TextStyle(

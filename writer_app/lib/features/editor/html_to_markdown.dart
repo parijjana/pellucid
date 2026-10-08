@@ -308,7 +308,45 @@ class _Converter {
       if (e.localName == 'p' || e.querySelector('br') != null) _lines.add('');
       return;
     }
+    // Paragraph indent (slice 5b): a clean margin-left / padding-left (whole
+    // paragraph) or text-indent (first line) becomes em-space levels. Anything
+    // unclear (negative, tiny, odd unit) is dropped.
+    if (!preserve && prefix.isEmpty && lists.isEmpty && (e.localName == 'p' || e.localName == 'div')) {
+      final st = _style(e);
+      final left = _indentLevel(st, const ['margin-left', 'padding-left']);
+      if (left > 0) {
+        _emitParagraph(segs, '\u2003' * left, preserve);
+        return;
+      }
+      final first = _indentLevel(st, const ['text-indent']);
+      if (first > 0) {
+        _emitParagraph(segs, prefix, preserve, first: '\u2003' * first);
+        return;
+      }
+    }
     _emitParagraph(segs, prefix, preserve);
+  }
+
+  /// Indent levels (1-4, 0.5 in each) of the first of [props] set in the
+  /// style string [st] to a plain positive length; 0 when absent or unclear.
+  static int _indentLevel(String st, List<String> props) {
+    for (final prop in props) {
+      final m = RegExp('(?:^|;)$prop:(\\d+(?:\\.\\d+)?)(px|pt|em|in|cm)(?:;|\$)').firstMatch(st);
+      if (m == null) continue;
+      final value = double.parse(m.group(1)!);
+      final px = value *
+          switch (m.group(2)) {
+            'px' => 1.0,
+            'pt' => 96 / 72,
+            'em' => 16.0,
+            'in' => 96.0,
+            _ => 96 / 2.54,
+          };
+      if (px < 24) return 0; // too small to be a deliberate indent
+      final level = (px / 48).round();
+      return level < 1 ? 1 : (level > 4 ? 4 : level);
+    }
+    return 0;
   }
 
   void _listItem(

@@ -78,6 +78,7 @@ class ExportService {
       // Nested lists change marker with the level, as in the editor.
       'ul ul { list-style-type: circle; }\nul ul ul { list-style-type: square; }\n'
       'ol ol { list-style-type: lower-alpha; }\nol ol ol { list-style-type: lower-roman; }\n'
+      'p.in1 { margin-left: 1.6em; }\np.in2 { margin-left: 3.2em; }\np.in3 { margin-left: 4.8em; }\np.in4 { margin-left: 6.4em; }\n'
       'li.task { list-style: none; margin-left: -1.4em; }\n.task-box { margin-right: 0.3em; }\n';
 
   /// Builds the EPUB in memory (also used by the tests).

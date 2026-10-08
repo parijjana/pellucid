@@ -7,6 +7,7 @@
 import 'package:flutter/services.dart';
 
 import 'hidden_markers.dart';
+import 'utils/markdown_code_ranges.dart';
 import 'list_marker.dart';
 
 /// Settings > Auto-continue Lists. Read by the Enter rule (the editor screen
@@ -170,11 +171,38 @@ int _indentCut(String indent) {
   return i;
 }
 
+/// Line starts inside fenced code blocks (their lines are never indented).
+List<TextRange> _fences(String text) {
+  if (!text.contains('```') && !text.contains('~~~')) return const [];
+  return [
+    for (final r in markdownCodeRanges(text))
+      if (r.start < text.length && RegExp(r'^\s*(```|~~~)').hasMatch(text.substring(r.start, lineEndOf(text, r.start)))) r,
+  ];
+}
+
+/// A plain paragraph line can take a paragraph indent: it is not blank, a
+/// heading, a quote or a list item, and not inside a code fence.
+bool _canIndentParagraph(String text, int ls, int le, List<TextRange> fences) {
+  final String line = text.substring(ls, le);
+  final String body = line.substring(paragraphIndentCount(line));
+  if (body.trim().isEmpty) return false;
+  if (body.startsWith('#') || body.startsWith('>')) return false;
+  if (line.startsWith('# ') || line.startsWith('## ') || line.startsWith('### ') || line.startsWith('> ')) return false;
+  for (final f in fences) {
+    if (ls >= f.start && ls < f.end) return false;
+  }
+  return true;
+}
+
 /// Indents (or unindents) every list line touched by [value]'s selection by
 /// one level ([listIndentUnit] spaces). An item nests at most one level below
 /// the list line above it, so the Markdown stays valid. Numbered items that
 /// move are renumbered (a new nested list restarts at 1). Null when nothing
 /// would change: no list line, already at the margin, or nothing to nest under.
+///
+/// Other (paragraph) lines take one U+2003 EM SPACE per level at the start of
+/// the line, up to [maxParagraphIndent] (slice 5b). Blank lines, headings,
+/// quotes and fenced code are left alone.
 TextEditingValue? indentLines(TextEditingValue value, {required bool outdent}) {
   final String text = value.text;
   final sel = value.selection;
@@ -182,6 +210,7 @@ TextEditingValue? indentLines(TextEditingValue value, {required bool outdent}) {
   final int firstLs = lineStartOf(text, sel.start);
   final int lastLs = lineStartOf(text, sel.end > sel.start && text.codeUnitAt(sel.end - 1) == 0x0A ? sel.end - 1 : sel.end);
 
+  final fences = _fences(text);
   int prevWidth = -1;
   if (firstLs > 0) prevWidth = _markerOfLine(text, lineStartOf(text, firstLs - 1))?.width ?? -1;
 
@@ -214,6 +243,23 @@ TextEditingValue? indentLines(TextEditingValue value, {required bool outdent}) {
         delta += listIndentUnit;
         width = m.width + listIndentUnit;
         if (m.kind == ListKind.number) restart.add(ls + delta - listIndentUnit);
+      }
+    }
+    if (m == null) {
+      final String line = text.substring(ls, le);
+      final int levels = paragraphIndentCount(line);
+      if (outdent && levels > 0) {
+        out.write(text.substring(copied, ls));
+        copied = ls + 1;
+        edits.add((ls, 1, 0));
+        delta -= 1;
+      } else if (!outdent && levels < maxParagraphIndent && _canIndentParagraph(text, ls, le, fences)) {
+        out
+          ..write(text.substring(copied, ls))
+          ..write(paragraphIndentChar);
+        copied = ls;
+        edits.add((ls, 0, 1));
+        delta += 1;
       }
     }
     prevWidth = width;

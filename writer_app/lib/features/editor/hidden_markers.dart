@@ -70,6 +70,9 @@ class LineMarkers {
   int get prefixStart => lineStart + indent;
   int get prefixEnd => prefixStart + (prefix?.length ?? 0);
 
+  /// True when [prefix] is a paragraph indent (em spaces), not a block marker.
+  bool get isParagraphIndent => prefix != null && list == null && prefix!.codeUnitAt(0) == 0x2003;
+
   bool isHidden(int offset) {
     for (final r in hidden) {
       if (offset < r.start) return false;
@@ -114,6 +117,17 @@ LineMarkers scanLine(String text, int lineStart, int lineEnd) {
     _scanInline(line.substring(lm.length), lineStart + lm.length, runs, hidden);
     hidden.sort((a, b) => a.start.compareTo(b.start));
     return LineMarkers(lineStart, lineEnd, lm.marker, runs, hidden, indent: lm.indent.length, list: lm);
+  }
+  // Paragraph indent (slice 5b): leading U+2003 em spaces are a hidden prefix
+  // (the caret rests after them) drawn as blank space.
+  final int indentCount = paragraphIndentCount(line);
+  if (indentCount > 0) {
+    final String run = line.substring(0, indentCount);
+    final hidden = [TextRange(start: lineStart, end: lineStart + indentCount)];
+    final runs = <InlineRun>[];
+    _scanInline(line.substring(indentCount), lineStart + indentCount, runs, hidden);
+    hidden.sort((a, b) => a.start.compareTo(b.start));
+    return LineMarkers(lineStart, lineEnd, run, runs, hidden);
   }
   for (final p in _prefixCheckOrder) {
     if (line.startsWith(p)) {
@@ -267,6 +281,7 @@ String visibleText(String text) {
       out.write(lm.indent.substring(0, lm.indent.length - g.absorbed));
       out.write(g.shown);
     }
+    if (line.isParagraphIndent) out.write(line.prefix); // the indent is visible space
     for (final r in line.hidden) {
       if (lm != null && r.start == line.prefixStart) {
         i = r.end;

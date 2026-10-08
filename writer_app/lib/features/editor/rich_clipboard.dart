@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'hidden_markers.dart';
+import 'list_marker.dart';
 
 class _Attrs {
   final bool b;
@@ -76,9 +77,19 @@ List<_CopiedLine> _copiedLines(String text, int start, int end) {
   return out;
 }
 
+/// What a list marker reads as in plain text: • for a bullet, the number
+/// as typed, ☐ / ☑ for a checklist item. Other prefixes read as nothing.
+String _plainLead(String? prefix) {
+  if (prefix == null) return '';
+  if (prefix == '- ') return '• ';
+  if (prefix.startsWith('- [')) return prefix.contains('[ ]') ? '$checkboxOff ' : '$checkboxOn ';
+  if (RegExp(r'^\d').hasMatch(prefix)) return prefix;
+  return '';
+}
+
 /// The plain text a reader sees in `[start, end)`.
 String plainTextFor(String text, int start, int end) => _copiedLines(text, start, end)
-    .map((l) => (l.prefix == '- ' ? '• ' : '') + l.segments.map((s) => s.$1).join())
+    .map((l) => _plainLead(l.prefix) + l.segments.map((s) => s.$1).join())
     .join('\n');
 
 /// `[start, end)` as markdown that renders on its own: runs cut by the range
@@ -106,6 +117,7 @@ String _escape(String s) =>
 String htmlFor(String text, int start, int end) {
   final sb = StringBuffer();
   bool inList = false;
+  String openList = 'ul';
   for (final l in _copiedLines(text, start, end)) {
     final inline = StringBuffer();
     for (final (s, a) in l.segments) {
@@ -116,21 +128,26 @@ String htmlFor(String text, int start, int end) {
       if (a.s) h = '<s>$h</s>';
       inline.write(h);
     }
-    final isItem = l.prefix == '- ';
-    if (isItem && !inList) sb.write('<ul>');
-    if (!isItem && inList) sb.write('</ul>');
+    final p = l.prefix;
+    final isItem = p != null && parseListMarker(p) != null;
+    final listTag = p != null && RegExp(r'^\d').hasMatch(p) ? 'ol' : 'ul';
+    if (inList && (!isItem || listTag != openList)) sb.write('</$openList>');
+    if (isItem && (!inList || listTag != openList)) sb.write('<$listTag>');
     inList = isItem;
-    final tag = switch (l.prefix) {
-      '# ' => 'h1',
-      '## ' => 'h2',
-      '### ' => 'h3',
-      '> ' => 'blockquote',
-      '- ' => 'li',
-      _ => 'p',
-    };
-    sb.write('<$tag>$inline</$tag>');
+    openList = listTag;
+    final tag = isItem
+        ? 'li'
+        : switch (p) {
+            '# ' => 'h1',
+            '## ' => 'h2',
+            '### ' => 'h3',
+            '> ' => 'blockquote',
+            _ => 'p',
+          };
+    final glyph = isItem && p.startsWith('- [') ? _plainLead(p) : '';
+    sb.write('<$tag>$glyph$inline</$tag>');
   }
-  if (inList) sb.write('</ul>');
+  if (inList) sb.write('</$openList>');
   return sb.toString();
 }
 

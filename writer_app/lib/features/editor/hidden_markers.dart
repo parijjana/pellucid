@@ -8,14 +8,18 @@
 
 import 'package:flutter/services.dart';
 
+import 'list_marker.dart';
+
 /// Block-line markers the renderer hides, longest first so `### ` wins over
 /// `# `-style prefixes. A line starting with one is styled as a block and its
 /// inline markers are left as typed (the renderer does not parse them), except
 /// in a block quote, whose text is rendered inline.
 const List<String> hiddenBlockPrefixes = ['# ', '## ', '### ', '> ', '- '];
 
-/// Block prefixes whose text keeps inline formatting (rendered and hidden).
-const Set<String> inlineBlockPrefixes = {'> '};
+// Every block line renders inline formatting (bold, italic, underline, strike)
+// in its text, so `**` and friends are hidden on heading, quote and list lines
+// too. List lines may start with indent and carry `1. ` or `- [ ] ` markers:
+// see list_marker.dart.
 
 /// An inline formatting run: `[start, contentStart)` is the opening marker,
 /// `[contentEnd, end)` the closing one. Absolute offsets.
@@ -44,8 +48,15 @@ class LineMarkers {
   final int lineStart;
   final int lineEnd;
 
-  /// The hidden block prefix (`# `, `- `, ...) or null on an inline line.
+  /// The hidden block prefix (`# `, `- `, `1. `, `- [ ] `, ...) or null on an
+  /// inline line. On a list line it follows [indent].
   final String? prefix;
+
+  /// Characters of visible indent before a list prefix (0 otherwise).
+  final int indent;
+
+  /// The list marker of a list line, else null.
+  final ListMarker? list;
 
   /// Inline runs, outermost first within each match.
   final List<InlineRun> runs;
@@ -53,9 +64,11 @@ class LineMarkers {
   /// Every hidden range, sorted, absolute.
   final List<TextRange> hidden;
 
-  const LineMarkers(this.lineStart, this.lineEnd, this.prefix, this.runs, this.hidden);
+  const LineMarkers(this.lineStart, this.lineEnd, this.prefix, this.runs, this.hidden,
+      {this.indent = 0, this.list});
 
-  int get prefixEnd => lineStart + (prefix?.length ?? 0);
+  int get prefixStart => lineStart + indent;
+  int get prefixEnd => prefixStart + (prefix?.length ?? 0);
 
   bool isHidden(int offset) {
     for (final r in hidden) {
@@ -93,10 +106,18 @@ LineMarkers scanLineAt(String text, int offset) {
 
 LineMarkers scanLine(String text, int lineStart, int lineEnd) {
   final String line = text.substring(lineStart, lineEnd);
+  final ListMarker? lm = parseListMarker(line);
+  if (lm != null) {
+    final int pStart = lineStart + lm.indent.length;
+    final hidden = [TextRange(start: pStart, end: pStart + lm.marker.length)];
+    final runs = <InlineRun>[];
+    _scanInline(line.substring(lm.length), lineStart + lm.length, runs, hidden);
+    hidden.sort((a, b) => a.start.compareTo(b.start));
+    return LineMarkers(lineStart, lineEnd, lm.marker, runs, hidden, indent: lm.indent.length, list: lm);
+  }
   for (final p in _prefixCheckOrder) {
     if (line.startsWith(p)) {
       final hidden = [TextRange(start: lineStart, end: lineStart + p.length)];
-      if (!inlineBlockPrefixes.contains(p)) return LineMarkers(lineStart, lineEnd, p, const [], hidden);
       final runs = <InlineRun>[];
       _scanInline(line.substring(p.length), lineStart + p.length, runs, hidden);
       hidden.sort((a, b) => a.start.compareTo(b.start));
@@ -111,7 +132,7 @@ LineMarkers scanLine(String text, int lineStart, int lineEnd) {
 }
 
 // Same order as buildTextSpan's if/else chain.
-const List<String> _prefixCheckOrder = ['# ', '## ', '### ', '> ', '- '];
+const List<String> _prefixCheckOrder = ['# ', '## ', '### ', '> '];
 
 void _scanInline(String s, int offset, List<InlineRun> runs, List<TextRange> hidden) {
   for (final m in _inlineRegex.allMatches(s)) {
@@ -173,7 +194,7 @@ MarkerCluster? clusterAt(LineMarkers line, int offset) {
     }
   }
   if (cs == null || offset < cs || offset > ce!) return null;
-  return MarkerCluster(cs, ce, line.prefix != null && cs == line.lineStart);
+  return MarkerCluster(cs, ce, line.prefix != null && cs == line.prefixStart);
 }
 
 /// Where the caret rests when it is anywhere in a cluster of hidden markers:
@@ -237,9 +258,20 @@ String visibleText(String text) {
   while (ls <= text.length) {
     final int le = lineEndOf(text, ls);
     final line = scanLine(text, ls, le);
-    if (line.prefix == '- ') out.write('• ');
     int i = ls;
+    final lm = line.list;
+    if (lm != null) {
+      // The drawn glyph stands in for the stored marker (and may sit over the
+      // end of the indent).
+      final g = listGlyph(lm);
+      out.write(lm.indent.substring(0, lm.indent.length - g.absorbed));
+      out.write(g.shown);
+    }
     for (final r in line.hidden) {
+      if (lm != null && r.start == line.prefixStart) {
+        i = r.end;
+        continue;
+      }
       if (r.start > i) out.write(text.substring(i, r.start));
       i = r.end;
     }

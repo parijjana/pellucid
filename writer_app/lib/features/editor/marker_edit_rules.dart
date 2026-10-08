@@ -12,12 +12,18 @@
 // - A styled run whose last character goes also loses its markers.
 // - A line break typed inside a styled run closes it and reopens it on the
 //   new line; Enter right after a block prefix opens a line above instead.
+// - On a list line (bullet, number, checklist) Enter at the end continues the
+//   list, Enter on an empty item ends it (a nested item moves out a level),
+//   and numbered items after any insert or removal are renumbered. Undo
+//   straight after an automatic marker removes only the marker.
 // Toggling a style at a collapsed caret (end/start a run there) is
 // [toggleInlineAtCaret]; the caret rules live in [MarkerCaret].
 
 import 'package:flutter/services.dart';
 
 import 'hidden_markers.dart';
+import 'list_editing.dart';
+import 'list_marker.dart';
 
 /// A text edit on [oldText]: `[start, end)` replaced by [inserted].
 class TextEdit {
@@ -88,13 +94,76 @@ TextEditingValue applyMarkerEditRules(TextEditingValue oldValue, TextEditingValu
   if (edit == null) return newValue;
   final String o = oldValue.text;
   final sel = oldValue.selection;
+  lastAutoMarker = null;
 
+  TextEditingValue? result;
+  int? bridge;
   if (edit.inserted.isEmpty && sel.isValid && sel.isCollapsed && edit.end - edit.start <= 2) {
     final int p = sel.baseOffset;
-    if (edit.end == p) return _backspace(o, edit, p) ?? newValue;
-    if (edit.start == p) return _forwardDelete(o, edit, p) ?? newValue;
+    if (edit.end == p) {
+      final line = scanLineAt(o, p);
+      if (line.list?.kind == ListKind.number && p == line.prefixEnd) bridge = line.lineStart;
+      result = _backspace(o, edit, p);
+    } else if (edit.start == p) {
+      result = _forwardDelete(o, edit, p);
+    }
+  } else if (edit.inserted == '\n' && edit.start == edit.end && sel.isValid && sel.isCollapsed && listAutoContinueEnabled) {
+    result = _listEnter(o, edit.start);
   }
-  return _replace(o, edit.start, edit.end, edit.inserted) ?? newValue;
+  result ??= _replace(o, edit.start, edit.end, edit.inserted);
+  final TextEditingValue out = result ?? newValue;
+  return _renumberAfter(o, edit, out, bridge);
+}
+
+/// Renumbers the lists around an edit when it could have changed a list's
+/// shape: it added or removed a line break, or touched a list marker. Typing
+/// inside an item's text never gets here, so a keystroke stays O(line).
+TextEditingValue _renumberAfter(String o, TextEdit edit, TextEditingValue out, int? bridge) {
+  final String n = out.text;
+  final bool lines = edit.inserted.contains('\n') || o.substring(edit.start, edit.end).contains('\n');
+  bool touchesMarker = false;
+  if (!lines) {
+    LineMarkers? l = o.isEmpty ? null : scanLineAt(o, edit.start.clamp(0, o.length));
+    if (l?.list != null && edit.start < l!.prefixEnd) touchesMarker = true;
+    if (!touchesMarker && n.isNotEmpty && out.selection.isValid) {
+      final int at = out.selection.baseOffset.clamp(0, n.length);
+      final l2 = scanLineAt(n, at);
+      if (l2.list != null && at <= l2.prefixEnd + 1) touchesMarker = true;
+    }
+  }
+  if (!lines && !touchesMarker && bridge == null) return out;
+  final int a = out.selection.isValid ? out.selection.start : edit.start;
+  final int b = out.selection.isValid ? out.selection.end : edit.start;
+  final int from = (a < edit.start ? a : edit.start).clamp(0, n.length);
+  final int to = (b > edit.start + edit.inserted.length ? b : edit.start + edit.inserted.length).clamp(0, n.length);
+  final r = renumberLists(n, from, to, bridge: bridge);
+  if (r.changes.isEmpty) return out;
+  final marker = lastAutoMarker;
+  final value = out.copyWith(text: r.text, selection: r.mapSelection(out.selection), composing: TextRange.empty);
+  if (marker != null) {
+    lastAutoMarker = AutoMarkerUndo(r.text, value.selection.baseOffset, r.map(marker.markerStart), r.map(marker.markerEnd));
+  }
+  return value;
+}
+
+/// Enter on a list line (see the header). Null leaves the keystroke to the
+/// generic rules: not a list line, or the caret is inside the marker.
+TextEditingValue? _listEnter(String o, int p) {
+  final line = scanLineAt(o, p);
+  final m = line.list;
+  if (m == null || p < line.prefixEnd) return null;
+  if (isEmptyListItem(o, line)) {
+    final exit = endEmptyItem(o, line);
+    return _value(exit.text, exit.caret);
+  }
+  if (p == line.prefixEnd) return null; // opens a line above (generic rule)
+  final String lead = nextItemPrefix(m);
+  final r = _replace(o, p, p, '\n', lineLead: lead);
+  if (r == null) return null;
+  // The new line is the one after the line that held the caret.
+  final int newLine = lineEndOf(r.text, lineStartOf(r.text, p)) + 1;
+  lastAutoMarker = AutoMarkerUndo(r.text, r.selection.baseOffset, newLine, newLine + lead.length);
+  return r;
 }
 
 TextEditingValue? _backspace(String o, TextEdit edit, int p) {
@@ -142,7 +211,7 @@ TextEditingValue _value(String text, int caret) =>
 /// Replaces `[s, e)` of [o] with [ins], keeping the markers of runs that
 /// survive, then drops runs left empty at the caret. [caret], when given, is
 /// where the caret goes (in old offsets, before [s]); otherwise after [ins].
-TextEditingValue? _replace(String o, int s, int e, String ins, {int? caret}) {
+TextEditingValue? _replace(String o, int s, int e, String ins, {int? caret, String lineLead = ''}) {
   final first = scanLineAt(o, s);
 
   // Enter straight after a block prefix with text after it: open a body line
@@ -181,8 +250,13 @@ TextEditingValue? _replace(String o, int s, int e, String ins, {int? caret}) {
   }
 
   // A line break inside a styled run closes the run and reopens it after.
+  // [lineLead] (a list marker) goes first on the new line, before the openers.
   String insert = ins;
-  if (insert.contains('\n') && identical(last, first)) {
+  if (lineLead.isNotEmpty && insert.contains('\n')) {
+    final int lastNl = insert.lastIndexOf('\n');
+    insert = insert.substring(0, lastNl + 1) + lineLead + insert.substring(lastNl + 1);
+  }
+  if (ins.contains('\n') && identical(last, first)) {
     final enclosing = [
       for (final r in first.runs)
         if (r.contentStart <= s && e <= r.contentEnd) r,
@@ -194,9 +268,9 @@ TextEditingValue? _replace(String o, int s, int e, String ins, {int? caret}) {
       final int lastNl = insert.lastIndexOf('\n');
       insert = insert.substring(0, firstNl) +
           closers +
-          insert.substring(firstNl, lastNl + 1) +
+          insert.substring(firstNl, lastNl + 1 + lineLead.length) +
           openers +
-          insert.substring(lastNl + 1);
+          insert.substring(lastNl + 1 + lineLead.length);
     }
   }
 

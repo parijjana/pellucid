@@ -8,6 +8,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
 import 'package:pellucid/features/editor/providers/codex_index.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
@@ -26,9 +27,14 @@ List<TextSpan> _flatten(InlineSpan root) {
   return out;
 }
 
-/// What the editor should draw: the document text with each bullet's "- "
-/// shown as "• ". Same length, so every offset lines up.
-String _drawn(String text) => text.replaceAllMapped(RegExp(r'^- ', multiLine: true), (_) => '• ');
+/// What the editor should draw: the document text with each list marker shown
+/// as its glyph (• ◦ ▪, a. i., ☐). Same length, so every offset lines up.
+String _drawn(String text) => text.split('\n').map((line) {
+      final m = parseListMarker(line);
+      if (m == null) return line;
+      final g = listGlyph(m);
+      return m.indent.substring(0, m.indent.length - g.absorbed) + g.shown + ' ' * g.pad + line.substring(m.length);
+    }).join('\n');
 
 void main() {
   final theme = WriterTheme.presets[0];
@@ -91,7 +97,11 @@ void main() {
 
   testWidgets('fuzz: random markdown-ish text never throws or drifts', (tester) async {
     final rnd = Random(30);
-    const alphabet = ['*', '**', '<u>', '</u>', '# ', '## ', '### ', '- ', '\n', ' ', 'a', 'é', '😀', 'Mira'];
+    const alphabet = [
+      '*', '**', '<u>', '</u>', '# ', '## ', '### ', '- ', '\n', ' ', 'a', 'é', '😀', 'Mira',
+      // Lists: numbers, checklists, nesting.
+      '1. ', '12. ', '- [ ] ', '- [x] ', '    ', '\n    - ', '\n        3. ', '\n  2. ',
+    ];
     for (int i = 0; i < 400; i++) {
       final b = StringBuffer();
       final n = rnd.nextInt(60);

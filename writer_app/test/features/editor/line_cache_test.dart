@@ -27,6 +27,9 @@ void main() {
       'a', ' ', '\n', '**', '*', '# ', '- ', 'Mira ', 'Teh', '<u>x</u>', '\n\n', '😀',
       // Slice 6 formats and slice 8 grammar triggers.
       '~~', '~~gone~~', '\n> ', '> ', '\n### ', '### ', ' i ', ' the the ', '. lower', ' a apple',
+      // Slice 5: lists, checklists, nesting, and inline styles on block lines.
+      '\n- ', '\n1. ', '\n12. ', '\n- [ ] ', '\n- [x] ', '- [ ] ', '1. ', '    ', '\n    - ', '\n        3. ',
+      '\n    - [x] ', '\n  2. ', '[x]', '# **b**', '- *i* ',
     ];
     const styles = [
       TextStyle(fontSize: 16, fontFamily: 'Georgia'),

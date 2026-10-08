@@ -6,6 +6,8 @@ import '../providers/theme_provider.dart';
 import '../providers/codex_index.dart';
 import '../../search/providers/text_replacer.dart';
 import '../marker_edit_rules.dart';
+import '../list_editing.dart';
+import '../list_marker.dart';
 import '../utils/grammar_checker.dart';
 import '../utils/grammar_hint_style.dart';
 import '../utils/underline_spans.dart';
@@ -451,8 +453,8 @@ class MarkdownEditingController extends TextEditingController {
       _addStyledBlock(children, line, r'^### ', 18.0, FontWeight.bold, lineOffset, contentColor: contentColor);
     } else if (line.startsWith(blockQuoteMarker)) {
       _addBlockQuote(children, line, lineOffset, style ?? const TextStyle(), contentColor);
-    } else if (line.startsWith('- ')) {
-      _addStyledBlock(children, line, r'^- ', 18.0, FontWeight.normal, lineOffset, isBullet: true, contentColor: contentColor);
+    } else if (parseListMarker(line) case final ListMarker lm) {
+      _addListLine(children, line, lm, lineOffset, contentColor);
     } else {
       final baseStyle = style ?? const TextStyle();
       _addInlineStyledText(children, line, contentColor != null ? baseStyle.copyWith(color: contentColor) : baseStyle, lineOffset);
@@ -474,31 +476,55 @@ class MarkdownEditingController extends TextEditingController {
     );
   }
 
-  void _addStyledBlock(List<InlineSpan> children, String line, String pattern, double fontSize, FontWeight weight, int lineOffset, {bool isBullet = false, Color? contentColor}) {
-    final regex = RegExp(pattern);
-    final match = regex.firstMatch(line);
-    
-    if (match != null) {
-      final TextStyle contentStyle = TextStyle(
-        fontSize: fontSize,
-        fontWeight: weight,
-        color: contentColor ?? theme.foregroundColor,
-      );
-      if (isBullet) {
-        // The "- " marker is drawn as "• " in its place: same length, so the
-        // span text stays character-for-character aligned with the document
-        // text. EditableText maps caret, selection and taps through the
-        // span text; an extra glyph shifted every offset after each bullet.
-        children.add(TextSpan(text: '• ', style: contentStyle));
-      } else {
-        // Hide the markdown tag
-        children.add(TextSpan(text: match.group(0), style: _hiddenMarkerStyle));
-      }
-      final String content = line.substring(match.end);
-      final int blockOffset = lineOffset + match.end;
-      _emitStyled(children, content, contentStyle, blockOffset);
-    }
+  /// Heading line: the `# ` marker is hidden; the text keeps its inline
+  /// formatting (bold, italic, underline, strike) at the heading's size.
+  void _addStyledBlock(List<InlineSpan> children, String line, String pattern, double fontSize, FontWeight weight, int lineOffset, {Color? contentColor}) {
+    final match = RegExp(pattern).firstMatch(line);
+    if (match == null) return;
+    final TextStyle contentStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: weight,
+      color: contentColor ?? theme.foregroundColor,
+    );
+    children.add(TextSpan(text: match.group(0), style: _hiddenMarkerStyle));
+    _addInlineStyledText(children, line.substring(match.end), contentStyle, lineOffset + match.end);
   }
+
+  /// List line (bullet, numbered, checklist; backlog items 2, 3, 9, 10, 17).
+  /// The stored marker is drawn as a glyph for its level (• ◦ ▪, 1. a. i.,
+  /// ☐ ☑) in exactly the same number of characters, so the span text stays
+  /// character-for-character aligned with the document text. EditableText
+  /// maps caret, selection and taps through the span text; a drawn marker of
+  /// another length shifted every offset after it. Filler characters are
+  /// drawn invisibly, and a long label (viii.) sits over the end of the indent.
+  void _addListLine(List<InlineSpan> children, String line, ListMarker m, int lineOffset, Color? dimColor) {
+    final glyph = listGlyph(m);
+    final bool done = m.kind == ListKind.check && m.checked;
+    final Color base = dimColor ?? theme.foregroundColor;
+    final TextStyle contentStyle = TextStyle(
+      fontSize: 18.0,
+      fontWeight: FontWeight.normal,
+      color: done && dimColor == null ? base.withValues(alpha: 0.55) : base,
+    );
+    final int keep = m.indent.length - glyph.absorbed;
+    if (keep > 0) children.add(TextSpan(text: m.indent.substring(0, keep), style: contentStyle));
+    if (glyph.absorbed > 0) {
+      children.add(TextSpan(text: glyph.shown.substring(0, glyph.absorbed), style: contentStyle));
+    }
+    children.add(TextSpan(
+      text: glyph.shown.substring(glyph.absorbed),
+      style: contentStyle.copyWith(color: base),
+      spellOut: false, // the tag read by [isListMarkerSpan]
+    ));
+    if (glyph.pad > 0) children.add(TextSpan(text: ' ' * glyph.pad, style: _hiddenMarkerStyle));
+    _addInlineStyledText(children, line.substring(m.length), contentStyle, lineOffset + m.length);
+  }
+
+  /// True for the span that draws a list marker glyph. The renderer tags it
+  /// with `spellOut: false` (no visible or layout effect; semantics only,
+  /// unlike `semanticsLabel`, which would replace the span's text in
+  /// `toPlainText` and so break offsets).
+  static bool isListMarkerSpan(TextSpan span) => span.spellOut == false;
 
   void _addInlineStyledText(List<InlineSpan> children, String line, TextStyle baseStyle, int lineOffset) {
     // Scan for Bold + Italic (***), Bold (**), Italic (*), or Underline (<u>)
@@ -597,6 +623,10 @@ class MarkdownEditingController extends TextEditingController {
   void toggleFormat(String tag) {
     final selection = this.selection;
     if (!selection.isValid) return;
+    if (tag == 'indent' || tag == 'outdent') {
+      indentListItems(outdent: tag == 'outdent');
+      return;
+    }
     if (tag == 'body') {
       _toggleLineFormat(tag);
       return;
@@ -733,31 +763,75 @@ class MarkdownEditingController extends TextEditingController {
     while (start > 0 && text[start - 1] != '\n') {
       start--;
     }
-    
+
     int end = selection.end;
     while (end < text.length && text[end] != '\n') {
       end++;
     }
 
-    final lineContent = text.substring(start, end);
-    String newLineContent;
-
-    if (tag == 'body') {
-      // Remove any leading header or bullet tags
-      newLineContent = lineContent.replaceFirst(RegExp(r'^(#+\s*|-\s*|>\s*)'), '');
-    } else if (lineContent.startsWith(tag)) {
-      // Remove existing tag
-      newLineContent = lineContent.substring(tag.length);
-    } else {
-      // Remove existing tag first if any, then add new tag
-      final stripped = lineContent.replaceFirst(RegExp(r'^(#+\s*|-\s*|>\s*)'), '');
-      newLineContent = '$tag$stripped';
+    final lines = text.substring(start, end).split('\n');
+    final bool turnOff = tag != 'body' && _lineHasStyle(lines.first, tag);
+    final isList = tag == '- ' || tag == '1. ' || tag == '- [ ] ';
+    final out = <String>[];
+    for (final line in lines) {
+      if (tag == 'body' || turnOff) {
+        out.add(_stripBlockPrefix(line, keepIndent: false));
+      } else {
+        final lm = parseListMarker(line);
+        final String indent = isList && lm != null ? lm.indent : '';
+        out.add('$indent$tag${_stripBlockPrefix(line, keepIndent: false)}');
+      }
     }
-
-    value = value.copyWith(
-      text: text.replaceRange(start, end, newLineContent),
-      selection: TextSelection.collapsed(offset: start + newLineContent.length),
+    final String newBlock = out.join('\n');
+    var next = value.copyWith(
+      text: text.replaceRange(start, end, newBlock),
+      selection: TextSelection.collapsed(offset: start + newBlock.length),
+      composing: TextRange.empty,
     );
+    // Numbers around the changed lines count on (or close up).
+    final bool numbered = isList || lines.any((l) => parseListMarker(l)?.kind == ListKind.number);
+    if (numbered) {
+      final int? bridge = lines.length == 1 && newBlock.trim().isNotEmpty && parseListMarker(newBlock) == null ? start : null;
+      next = renumberValue(next, start, start + newBlock.length, bridge: bridge);
+    }
+    value = next;
+  }
+
+  static bool _lineHasStyle(String line, String tag) {
+    switch (tag) {
+      case '- ':
+        return parseListMarker(line)?.kind == ListKind.bullet;
+      case '1. ':
+        return parseListMarker(line)?.kind == ListKind.number;
+      case '- [ ] ':
+        return parseListMarker(line)?.kind == ListKind.check;
+      default:
+        return line.startsWith(tag);
+    }
+  }
+
+  /// [line] without its heading, quote or list marker (and indent).
+  static String _stripBlockPrefix(String line, {required bool keepIndent}) {
+    final lm = parseListMarker(line);
+    if (lm != null) return (keepIndent ? lm.indent : '') + line.substring(lm.length);
+    return line.replaceFirst(RegExp(r'^(#+\s*|-\s*|>\s*)'), '');
+  }
+
+  /// Indents (or unindents) the list items in the selection by one level.
+  /// Returns false when no list line moved.
+  bool indentListItems({required bool outdent}) {
+    final next = indentLines(value, outdent: outdent);
+    if (next == null) return false;
+    value = next;
+    return true;
+  }
+
+  /// Ticks / unticks the checkbox of the checklist item on the line at [lineStart].
+  bool toggleCheckboxAt(int lineStart) {
+    final next = toggleCheckbox(value, lineStart);
+    if (next == null) return false;
+    value = next;
+    return true;
   }
 }
 

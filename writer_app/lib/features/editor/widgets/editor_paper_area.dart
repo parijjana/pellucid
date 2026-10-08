@@ -25,6 +25,19 @@ Map<ShortcutActivator, Intent> get _redoShortcuts =>
                 RedoTextIntent(SelectionChangedCause.keyboard),
           };
 
+/// What the editor's EditableText gets for spell checking. Flutter's own
+/// spell-check drawing (buildTextSpanWithSpellCheckSuggestions) replaces the
+/// controller's markdown styling whenever a word is misspelled, so on every
+/// platform with a native checker (macOS, Windows, iOS) it stays off and
+/// SpellCheckDriver + MarkdownEditingController draw the underlines instead.
+/// [inTest] defaults to running under flutter_test, where it is always off.
+SpellCheckConfiguration editableSpellCheckConfiguration(bool enabled, {bool? inTest}) {
+  final bool test = inTest ?? Platform.environment.containsKey('FLUTTER_TEST');
+  return (enabled && !kIsWeb && !NativeSpellCheckService.isSupported && !test)
+      ? const SpellCheckConfiguration()
+      : const SpellCheckConfiguration.disabled();
+}
+
 class EditorPaperArea extends StatelessWidget {
   final WriterTheme theme;
   final EditorProvider provider;
@@ -143,15 +156,10 @@ class EditorPaperArea extends StatelessWidget {
                 // disk. Accepting keystrokes here would invite the writer to
                 // type into a blank page that can never be saved.
                 readOnly: provider.documentLoadFailed,
-                // macOS/Windows: off here, driven by SpellCheckDriver and
+                // macOS/Windows/iOS: off here, driven by SpellCheckDriver and
                 // drawn by MarkdownEditingController, because EditableText's own
                 // spell-check drawing replaces the markdown styling.
-                spellCheckConfiguration: (spellCheckEnabled &&
-                        !kIsWeb &&
-                        !NativeSpellCheckService.isSupported &&
-                        !Platform.environment.containsKey('FLUTTER_TEST'))
-                    ? const SpellCheckConfiguration()
-                    : const SpellCheckConfiguration.disabled(),
+                spellCheckConfiguration: editableSpellCheckConfiguration(spellCheckEnabled),
                 cursorColor: theme.foregroundColor.withValues(alpha: 0.3),
                 style: editorFont.apply(TextStyle(
                   color: theme.foregroundColor,

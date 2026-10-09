@@ -50,37 +50,22 @@ Her father was awake when she came down, sitting by the banked fire with his rui
 /// 1.1.0 formatting showcase: nested bullets, numbered and checklist items,
 /// strikethrough, a quote, a subheading and an indented paragraph (U+2003 em
 /// spaces, the app's paragraph indent).
-const String kFormattingDoc = '''# The Salt Coast
+const String kFormattingDoc = '''> The sea keeps what it is owed.
 
-## Chapter Five — Provisions
+\u2003\u2003She had ~~never meant to go~~ meant to go all along.
 
-> The sea keeps what it is owed.
-
-### What Maren packed for the crossing
+### Packing for the crossing
 
 - Lamp oil and spare wicks
     - The brass funnel
     - ~~The cracked glass~~
-    - A tin of matches, wrapped in oilcloth
 - Rope, tar and a good knife
-- Bread, salt fish and a flask of tea
-
-### The plan
-
 1. Check the tide table
 2. Row out to the reef
-    1. Find the mark on the wreck
-    2. Leave the black box where it was found
+    1. Mark the wreck
 3. Row home before dark
-
-### Before the storm
-
 - [x] Trim the lamp
-- [x] Bank the fire
 - [ ] Find the key to the black box
-- [ ] Tell her father
-
-\u2003\u2003She had ~~never meant to go~~ meant to go all along. The list was only a way of making the decision feel like arithmetic, and arithmetic had always been the one thing in Alderport that did not lie.
 ''';
 
 /// Manuscript variants for the 1.1.0 right-click, Find and grammar scenes.

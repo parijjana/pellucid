@@ -401,6 +401,7 @@ class _CaptureAppState extends State<_CaptureApp> {
       8 || 9 => draftManuscript(grammar: scene == 9),
       _ => kManuscript,
     };
+    debugPrint('SCENE_CONTENT scene=$scene len=${content.length} slip=${content.contains('a old habit')}');
     final search = SearchProvider();
     if (scene == 8) {
       search.setQuery('lamp');
@@ -466,9 +467,13 @@ class _CaptureAppState extends State<_CaptureApp> {
   }
 
   Future<void> _run() async {
+    const only = String.fromEnvironment('ONLY_DIR');
+    const onlyScenes = String.fromEnvironment('ONLY_SCENES'); // e.g. "7,9"
     for (final t in _targets) {
+      if (only.isNotEmpty && t.dir != only) continue;
       Directory('$_outRoot/${t.dir}').createSync(recursive: true);
       for (final scene in t.scenes) {
+        if (onlyScenes.isNotEmpty && !onlyScenes.split(',').contains('$scene')) continue;
         // Flip the gated flags for THIS shot before building the scene. Every
         // additive/gated edit in the app tree reads these synchronously.
         kScreenshotCaptureMode = true;
@@ -484,6 +489,15 @@ class _CaptureAppState extends State<_CaptureApp> {
         // (seeding a controller, starting a round, pushing a route), so the
         // retry below must remount THIS SAME widget rather than call the builder
         // again — see _mountAndVerify().
+        // Tear the previous scene fully down first: without this, scene 9
+        // after scene 8 rendered a stale editor (old text and scroll offset).
+        _nestOverlay = false;
+        setState(() {
+          _shot = null;
+          _shotId = 'blank-${t.dir}-$scene';
+        });
+        await _awaitFrame();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
         _nestOverlay = scene == 7;
         final sceneWidget = _buildScene(scene, t);
         // Mount the scene and CHECK we actually landed on it. One retry with a
@@ -676,6 +690,9 @@ class _CaptureAppState extends State<_CaptureApp> {
     await _settle();
     e.showToolbar();
     await _settle();
+    // The menu fades in; wait it out so no shot catches it translucent.
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    await _settle();
   }
 
   Future<void> _capture(_Target t, int scene) async {
@@ -732,10 +749,19 @@ class _CaptureAppState extends State<_CaptureApp> {
   /// pixel sizes (logical x ratio). skipped[] lists shots that never produced a PNG
   /// (the validator treats each as a MISSING screenshot / failure).
   void _writeManifest() {
+    var shots = _manifestShots;
+    final prev = File('$_outRoot/capture_manifest.json');
+    if (prev.existsSync()) {
+      // Partial re-runs (ONLY_DIR / ONLY_SCENES) keep the other entries.
+      final old = (jsonDecode(prev.readAsStringSync())['shots'] as List)
+          .cast<Map<String, dynamic>>();
+      final fresh = _manifestShots.map((m) => m['file']).toSet();
+      shots = [...old.where((m) => !fresh.contains(m['file'])), ..._manifestShots];
+    }
     final manifest = <String, dynamic>{
       'generated': DateTime.now().toUtc().toIso8601String(),
       'out_root': _outRoot,
-      'shots': _manifestShots,
+      'shots': shots,
       'skipped': _skipped,
       'settle_timeouts': _settleTimeouts,
       'scene_retries': _sceneRetries,
@@ -801,6 +827,42 @@ class _CaptureAppState extends State<_CaptureApp> {
     // MediaQuery makes the tree BELIEVE it is on a size==(w,h) device at the
     // target devicePixelRatio; the RepaintBoundary at a fixed SizedBox(w,h) is
     // exactly what _capture() rasterizes.
+    if (_nestOverlay && shot != null) {
+      // Scene 7: the text-selection toolbar is inserted in the ROOT overlay
+      // (the Navigator's), which normally sits outside the capture boundary.
+      // Put the boundary around the whole Navigator instead.
+      return MaterialApp(
+        key: ValueKey(_shotId),
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.blueGrey,
+            brightness: Brightness.light,
+          ),
+        ),
+        builder: (context, nav) => Center(
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: _target.w,
+            maxWidth: _target.w,
+            minHeight: _target.h,
+            maxHeight: _target.h,
+            child: MediaQuery(
+              data: MediaQueryData(
+                size: Size(_target.w, _target.h),
+                devicePixelRatio: _target.ratio,
+              ),
+              child: RepaintBoundary(
+                key: _boundaryKey,
+                child: SizedBox(width: _target.w, height: _target.h, child: nav),
+              ),
+            ),
+          ),
+        ),
+        home: Scaffold(body: IgnorePointer(child: shot)),
+      );
+    }
     return MaterialApp(
       key: ValueKey(_shotId),
       debugShowCheckedModeBanner: false,
@@ -831,13 +893,9 @@ class _CaptureAppState extends State<_CaptureApp> {
                       child: SizedBox(
                         width: _target.w,
                         height: _target.h,
-                        child: _nestOverlay
-                            ? Overlay(
-                                initialEntries: [
-                                  OverlayEntry(builder: (_) => shot),
-                                ],
-                              )
-                            : shot,
+                        // IgnorePointer: a resting mouse must not trigger hover-only
+                        // chrome (the page-width bar) in the raster.
+                        child: IgnorePointer(child: shot),
                       ),
                     ),
                   ),

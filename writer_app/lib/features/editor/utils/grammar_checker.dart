@@ -155,13 +155,123 @@ class GrammarChecker {
     _repeats(text, masked, tokens, issues);
     _capitals(masked, issues);
 
-    issues.sort((a, b) => a.range.start.compareTo(b.range.start));
+    // Dart's sort is not stable, and two rules can flag the same start (the
+    // rule order above is the tie-break), so sort by (start, rule order).
+    final order = Map<GrammarIssue, int>.identity()..addAll({for (int k = 0; k < issues.length; k++) issues[k]: k});
+    issues.sort((a, b) {
+      final c = a.range.start.compareTo(b.range.start);
+      return c != 0 ? c : order[a]!.compareTo(order[b]!);
+    });
     final out = <GrammarIssue>[];
     for (final i in issues) {
       if (out.isNotEmpty && i.range.start < out.last.range.end) continue;
       out.add(i);
     }
     return out;
+  }
+
+  /// Same result as `check(newText)`, but re-checks only the paragraph(s) the
+  /// edit between [oldText] and [newText] touched. [oldIssues] must be exactly
+  /// `check(oldText)`. Every rule works inside one line, so lines outside the
+  /// changed paragraphs keep their hints (shifted by the length change). The
+  /// one cross-line state is a code fence, so any fence marker in either text
+  /// falls back to the full check.
+  static List<GrammarIssue> checkIncremental(String oldText, List<GrammarIssue> oldIssues, String newText) {
+    if (newText.isEmpty) return const [];
+    if (oldText.isEmpty || _hasFence(oldText) || _hasFence(newText)) return check(newText);
+    final int maxP = oldText.length < newText.length ? oldText.length : newText.length;
+    int p = 0;
+    while (p < maxP && oldText.codeUnitAt(p) == newText.codeUnitAt(p)) {
+      p++;
+    }
+    int suffix = 0;
+    while (suffix < maxP - p &&
+        oldText.codeUnitAt(oldText.length - 1 - suffix) == newText.codeUnitAt(newText.length - 1 - suffix)) {
+      suffix++;
+    }
+    if (p == oldText.length && p == newText.length) return oldIssues;
+    final int newEdit = newText.length - suffix; // end of the edit in the new text
+    final int delta = newText.length - oldText.length;
+
+    // Paragraph start: the text before [p] is identical in both versions.
+    int start = _lineStart(newText, p);
+    while (start > 0) {
+      final int prev = _lineStart(newText, start - 1);
+      if (_blank(newText, prev, start - 1)) break;
+      start = prev;
+    }
+    // Paragraph end: the text after the edit is identical in both versions.
+    int end = _lineEnd(newText, newEdit);
+    while (end < newText.length) {
+      final int nextEnd = _lineEnd(newText, end + 1);
+      if (_blank(newText, end + 1, nextEnd)) break;
+      end = nextEnd;
+    }
+    final int oldEnd = end - delta;
+
+    final fresh = check(newText.substring(start, end));
+    // Hints are sorted and never overlap, so ends and starts both ascend.
+    int lo = 0, hi = oldIssues.length;
+    while (lo < hi) {
+      final int mid = (lo + hi) >> 1;
+      if (oldIssues[mid].range.end <= start) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    final int head = lo;
+    lo = head;
+    hi = oldIssues.length;
+    while (lo < hi) {
+      final int mid = (lo + hi) >> 1;
+      if (oldIssues[mid].range.start < oldEnd) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    final int tail = lo;
+    TextRange shift(TextRange r, int by) => TextRange(start: r.start + by, end: r.end + by);
+    return [
+      ...oldIssues.sublist(0, head),
+      for (final i in fresh)
+        GrammarIssue(
+          range: shift(i.range, start),
+          fixRange: shift(i.fixRange, start),
+          replacement: i.replacement,
+          ruleId: i.ruleId,
+          message: i.message,
+        ),
+      for (int k = tail; k < oldIssues.length; k++)
+        delta == 0
+            ? oldIssues[k]
+            : GrammarIssue(
+                range: shift(oldIssues[k].range, delta),
+                fixRange: shift(oldIssues[k].fixRange, delta),
+                replacement: oldIssues[k].replacement,
+                ruleId: oldIssues[k].ruleId,
+                message: oldIssues[k].message,
+              ),
+    ];
+  }
+
+  static bool _hasFence(String t) => t.contains('```') || t.contains('~~~');
+
+  static int _lineStart(String t, int i) => i == 0 ? 0 : t.lastIndexOf('\n', i - 1) + 1;
+
+  static int _lineEnd(String t, int i) {
+    if (i >= t.length) return t.length;
+    final int e = t.indexOf('\n', i);
+    return e == -1 ? t.length : e;
+  }
+
+  static bool _blank(String t, int from, int to) {
+    for (int k = from; k < to; k++) {
+      final c = t.codeUnitAt(k);
+      if (c != 0x20 && c != 0x09 && c != 0x0D) return false;
+    }
+    return true;
   }
 
   static String _at(String s, int i) => (i >= 0 && i < s.length) ? s[i] : '';

@@ -60,6 +60,8 @@ class _GrammarHintDriverState extends State<GrammarHintDriver> {
 
   Timer? _debounce;
   String? _checkedText;
+  // Exactly GrammarChecker.check(_checkedText): the base for incremental checks.
+  List<GrammarIssue> _checkedIssues = const [];
 
   MarkdownEditingController? get _markdown {
     final c = widget.controller;
@@ -80,6 +82,7 @@ class _GrammarHintDriverState extends State<GrammarHintDriver> {
       oldWidget.controller.removeListener(_onTextChanged);
       widget.controller.addListener(_onTextChanged);
       _checkedText = null;
+      _checkedIssues = const [];
     }
     if (oldWidget.enabled != widget.enabled || oldWidget.controller != widget.controller) {
       _debounce?.cancel();
@@ -105,6 +108,7 @@ class _GrammarHintDriverState extends State<GrammarHintDriver> {
     if (!mounted || markdown == null) return;
     if (!widget.enabled) {
       _checkedText = null;
+      _checkedIssues = const [];
       if (markdown.grammarIssues.isNotEmpty) {
         markdown.setGrammarIssues(const []);
         _repaint();
@@ -112,8 +116,14 @@ class _GrammarHintDriverState extends State<GrammarHintDriver> {
       return;
     }
     final text = markdown.text;
+    final before = _checkedText;
+    // Re-check only the paragraphs changed since the last check.
+    final issues = before == null
+        ? GrammarChecker.check(text)
+        : GrammarChecker.checkIncremental(before, _checkedIssues, text);
     _checkedText = text;
-    markdown.setGrammarIssues(GrammarChecker.check(text));
+    _checkedIssues = issues;
+    markdown.setGrammarIssues(issues);
     _repaint();
   }
 

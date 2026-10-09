@@ -54,21 +54,44 @@ class MarkdownEditingController extends TextEditingController {
 
   @override
   set value(TextEditingValue newValue) {
-    newValue = markerCaret.adjust(super.value, newValue);
-    if (_misspellings.isNotEmpty && newValue.text != text) {
-      _misspellings = shiftRangesForEdit(_misspellings, text, newValue.text);
-    }
-    if (_grammarIssues.isNotEmpty && newValue.text != text) {
-      _grammarIssues = _shiftGrammarIssues(_grammarIssues, text, newValue.text);
+    final old = super.value;
+    newValue = markerCaret.adjust(old, newValue);
+    if ((_misspellings.isNotEmpty || _grammarIssues.isNotEmpty) && newValue.text != old.text) {
+      // One edit span per keystroke, found from the selection (O(edit size));
+      // the full prefix/suffix scan is only the fallback.
+      final e = _EditSpan.fromValues(old, newValue);
+      if (_misspellings.isNotEmpty) _misspellings = _shiftSorted(_misspellings, e);
+      if (_grammarIssues.isNotEmpty) _grammarIssues = _shiftGrammarSorted(_grammarIssues, e);
     }
     super.value = newValue;
   }
 
-  static List<GrammarIssue> _shiftGrammarIssues(List<GrammarIssue> issues, String oldText, String newText) {
-    // One prefix/suffix scan per edit, not one per hint.
-    final e = _EditSpan.between(oldText, newText);
-    final out = <GrammarIssue>[];
-    for (final i in issues) {
+  /// [ranges] (sorted, non-overlapping) moved past the edit [e]: binary search
+  /// for the unaffected head and the shifted tail; ranges touching the edit go.
+  static List<TextRange> _shiftSorted(List<TextRange> ranges, _EditSpan e) {
+    final int head = firstRangeEndingAfter(ranges, e.prefix, (r) => r.end);
+    // Ranges ending after the edit start but starting before its end touch it.
+    int t = head;
+    while (t < ranges.length && ranges[t].start < e.editEnd) {
+      t++;
+    }
+    return [
+      ...ranges.sublist(0, head),
+      for (int i = t; i < ranges.length; i++) ?e.shift(ranges[i]),
+    ];
+  }
+
+  static List<GrammarIssue> _shiftGrammarSorted(List<GrammarIssue> issues, _EditSpan e) {
+    // Hints are sorted by range; a fix range never ends after its range, so the
+    // head (range ends at or before the edit) is untouched.
+    final int head = firstRangeEndingAfter(issues, e.prefix, (i) => i.range.end);
+    int t = head;
+    while (t < issues.length && issues[t].range.start < e.editEnd) {
+      t++;
+    }
+    final out = <GrammarIssue>[...issues.sublist(0, head)];
+    for (int k = t; k < issues.length; k++) {
+      final i = issues[k];
       final r = e.shift(i.range);
       final f = e.shift(i.fixRange);
       if (r == null || f == null) continue;
@@ -947,6 +970,52 @@ class _EditSpan {
       suffix++;
     }
     return _EditSpan(prefix, oldText.length - suffix, newText.length - oldText.length);
+  }
+
+  /// The edit between two values, read off the selection: a pure insertion
+  /// ends at the new caret, a pure deletion sits at it. Anything else (a
+  /// replacement, a moved caret, or a mismatch in the text around the guess)
+  /// falls back to the full scan.
+  factory _EditSpan.fromValues(TextEditingValue oldV, TextEditingValue newV) {
+    final String o = oldV.text, n = newV.text;
+    final int delta = n.length - o.length;
+    final sel = newV.selection;
+    if (delta != 0 && sel.isValid && sel.isCollapsed) {
+      final int c = sel.baseOffset;
+      const int w = 48; // context compared on each side of the guess
+      if (delta > 0 && oldV.selection.isValid && oldV.selection.isCollapsed) {
+        final int start = c - delta; // insertion at [start, c) of the new text
+        if (start >= 0 && c <= n.length && _sameWindow(o, start, n, c, w) && _sameBefore(o, n, start, w)) {
+          return _EditSpan(start, start, delta);
+        }
+      } else if (delta < 0) {
+        final int cut = c - delta; // old [c, cut) is gone
+        if (c >= 0 && cut <= o.length && _sameWindow(o, cut, n, c, w) && _sameBefore(o, n, c, w)) {
+          return _EditSpan(c, cut, delta);
+        }
+      }
+    }
+    return _EditSpan.between(o, n);
+  }
+
+  /// Whether [a] from [ai] and [b] from [bi] agree for up to [w] units and end together.
+  static bool _sameWindow(String a, int ai, String b, int bi, int w) {
+    final int la = a.length - ai, lb = b.length - bi;
+    if (la != lb) return false;
+    final int len = la < w ? la : w;
+    for (int k = 0; k < len; k++) {
+      if (a.codeUnitAt(ai + k) != b.codeUnitAt(bi + k)) return false;
+    }
+    // The tail matters as much as the window: check the very end too.
+    return la <= w || a.codeUnitAt(a.length - 1) == b.codeUnitAt(b.length - 1);
+  }
+
+  static bool _sameBefore(String a, String b, int end, int w) {
+    final int from = end < w ? 0 : end - w;
+    for (int k = from; k < end; k++) {
+      if (a.codeUnitAt(k) != b.codeUnitAt(k)) return false;
+    }
+    return true;
   }
 
   /// [r] unchanged if before the edit, moved if after, null if it touches it.

@@ -129,10 +129,10 @@ void main() {
     expect(c.selection.baseOffset, 5);
   });
 
-  test('rich copy has a native side on macOS and iOS only', () {
+  test('rich copy has a native side on macOS, iOS and Windows only', () {
     expect(RichClipboard.isSupportedOn(TargetPlatform.macOS), isTrue);
     expect(RichClipboard.isSupportedOn(TargetPlatform.iOS), isTrue);
-    expect(RichClipboard.isSupportedOn(TargetPlatform.windows), isFalse); // C++ draft not built yet
+    expect(RichClipboard.isSupportedOn(TargetPlatform.windows), isTrue);
     expect(RichClipboard.isSupportedOn(TargetPlatform.android), isFalse);
   });
 

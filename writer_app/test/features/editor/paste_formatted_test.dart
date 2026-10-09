@@ -57,8 +57,43 @@ void main() {
     }
   });
 
-  test('Windows and Android are not gated in for rich reads', () {
-    expect(RichClipboard.isSupportedOn(TargetPlatform.windows), isFalse);
+  test('Windows reads HTML and Pellucid markdown through the channel', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      expect(RichClipboard.isSupportedOn(defaultTargetPlatform), isTrue);
+      html = '<p>hi <b>there</b></p>';
+      markdown = 'hi **there**';
+      expect(await RichClipboard.readHtml(), html);
+      expect(await RichClipboard.readMarkdown(), markdown);
+      html = markdown = null;
+      expect(await RichClipboard.readHtml(), isNull);
+      expect(await RichClipboard.readMarkdown(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  test('Windows copy sends plain, html and markdown through the channel', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final sent = <MethodCall>[];
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      sent.add(call);
+      return null;
+    });
+    try {
+      await RichClipboard.copy('x **bold** y', 0, 12);
+      expect(sent.single.method, 'setRich');
+      final args = sent.single.arguments as Map;
+      expect(args['plain'], 'x bold y');
+      expect(args['html'], contains('<strong>bold</strong>'));
+      expect(args['markdown'], 'x **bold** y');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  test('Android is not gated in for rich reads', () {
     expect(RichClipboard.isSupportedOn(TargetPlatform.android), isFalse);
   });
 

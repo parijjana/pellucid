@@ -18,6 +18,11 @@ class DocumentBuffer {
   }
 
   late List<String> _lines;
+
+  /// Told after every change which lines changed: lines [first, first +
+  /// removed) were replaced by [inserted] lines (the static-line heights
+  /// follow it).
+  void Function(int first, int removed, int inserted)? onLinesChanged;
   // _starts[i] is the offset of line i; the newline after line i is at
   // _starts[i] + _lines[i].length.
   final List<int> _starts = [];
@@ -72,6 +77,7 @@ class DocumentBuffer {
     }
     _lines.replaceRange(first, last + 1, replacement);
     _words.replaceRange(first, last + 1, counts);
+    onLinesChanged?.call(first, last + 1 - first, replacement.length);
     final int delta = inserted.length - (end - start);
     if (first == last && replacement.length == 1) {
       // A change inside one line: later lines just move by the length change.
@@ -87,7 +93,9 @@ class DocumentBuffer {
 
   /// Replaces everything (document load, an edit made outside the window).
   void reset(String text) {
+    final int before = _lines.length;
     _lines = text.split('\n');
+    onLinesChanged?.call(0, before, _lines.length);
     _starts.clear();
     _rebuildIndex(0);
     _words = [for (final l in _lines) countWords(l)];
@@ -115,8 +123,7 @@ class DocumentBuffer {
   }
   int s = 0;
   final int maxSuffix = min(before.length, after.length) - p;
-  while (s < maxSuffix &&
-      before.codeUnitAt(before.length - 1 - s) == after.codeUnitAt(after.length - 1 - s)) {
+  while (s < maxSuffix && before.codeUnitAt(before.length - 1 - s) == after.codeUnitAt(after.length - 1 - s)) {
     s++;
   }
   return (start: p, end: before.length - s, inserted: after.substring(p, after.length - s));

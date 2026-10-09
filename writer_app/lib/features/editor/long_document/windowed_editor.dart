@@ -36,6 +36,7 @@ import '../rich_clipboard.dart';
 import '../utils/grammar_checker.dart';
 import '../widgets/markdown_controller.dart';
 import 'document_buffer.dart';
+import 'line_heights.dart';
 
 /// On by default for long documents (1.1.0). Escape hatch back to the single
 /// editor for every document: `--dart-define=PELLUCID_WINDOWED_EDITOR=false`.
@@ -248,6 +249,11 @@ class WindowedEditorState extends State<WindowedEditor> {
   late final _StaticLines _static = _StaticLines(widget.controller);
   final Map<int, _RenderStaticLine> _built = {};
 
+  /// Static-line heights, so a far scroll lays out only the lines it shows.
+  late final LineHeights heights;
+  TextDirection _textDirection = TextDirection.ltr;
+  Locale? _locale;
+
   // Pointer state: a press on the field defers window moves until release
   // (the field's drag gesture keeps window offsets); a press on a static line
   // is a click or a drag-select handled here.
@@ -269,6 +275,12 @@ class WindowedEditorState extends State<WindowedEditor> {
   void initState() {
     super.initState();
     buffer = DocumentBuffer(doc.text);
+    heights = LineHeights(
+      measure: _measureLine,
+      lengthOf: (i) => buffer.line(i).length,
+      rowHeight: _rowHeight(widget.style),
+    )..reset(buffer.lineCount);
+    buffer.onLinesChanged = heights.replaceLines;
     _lastDocText = doc.text;
     window = WindowFieldController(theme: doc.theme, document: doc)..onDecorationsChanged = _decorationsChanged;
     _editors[doc] = this;
@@ -725,9 +737,11 @@ class WindowedEditorState extends State<WindowedEditor> {
       }
       final re = _fieldRender();
       final double fieldHeight = re != null && re.hasSize ? re.size.height : 0;
-      final double perChar = fieldHeight > 0 && _lastWindowText.isNotEmpty ? fieldHeight / _lastWindowText.length : 0.4;
-      final int ws = window.windowStart, we = ws + _lastWindowText.length;
-      final double estimate = target < ws ? -(ws - target) * perChar : fieldHeight + (target - we) * perChar;
+      // Lines not built yet: their known or estimated heights place them.
+      final int line = buffer.lineOfOffset(target);
+      final double estimate = line < span.first
+          ? -heights.sum(line, span.first)
+          : fieldHeight + heights.sum(span.last, line);
       scroll.jumpTo(
         (estimate - viewport * fraction).clamp(scroll.position.minScrollExtent, scroll.position.maxScrollExtent),
       );
@@ -931,6 +945,21 @@ class WindowedEditorState extends State<WindowedEditor> {
     return (first: a, last: b);
   }
 
+  static double _rowHeight(TextStyle style) => (style.fontSize ?? 14) * (style.height ?? 1.2);
+
+  /// Lays out [line] exactly as its static line's RichText does.
+  double _measureLine(int line, double width) {
+    final painter = TextPainter(
+      text: TextSpan(style: widget.style, children: _static.spansFor(buffer, line, false, widget.style)),
+      textDirection: _textDirection,
+      textScaler: TextScaler.noScaling,
+      locale: _locale,
+    )..layout(maxWidth: width);
+    final double h = painter.height;
+    painter.dispose();
+    return h;
+  }
+
   Widget _staticLine(BuildContext context, int line, ({int first, int last})? focus, Color selectionColor) {
     final bool dim = focus != null && (line < focus.first || line > focus.last);
     final spans = _static.spansFor(buffer, line, dim, widget.style);
@@ -963,7 +992,10 @@ class WindowedEditorState extends State<WindowedEditor> {
   @override
   Widget build(BuildContext context) {
     _copySettings();
-    _static.prepare(widget.theme, widget.style);
+    if (_static.prepare(widget.theme, widget.style)) heights.invalidateAll();
+    heights.rowHeight = _rowHeight(widget.style);
+    _textDirection = Directionality.of(context);
+    _locale = Localizations.maybeLocaleOf(context);
     final focus = _focusLines();
     _paintedWide = _isWide(doc.selection);
     final Color selectionColor =
@@ -1046,7 +1078,10 @@ class WindowedEditorState extends State<WindowedEditor> {
               const SliverToBoxAdapter(child: SizedBox(height: 160)),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: SliverList(
+                sliver: LineSliver(
+                  heights: heights,
+                  base: span.first,
+                  upward: true,
                   delegate: SliverChildBuilderDelegate(
                     (context, i) => _staticLine(context, span.first - 1 - i, focus, selectionColor),
                     childCount: span.first,
@@ -1060,7 +1095,10 @@ class WindowedEditorState extends State<WindowedEditor> {
               ),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: SliverList(
+                sliver: LineSliver(
+                  heights: heights,
+                  base: span.last,
+                  upward: false,
                   delegate: SliverChildBuilderDelegate(
                     (context, i) => _staticLine(context, span.last + i, focus, selectionColor),
                     childCount: max(0, buffer.lineCount - span.last),
@@ -1181,7 +1219,10 @@ class _StaticLines {
   bool? _codex;
   Object? _titles;
 
-  void prepare(WriterTheme theme, TextStyle style) {
+  /// Refreshes the styling inputs; true when they changed (cached spans and
+  /// measured heights are stale).
+  bool prepare(WriterTheme theme, TextStyle style) {
+    bool changed = false;
     if (!identical(theme, _theme) ||
         style != _style ||
         document.searchQuery != _query ||
@@ -1189,6 +1230,7 @@ class _StaticLines {
         !identical(document.codexTitles, _titles) ||
         document.bulletStyle != _bullets) {
       _cache.clear();
+      changed = true;
       _bullets = document.bulletStyle;
       _theme = theme;
       _style = style;
@@ -1203,6 +1245,7 @@ class _StaticLines {
         ..bulletStyle = document.bulletStyle;
     }
     if (_cache.length > 4000) _cache.clear();
+    return changed;
   }
 
   List<InlineSpan> spansFor(DocumentBuffer buffer, int line, bool dim, TextStyle style) {

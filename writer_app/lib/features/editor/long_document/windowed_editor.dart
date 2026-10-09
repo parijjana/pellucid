@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../hidden_markers.dart';
 import '../list_editing.dart';
 import '../marker_aware_editing.dart';
 import '../providers/theme_provider.dart';
@@ -280,6 +281,9 @@ class WindowedEditorState extends State<WindowedEditor> {
   // starts the field's own long-press behaviour (caret + magnifier on iOS,
   // word + handles on Android), then the toolbar on release.
   Offset? _longPressAt;
+
+  /// Screen-reader labels of static lines, by bullet style and line text.
+  final Map<String, String> _labels = {};
   late final Map<Type, GestureRecognizerFactory> _longPressGestures = {
     _StaticLongPress: GestureRecognizerFactoryWithHandlers<_StaticLongPress>(
       () => _StaticLongPress(allow: (e) => _hitDoc(e.position)?.onField == false),
@@ -298,6 +302,7 @@ class WindowedEditorState extends State<WindowedEditor> {
   @override
   void initState() {
     super.initState();
+    SemanticsBinding.instance.addSemanticsEnabledListener(_onSemanticsEnabled);
     buffer = DocumentBuffer(doc.text);
     heights = LineHeights(
       measure: _measureLine,
@@ -329,6 +334,7 @@ class WindowedEditorState extends State<WindowedEditor> {
 
   @override
   void dispose() {
+    SemanticsBinding.instance.removeSemanticsEnabledListener(_onSemanticsEnabled);
     window.removeListener(_onWindowChanged);
     doc.removeListener(_onDocChanged);
     if (identical(_editors[doc], this)) _editors[doc] = null;
@@ -1186,20 +1192,56 @@ class WindowedEditorState extends State<WindowedEditor> {
         selected = TextSelection(baseOffset: max(ds.start, ls) - ls, extentOffset: min(ds.end, le) - ls);
       }
     }
-    return MouseRegion(
-      key: ValueKey('L$line'),
-      cursor: SystemMouseCursors.text,
-      child: _StaticLine(
-        line: line,
-        registry: _built,
-        selection: selected,
-        selectionColor: selectionColor,
-        child: RichText(
-          text: TextSpan(style: widget.style, children: spans),
-          textScaler: TextScaler.noScaling,
-        ),
+    final Widget painted = _StaticLine(
+      line: line,
+      registry: _built,
+      selection: selected,
+      selectionColor: selectionColor,
+      child: RichText(
+        text: TextSpan(style: widget.style, children: spans),
+        textScaler: TextScaler.noScaling,
       ),
     );
+    return MouseRegion(key: ValueKey('L$line'), cursor: SystemMouseCursors.text, child: _lineSemantics(line, painted));
+  }
+
+  /// A static line as screen readers see it: its text as a reader sees it
+  /// (no hidden markers), a heading flag, and an Edit action that brings the
+  /// line into the live field with the caret on it. Lines in the scroll
+  /// view's cache extent are in the tree too, so swiping on past the screen
+  /// scrolls on through the whole document. Blank lines are skipped.
+  Widget _lineSemantics(int line, Widget painted) {
+    // Labels cost a marker scan per line per build: only with a reader on.
+    if (!SemanticsBinding.instance.semanticsEnabled) return ExcludeSemantics(child: painted);
+    final String text = buffer.line(line);
+    if (_labels.length > 4000) _labels.clear();
+    final String label = _labels.putIfAbsent(
+      '${doc.bulletStyle.index}|$text',
+      () => visibleText(text, bullets: doc.bulletStyle),
+    );
+    if (label.trim().isEmpty) return ExcludeSemantics(child: painted);
+    return Semantics(
+      container: true,
+      label: label,
+      textDirection: _textDirection,
+      header: text.startsWith('#'),
+      onTapHint: 'Edit',
+      onTap: () => editLine(line),
+      child: ExcludeSemantics(child: painted),
+    );
+  }
+
+  void _onSemanticsEnabled() {
+    if (mounted) setState(() {});
+  }
+
+  /// Puts the caret at the start of [line]'s text, in the live field (the
+  /// screen reader's Edit action on a static line).
+  void editLine(int line) {
+    if (line < 0 || line >= buffer.lineCount) return;
+    widget.focusNode.requestFocus();
+    final int ls = buffer.lineStart(line);
+    _setDocSelection(TextSelection.collapsed(offset: canonicalOffset(buffer.line(line), 0) + ls));
   }
 
   @override

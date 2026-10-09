@@ -276,6 +276,20 @@ class WindowedEditorState extends State<WindowedEditor> {
   bool _fieldDragOut = false;
   int? _fieldDragAnchor;
 
+  // Touch long press on a static line: one press moves the window there and
+  // starts the field's own long-press behaviour (caret + magnifier on iOS,
+  // word + handles on Android), then the toolbar on release.
+  Offset? _longPressAt;
+  late final Map<Type, GestureRecognizerFactory> _longPressGestures = {
+    _StaticLongPress: GestureRecognizerFactoryWithHandlers<_StaticLongPress>(
+      () => _StaticLongPress(allow: (e) => _hitDoc(e.position)?.onField == false),
+      (r) => r
+        ..onLongPressStart = _onLongPressStart
+        ..onLongPressMoveUpdate = _onLongPressMove
+        ..onLongPressEnd = _onLongPressEnd,
+    ),
+  };
+
   /// Number of window moves (tests and the perf harness read it).
   int windowMoves = 0;
 
@@ -348,6 +362,9 @@ class WindowedEditorState extends State<WindowedEditor> {
     int c(int o) => (o - window.windowStart).clamp(0, n);
     return s.copyWith(baseOffset: c(s.baseOffset), extentOffset: c(s.extentOffset));
   }
+
+  bool _inWindow(TextSelection s) =>
+      s.isValid && s.start >= window.windowStart && s.end <= window.windowStart + _lastWindowText.length;
 
   TextSelection _toDoc(TextSelection s) => s.isValid
       ? s.copyWith(baseOffset: s.baseOffset + window.windowStart, extentOffset: s.extentOffset + window.windowStart)
@@ -989,6 +1006,84 @@ class WindowedEditorState extends State<WindowedEditor> {
     });
   }
 
+  bool get _caretLongPress => switch (Theme.of(context).platform) {
+    TargetPlatform.iOS || TargetPlatform.macOS => true,
+    _ => false,
+  };
+
+  void _onLongPressStart(LongPressStartDetails d) {
+    final hit = _hitDoc(d.globalPosition);
+    if (hit == null) return;
+    _dragAnchor = null; // the release is not a tap
+    _longPressAt = d.globalPosition;
+    widget.focusNode.requestFocus();
+    final TextSelection target = _caretLongPress ? TextSelection.collapsed(offset: hit.offset) : _unitAt(hit.offset, 2);
+    _setDocSelection(target);
+    // Once the window holds the target, hand it to the field as a long press
+    // so it shows what its own long press shows. The window move's own
+    // post-frame scroll fix runs first; the magnifier waits for its layout,
+    // or it would find the caret off screen and hide itself.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _fieldLongPress(target);
+      if (!_caretLongPress) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _longPressAt != null) _editableState()?.showMagnifier(_longPressAt!);
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    });
+  }
+
+  /// Gives the field [docSel] (inside the window) with a long-press cause.
+  void _fieldLongPress(TextSelection docSel) {
+    final state = _editableState();
+    if (state == null || !_inWindow(docSel)) return;
+    final local = _toWindow(docSel);
+    if (window.selection == local) {
+      // The field reacts only to a change: step aside first (the document
+      // never sees this, and nothing paints in between).
+      _applying = true;
+      window.value = window.value.copyWith(
+        selection: TextSelection.collapsed(offset: local.start == 0 ? window.text.length : 0),
+      );
+      _applying = false;
+    }
+    state.userUpdateTextEditingValue(
+      window.value.copyWith(selection: local, composing: TextRange.empty),
+      SelectionChangedCause.longPress,
+    );
+  }
+
+  void _onLongPressMove(LongPressMoveUpdateDetails d) {
+    if (!_caretLongPress) return;
+    final hit = _hitDoc(_clampToPage(d.globalPosition));
+    if (hit == null) return;
+    final sel = TextSelection.collapsed(offset: hit.offset);
+    if (hit.onField) {
+      _fieldLongPress(sel);
+    } else {
+      _setDocSelection(sel, move: false);
+    }
+    _longPressAt = d.globalPosition;
+    _editableState()?.showMagnifier(d.globalPosition);
+  }
+
+  void _onLongPressEnd(LongPressEndDetails d) {
+    _longPressAt = null;
+    final state = _editableState();
+    state?.hideMagnifier();
+    final sel = doc.selection;
+    if (_inWindow(sel)) {
+      state?.showToolbar();
+    } else {
+      // The caret left the window while held: bring it in, then the toolbar.
+      _setDocSelection(sel);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _editableState()?.showToolbar();
+      });
+    }
+  }
+
   void _onPointerUp(PointerEvent e) {
     _dragPointer = null;
     _stopAutoScroll();
@@ -1189,48 +1284,63 @@ class WindowedEditorState extends State<WindowedEditor> {
           onPointerMove: _onPointerMove,
           onPointerUp: _onPointerUp,
           onPointerCancel: _onPointerUp,
-          child: CustomScrollView(
-            controller: scroll,
-            center: _centerKey,
-            slivers: [
-              // Slivers before `center` grow upward: this padding is the page top.
-              const SliverToBoxAdapter(child: SizedBox(height: 160)),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: LineSliver(
-                  heights: heights,
-                  base: span.first,
-                  upward: true,
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => _staticLine(context, span.first - 1 - i, focus, selectionColor),
-                    childCount: span.first,
+          child: RawGestureDetector(
+            gestures: _longPressGestures,
+            child: CustomScrollView(
+              controller: scroll,
+              center: _centerKey,
+              slivers: [
+                // Slivers before `center` grow upward: this padding is the page top.
+                const SliverToBoxAdapter(child: SizedBox(height: 160)),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: pad),
+                  sliver: LineSliver(
+                    heights: heights,
+                    base: span.first,
+                    upward: true,
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _staticLine(context, span.first - 1 - i, focus, selectionColor),
+                      childCount: span.first,
+                    ),
                   ),
                 ),
-              ),
-              SliverPadding(
-                key: _centerKey,
-                padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: SliverToBoxAdapter(child: live),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: LineSliver(
-                  heights: heights,
-                  base: span.last,
-                  upward: false,
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => _staticLine(context, span.last + i, focus, selectionColor),
-                    childCount: max(0, buffer.lineCount - span.last),
+                SliverPadding(
+                  key: _centerKey,
+                  padding: const EdgeInsets.symmetric(horizontal: pad),
+                  sliver: SliverToBoxAdapter(child: live),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: pad),
+                  sliver: LineSliver(
+                    heights: heights,
+                    base: span.last,
+                    upward: false,
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _staticLine(context, span.last + i, focus, selectionColor),
+                      childCount: max(0, buffer.lineCount - span.last),
+                    ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 160)),
-            ],
+                const SliverToBoxAdapter(child: SizedBox(height: 160)),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// A long press by a finger or stylus on a static line (the live field
+/// handles its own). In the arena it beats the scroll drag once held.
+class _StaticLongPress extends LongPressGestureRecognizer {
+  _StaticLongPress({required this.allow})
+    : super(supportedDevices: {PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus});
+
+  final bool Function(PointerDownEvent e) allow;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) => super.isPointerAllowed(event) && allow(event);
 }
 
 /// A static line: hit-tested as a whole (the pointer handler asks it for its

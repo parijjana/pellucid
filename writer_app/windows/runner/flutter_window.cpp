@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "clipboard_channel.h"
 #include "spell_check_channel.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -28,6 +29,8 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   spell_check_channel_ =
       RegisterSpellCheckChannel(flutter_controller_->engine()->messenger());
+  clipboard_channel_ =
+      RegisterClipboardChannel(flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -44,6 +47,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   spell_check_channel_ = nullptr;
+  clipboard_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

@@ -2,14 +2,9 @@
 #define RUNNER_CLIPBOARD_CHANNEL_H_
 
 // ============================================================================
-// UNTESTED ON WINDOWS, NOT COMPILED. Written on a Mac for slice 13 (1.1.0).
-// This file and clipboard_channel.cpp are NOT listed in CMakeLists.txt and
-// RegisterClipboardChannel is NOT called from flutter_window.cpp. To enable on
-// the PC (docs/WINDOWS_1.1.0_HANDOFF.md): add clipboard_channel.cpp to the
-// executable's sources, call RegisterClipboardChannel next to
-// RegisterSpellCheckChannel, add TargetPlatform.windows to
-// RichClipboard.isSupportedOn (lib/features/editor/rich_clipboard.dart), build
-// and test. Until then Windows copies the markdown as plain text.
+// UNTESTED ON WINDOWS. Written on a Mac for 1.1.0 and never compiled or run
+// here. Build and check it on the PC (docs/WINDOWS_1.1.0_HANDOFF.md). The
+// CF_HTML header offsets are the likeliest thing to need a fix.
 // ============================================================================
 
 #include <flutter/binary_messenger.h>
@@ -25,6 +20,8 @@
 //     private registered format "com.overengineeredhobbies.pellucid.markdown"
 //     (UTF-8) in one clipboard transaction.
 //   getMarkdown() -> String? (the private format, or null)
+//   getHtml() -> String? (the fragment of "HTML Format" as UTF-8 HTML, or
+//     null when absent or the CF_HTML header is malformed)
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
 RegisterClipboardChannel(flutter::BinaryMessenger* messenger);
 

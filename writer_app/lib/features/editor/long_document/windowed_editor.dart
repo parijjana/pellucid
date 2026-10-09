@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../hidden_markers.dart';
 import '../list_editing.dart';
 import '../marker_aware_editing.dart';
 import '../providers/theme_provider.dart';
@@ -36,6 +37,7 @@ import '../rich_clipboard.dart';
 import '../utils/grammar_checker.dart';
 import '../widgets/markdown_controller.dart';
 import 'document_buffer.dart';
+import 'line_heights.dart';
 
 /// On by default for long documents (1.1.0). Escape hatch back to the single
 /// editor for every document: `--dart-define=PELLUCID_WINDOWED_EDITOR=false`.
@@ -248,6 +250,11 @@ class WindowedEditorState extends State<WindowedEditor> {
   late final _StaticLines _static = _StaticLines(widget.controller);
   final Map<int, _RenderStaticLine> _built = {};
 
+  /// Static-line heights, so a far scroll lays out only the lines it shows.
+  late final LineHeights heights;
+  TextDirection _textDirection = TextDirection.ltr;
+  Locale? _locale;
+
   // Pointer state: a press on the field defers window moves until release
   // (the field's drag gesture keeps window offsets); a press on a static line
   // is a click or a drag-select handled here.
@@ -260,6 +267,33 @@ class WindowedEditorState extends State<WindowedEditor> {
   int _clickCount = 0;
   bool _reloadPending = false;
 
+  // Mouse drag auto-scroll: while a drag holds the pointer near (or past) the
+  // top or bottom edge, the page scrolls on a timer and the selection keeps
+  // following the pointer. A drag that started in the field and reached a
+  // static line is driven from here (the field only knows its window).
+  final GlobalKey _pageKey = GlobalKey();
+  Offset? _dragPointer;
+  Timer? _autoScroll;
+  bool _fieldDragOut = false;
+  int? _fieldDragAnchor;
+
+  // Touch long press on a static line: one press moves the window there and
+  // starts the field's own long-press behaviour (caret + magnifier on iOS,
+  // word + handles on Android), then the toolbar on release.
+  Offset? _longPressAt;
+
+  /// Screen-reader labels of static lines, by bullet style and line text.
+  final Map<String, String> _labels = {};
+  late final Map<Type, GestureRecognizerFactory> _longPressGestures = {
+    _StaticLongPress: GestureRecognizerFactoryWithHandlers<_StaticLongPress>(
+      () => _StaticLongPress(allow: (e) => _hitDoc(e.position)?.onField == false),
+      (r) => r
+        ..onLongPressStart = _onLongPressStart
+        ..onLongPressMoveUpdate = _onLongPressMove
+        ..onLongPressEnd = _onLongPressEnd,
+    ),
+  };
+
   /// Number of window moves (tests and the perf harness read it).
   int windowMoves = 0;
 
@@ -268,7 +302,14 @@ class WindowedEditorState extends State<WindowedEditor> {
   @override
   void initState() {
     super.initState();
+    SemanticsBinding.instance.addSemanticsEnabledListener(_onSemanticsEnabled);
     buffer = DocumentBuffer(doc.text);
+    heights = LineHeights(
+      measure: _measureLine,
+      lengthOf: (i) => buffer.line(i).length,
+      rowHeight: _rowHeight(widget.style),
+    )..reset(buffer.lineCount);
+    buffer.onLinesChanged = heights.replaceLines;
     _lastDocText = doc.text;
     window = WindowFieldController(theme: doc.theme, document: doc)..onDecorationsChanged = _decorationsChanged;
     _editors[doc] = this;
@@ -293,9 +334,11 @@ class WindowedEditorState extends State<WindowedEditor> {
 
   @override
   void dispose() {
+    SemanticsBinding.instance.removeSemanticsEnabledListener(_onSemanticsEnabled);
     window.removeListener(_onWindowChanged);
     doc.removeListener(_onDocChanged);
     if (identical(_editors[doc], this)) _editors[doc] = null;
+    _autoScroll?.cancel();
     window.dispose();
     scroll.dispose();
     super.dispose();
@@ -325,6 +368,9 @@ class WindowedEditorState extends State<WindowedEditor> {
     int c(int o) => (o - window.windowStart).clamp(0, n);
     return s.copyWith(baseOffset: c(s.baseOffset), extentOffset: c(s.extentOffset));
   }
+
+  bool _inWindow(TextSelection s) =>
+      s.isValid && s.start >= window.windowStart && s.end <= window.windowStart + _lastWindowText.length;
 
   TextSelection _toDoc(TextSelection s) => s.isValid
       ? s.copyWith(baseOffset: s.baseOffset + window.windowStart, extentOffset: s.extentOffset + window.windowStart)
@@ -451,6 +497,8 @@ class WindowedEditorState extends State<WindowedEditor> {
   void _onWindowChanged() {
     if (_applying || _reloadPending) return;
     final wv = window.value;
+    // A field drag that left the field: the pointer handler owns the selection.
+    if (_fieldDragOut && wv.text == _lastWindowText) return;
     if (wv.text != _lastWindowText && _isWide(doc.selection) && _replaceWideSelection(wv.text)) return;
     if (wv.text == _lastWindowText && _isWide(doc.selection)) {
       // The field only sees the part of the selection inside the window.
@@ -725,9 +773,11 @@ class WindowedEditorState extends State<WindowedEditor> {
       }
       final re = _fieldRender();
       final double fieldHeight = re != null && re.hasSize ? re.size.height : 0;
-      final double perChar = fieldHeight > 0 && _lastWindowText.isNotEmpty ? fieldHeight / _lastWindowText.length : 0.4;
-      final int ws = window.windowStart, we = ws + _lastWindowText.length;
-      final double estimate = target < ws ? -(ws - target) * perChar : fieldHeight + (target - we) * perChar;
+      // Lines not built yet: their known or estimated heights place them.
+      final int line = buffer.lineOfOffset(target);
+      final double estimate = line < span.first
+          ? -heights.sum(line, span.first)
+          : fieldHeight + heights.sum(span.last, line);
       scroll.jumpTo(
         (estimate - viewport * fraction).clamp(scroll.position.minScrollExtent, scroll.position.maxScrollExtent),
       );
@@ -844,6 +894,9 @@ class WindowedEditorState extends State<WindowedEditor> {
     if (hit == null) return;
     if (hit.onField) {
       _fieldPointer = true;
+      _downPos = e.position;
+      _fieldDragOut = false;
+      _fieldDragAnchor = null;
       return;
     }
     if (e.kind == PointerDeviceKind.mouse && e.buttons != kPrimaryMouseButton) return;
@@ -858,6 +911,14 @@ class WindowedEditorState extends State<WindowedEditor> {
   }
 
   void _onPointerMove(PointerMoveEvent e) {
+    if (_fieldPointer) {
+      if (e.kind == PointerDeviceKind.mouse && (e.position - _downPos).distance >= 4) {
+        _dragPointer = e.position;
+        _extendDragTo(e.position);
+        _updateAutoScroll();
+      }
+      return;
+    }
     final int? anchor = _dragAnchor;
     if (anchor == null) return;
     if (e.kind != PointerDeviceKind.mouse) {
@@ -867,12 +928,184 @@ class WindowedEditorState extends State<WindowedEditor> {
     }
     if (!_dragging && (e.position - _downPos).distance < 4) return;
     _dragging = true;
-    final hit = _hitDoc(e.position);
+    _dragPointer = e.position;
+    _extendDragTo(e.position);
+    _updateAutoScroll();
+  }
+
+  /// Extends the dragged selection to the text under [global] (clamped onto
+  /// the page, so a pointer past the edge selects the nearest line). An
+  /// auto-scroll tick ([scrolled]) also drives a drag over the field, which
+  /// gets no pointer event while the page moves under a still pointer.
+  void _extendDragTo(Offset global, {bool scrolled = false}) {
+    final hit = _hitDoc(_clampToPage(global));
     if (hit == null) return;
-    _setDocSelection(TextSelection(baseOffset: anchor, extentOffset: hit.offset), move: false);
+    final int? anchor = _dragAnchor;
+    if (anchor != null) {
+      _setDocSelection(TextSelection(baseOffset: anchor, extentOffset: hit.offset), move: false);
+      return;
+    }
+    if (!_fieldPointer || (hit.onField && !_fieldDragOut && !scrolled)) return; // the field drags its own selection
+    _fieldDragOut = true;
+    _fieldDragAnchor ??= doc.selection.isValid ? doc.selection.baseOffset : hit.offset;
+    _setDocSelection(TextSelection(baseOffset: _fieldDragAnchor!, extentOffset: hit.offset), move: false);
+  }
+
+  Offset _clampToPage(Offset global) {
+    final view = context.findRenderObject() as RenderBox?;
+    final page = _pageKey.currentContext?.findRenderObject() as RenderBox?;
+    if (view == null || page == null || !view.hasSize || !page.hasSize) return global;
+    final double top = view.localToGlobal(Offset.zero).dy;
+    final double left = page.localToGlobal(Offset.zero).dx;
+    const double pad = 61; // inside the page's text column
+    return Offset(
+      global.dx.clamp(left + pad, max(left + pad, left + page.size.width - pad)),
+      global.dy.clamp(top + 1, top + view.size.height - 1),
+    );
+  }
+
+  /// Pixels per tick (16 ms) for a pointer at global [y]: zero away from the
+  /// edges, growing with the distance into (and past) the edge zone.
+  double _autoScrollStep(double y) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return 0;
+    final double top = box.localToGlobal(Offset.zero).dy, bottom = top + box.size.height;
+    const double edge = 48, maxStep = 80;
+    if (y < top + edge) return -min(maxStep, (top + edge - y) * 0.5);
+    if (y > bottom - edge) return min(maxStep, (y - (bottom - edge)) * 0.5);
+    return 0;
+  }
+
+  void _updateAutoScroll() {
+    final pos = _dragPointer;
+    if (pos == null || _autoScrollStep(pos.dy) == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    _autoScroll ??= Timer.periodic(const Duration(milliseconds: 16), (_) => _autoScrollTick());
+  }
+
+  void _stopAutoScroll() {
+    _autoScroll?.cancel();
+    _autoScroll = null;
+  }
+
+  void _autoScrollTick() {
+    final pos = _dragPointer;
+    if (!mounted || pos == null || !scroll.hasClients) {
+      _stopAutoScroll();
+      return;
+    }
+    final double step = _autoScrollStep(pos.dy);
+    if (step == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    final p = scroll.position;
+    final double to = (scroll.offset + step).clamp(p.minScrollExtent, p.maxScrollExtent);
+    if (to == scroll.offset) return;
+    scroll.jumpTo(to);
+    // Hit-test once the scrolled lines are laid out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final at = _dragPointer;
+      if (mounted && at != null) _extendDragTo(at, scrolled: true);
+    });
+  }
+
+  bool get _caretLongPress => switch (Theme.of(context).platform) {
+    TargetPlatform.iOS || TargetPlatform.macOS => true,
+    _ => false,
+  };
+
+  void _onLongPressStart(LongPressStartDetails d) {
+    final hit = _hitDoc(d.globalPosition);
+    if (hit == null) return;
+    _dragAnchor = null; // the release is not a tap
+    _longPressAt = d.globalPosition;
+    widget.focusNode.requestFocus();
+    final TextSelection target = _caretLongPress ? TextSelection.collapsed(offset: hit.offset) : _unitAt(hit.offset, 2);
+    _setDocSelection(target);
+    // Once the window holds the target, hand it to the field as a long press
+    // so it shows what its own long press shows. The window move's own
+    // post-frame scroll fix runs first; the magnifier waits for its layout,
+    // or it would find the caret off screen and hide itself.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _fieldLongPress(target);
+      if (!_caretLongPress) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _longPressAt != null) _editableState()?.showMagnifier(_longPressAt!);
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    });
+  }
+
+  /// Gives the field [docSel] (inside the window) with a long-press cause.
+  void _fieldLongPress(TextSelection docSel) {
+    final state = _editableState();
+    if (state == null || !_inWindow(docSel)) return;
+    final local = _toWindow(docSel);
+    if (window.selection == local) {
+      // The field reacts only to a change: step aside first (the document
+      // never sees this, and nothing paints in between).
+      _applying = true;
+      window.value = window.value.copyWith(
+        selection: TextSelection.collapsed(offset: local.start == 0 ? window.text.length : 0),
+      );
+      _applying = false;
+    }
+    state.userUpdateTextEditingValue(
+      window.value.copyWith(selection: local, composing: TextRange.empty),
+      SelectionChangedCause.longPress,
+    );
+  }
+
+  void _onLongPressMove(LongPressMoveUpdateDetails d) {
+    if (!_caretLongPress) return;
+    final hit = _hitDoc(_clampToPage(d.globalPosition));
+    if (hit == null) return;
+    final sel = TextSelection.collapsed(offset: hit.offset);
+    if (hit.onField) {
+      _fieldLongPress(sel);
+    } else {
+      _setDocSelection(sel, move: false);
+    }
+    _longPressAt = d.globalPosition;
+    _editableState()?.showMagnifier(d.globalPosition);
+  }
+
+  void _onLongPressEnd(LongPressEndDetails d) {
+    _longPressAt = null;
+    final state = _editableState();
+    state?.hideMagnifier();
+    final sel = doc.selection;
+    if (_inWindow(sel)) {
+      state?.showToolbar();
+    } else {
+      // The caret left the window while held: bring it in, then the toolbar.
+      _setDocSelection(sel);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _editableState()?.showToolbar();
+      });
+    }
   }
 
   void _onPointerUp(PointerEvent e) {
+    _dragPointer = null;
+    _stopAutoScroll();
+    if (_fieldPointer && _fieldDragOut) {
+      _fieldPointer = false;
+      _fieldDragOut = false;
+      _fieldDragAnchor = null;
+      // As for a drag on static lines: bring a selection that fits into the field.
+      final sel = doc.selection;
+      if (_isWide(sel) && sel.end - sel.start <= kWindowSelectionCapChars) {
+        moveWindowTo(sel);
+      } else if (_movePending) {
+        _maybeMove();
+      }
+      return;
+    }
     if (_fieldPointer) {
       _fieldPointer = false;
       // A double click whose first click was on a static line: the window
@@ -931,6 +1164,21 @@ class WindowedEditorState extends State<WindowedEditor> {
     return (first: a, last: b);
   }
 
+  static double _rowHeight(TextStyle style) => (style.fontSize ?? 14) * (style.height ?? 1.2);
+
+  /// Lays out [line] exactly as its static line's RichText does.
+  double _measureLine(int line, double width) {
+    final painter = TextPainter(
+      text: TextSpan(style: widget.style, children: _static.spansFor(buffer, line, false, widget.style)),
+      textDirection: _textDirection,
+      textScaler: TextScaler.noScaling,
+      locale: _locale,
+    )..layout(maxWidth: width);
+    final double h = painter.height;
+    painter.dispose();
+    return h;
+  }
+
   Widget _staticLine(BuildContext context, int line, ({int first, int last})? focus, Color selectionColor) {
     final bool dim = focus != null && (line < focus.first || line > focus.last);
     final spans = _static.spansFor(buffer, line, dim, widget.style);
@@ -944,26 +1192,65 @@ class WindowedEditorState extends State<WindowedEditor> {
         selected = TextSelection(baseOffset: max(ds.start, ls) - ls, extentOffset: min(ds.end, le) - ls);
       }
     }
-    return MouseRegion(
-      key: ValueKey('L$line'),
-      cursor: SystemMouseCursors.text,
-      child: _StaticLine(
-        line: line,
-        registry: _built,
-        selection: selected,
-        selectionColor: selectionColor,
-        child: RichText(
-          text: TextSpan(style: widget.style, children: spans),
-          textScaler: TextScaler.noScaling,
-        ),
+    final Widget painted = _StaticLine(
+      line: line,
+      registry: _built,
+      selection: selected,
+      selectionColor: selectionColor,
+      child: RichText(
+        text: TextSpan(style: widget.style, children: spans),
+        textScaler: TextScaler.noScaling,
       ),
     );
+    return MouseRegion(key: ValueKey('L$line'), cursor: SystemMouseCursors.text, child: _lineSemantics(line, painted));
+  }
+
+  /// A static line as screen readers see it: its text as a reader sees it
+  /// (no hidden markers), a heading flag, and an Edit action that brings the
+  /// line into the live field with the caret on it. Lines in the scroll
+  /// view's cache extent are in the tree too, so swiping on past the screen
+  /// scrolls on through the whole document. Blank lines are skipped.
+  Widget _lineSemantics(int line, Widget painted) {
+    // Labels cost a marker scan per line per build: only with a reader on.
+    if (!SemanticsBinding.instance.semanticsEnabled) return ExcludeSemantics(child: painted);
+    final String text = buffer.line(line);
+    if (_labels.length > 4000) _labels.clear();
+    final String label = _labels.putIfAbsent(
+      '${doc.bulletStyle.index}|$text',
+      () => visibleText(text, bullets: doc.bulletStyle),
+    );
+    if (label.trim().isEmpty) return ExcludeSemantics(child: painted);
+    return Semantics(
+      container: true,
+      label: label,
+      textDirection: _textDirection,
+      header: text.startsWith('#'),
+      onTapHint: 'Edit',
+      onTap: () => editLine(line),
+      child: ExcludeSemantics(child: painted),
+    );
+  }
+
+  void _onSemanticsEnabled() {
+    if (mounted) setState(() {});
+  }
+
+  /// Puts the caret at the start of [line]'s text, in the live field (the
+  /// screen reader's Edit action on a static line).
+  void editLine(int line) {
+    if (line < 0 || line >= buffer.lineCount) return;
+    widget.focusNode.requestFocus();
+    final int ls = buffer.lineStart(line);
+    _setDocSelection(TextSelection.collapsed(offset: canonicalOffset(buffer.line(line), 0) + ls));
   }
 
   @override
   Widget build(BuildContext context) {
     _copySettings();
-    _static.prepare(widget.theme, widget.style);
+    if (_static.prepare(widget.theme, widget.style)) heights.invalidateAll();
+    heights.rowHeight = _rowHeight(widget.style);
+    _textDirection = Directionality.of(context);
+    _locale = Localizations.maybeLocaleOf(context);
     final focus = _focusLines();
     _paintedWide = _isWide(doc.selection);
     final Color selectionColor =
@@ -1026,6 +1313,7 @@ class WindowedEditorState extends State<WindowedEditor> {
       height: double.infinity,
       alignment: Alignment(widget.horizontalPosition * 2 - 1, 0),
       child: Container(
+        key: _pageKey,
         width: widget.pageWidth,
         decoration: BoxDecoration(
           color: widget.theme.backgroundColor,
@@ -1038,42 +1326,63 @@ class WindowedEditorState extends State<WindowedEditor> {
           onPointerMove: _onPointerMove,
           onPointerUp: _onPointerUp,
           onPointerCancel: _onPointerUp,
-          child: CustomScrollView(
-            controller: scroll,
-            center: _centerKey,
-            slivers: [
-              // Slivers before `center` grow upward: this padding is the page top.
-              const SliverToBoxAdapter(child: SizedBox(height: 160)),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => _staticLine(context, span.first - 1 - i, focus, selectionColor),
-                    childCount: span.first,
+          child: RawGestureDetector(
+            gestures: _longPressGestures,
+            child: CustomScrollView(
+              controller: scroll,
+              center: _centerKey,
+              slivers: [
+                // Slivers before `center` grow upward: this padding is the page top.
+                const SliverToBoxAdapter(child: SizedBox(height: 160)),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: pad),
+                  sliver: LineSliver(
+                    heights: heights,
+                    base: span.first,
+                    upward: true,
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _staticLine(context, span.first - 1 - i, focus, selectionColor),
+                      childCount: span.first,
+                    ),
                   ),
                 ),
-              ),
-              SliverPadding(
-                key: _centerKey,
-                padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: SliverToBoxAdapter(child: live),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: pad),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => _staticLine(context, span.last + i, focus, selectionColor),
-                    childCount: max(0, buffer.lineCount - span.last),
+                SliverPadding(
+                  key: _centerKey,
+                  padding: const EdgeInsets.symmetric(horizontal: pad),
+                  sliver: SliverToBoxAdapter(child: live),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: pad),
+                  sliver: LineSliver(
+                    heights: heights,
+                    base: span.last,
+                    upward: false,
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _staticLine(context, span.last + i, focus, selectionColor),
+                      childCount: max(0, buffer.lineCount - span.last),
+                    ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 160)),
-            ],
+                const SliverToBoxAdapter(child: SizedBox(height: 160)),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// A long press by a finger or stylus on a static line (the live field
+/// handles its own). In the arena it beats the scroll drag once held.
+class _StaticLongPress extends LongPressGestureRecognizer {
+  _StaticLongPress({required this.allow})
+    : super(supportedDevices: {PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus});
+
+  final bool Function(PointerDownEvent e) allow;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) => super.isPointerAllowed(event) && allow(event);
 }
 
 /// A static line: hit-tested as a whole (the pointer handler asks it for its
@@ -1181,7 +1490,10 @@ class _StaticLines {
   bool? _codex;
   Object? _titles;
 
-  void prepare(WriterTheme theme, TextStyle style) {
+  /// Refreshes the styling inputs; true when they changed (cached spans and
+  /// measured heights are stale).
+  bool prepare(WriterTheme theme, TextStyle style) {
+    bool changed = false;
     if (!identical(theme, _theme) ||
         style != _style ||
         document.searchQuery != _query ||
@@ -1189,6 +1501,7 @@ class _StaticLines {
         !identical(document.codexTitles, _titles) ||
         document.bulletStyle != _bullets) {
       _cache.clear();
+      changed = true;
       _bullets = document.bulletStyle;
       _theme = theme;
       _style = style;
@@ -1203,6 +1516,7 @@ class _StaticLines {
         ..bulletStyle = document.bulletStyle;
     }
     if (_cache.length > 4000) _cache.clear();
+    return changed;
   }
 
   List<InlineSpan> spansFor(DocumentBuffer buffer, int line, bool dim, TextStyle style) {

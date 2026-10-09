@@ -78,7 +78,7 @@ import 'screenshot_seed.dart';
 // Absolute path to the output root — the repo's committed store_screenshots/
 // directory. The harness creates <root>/<store>/ subfolders under it.
 const String _outRoot =
-    '/Users/animeshsarkar/code/projects/pellucid/writer_app/store_screenshots';
+    '/Users/animeshsarkar/code/projects/pellucid-shots/writer_app/store_screenshots/v1.1.0';
 
 /// How long `_settle()` waits for a screen to stop animating before giving up
 /// and rasterizing anyway (recording a settle timeout). Set this comfortably
@@ -202,7 +202,7 @@ const List<_Target> _targets = [
     2.0,
     ScreenshotLayout.desktop,
     ScreenshotWindowControls.macOS,
-    [1, 2, 3, 4, 5],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
   ),
   _Target(
     'microsoft-store',
@@ -214,7 +214,7 @@ const List<_Target> _targets = [
     2.0,
     ScreenshotLayout.desktop,
     ScreenshotWindowControls.none,
-    [1, 2, 3, 4, 5],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
   ),
   _Target(
     'ios-app-store',
@@ -226,7 +226,7 @@ const List<_Target> _targets = [
     3.0,
     ScreenshotLayout.mobilePhone,
     ScreenshotWindowControls.none,
-    [1, 2, 3],
+    [1, 6, 8, 3],
   ),
   _Target(
     'ios-app-store',
@@ -238,7 +238,7 @@ const List<_Target> _targets = [
     2.0,
     ScreenshotLayout.tablet,
     ScreenshotWindowControls.none,
-    [1, 2, 3, 4, 5],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
   ),
   _Target(
     'ios-app-store',
@@ -250,43 +250,22 @@ const List<_Target> _targets = [
     2.0,
     ScreenshotLayout.tablet,
     ScreenshotWindowControls.none,
-    [1, 2, 3, 4, 5],
-  ),
-  _Target(
-    'google-play',
-    'phone',
-    'play/phone',
-    '',
-    360,
-    800,
-    3.0,
-    ScreenshotLayout.mobilePhone,
-    ScreenshotWindowControls.none,
-    [1, 2, 3],
-  ),
-  _Target(
-    'google-play',
-    'tablet',
-    'play/tablet',
-    '',
-    800,
-    1280,
-    2.0,
-    ScreenshotLayout.tablet,
-    ScreenshotWindowControls.none,
-    [1, 2, 3, 4, 5],
-  ),
-];
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  ),];
 
 // Human-readable, zero-padded, ordered filenames per scene number. Exactly 5
 // scenes filled — the template's {{MORE_SCENES}} line was deleted per its own
 // FILL note for the 5-scene case (D3/D4 scaffolded 5 slots by default).
 const Map<int, String> _sceneNames = {
   1: '01-hero-editor',
-  2: '02-navigation',
-  3: '03-notes-codex',
-  4: '04-writing-sprint',
-  5: '05-version-history',
+  6: '02-lists-formatting', // 1.1.0
+  7: '03-context-menu', // 1.1.0
+  8: '04-find', // 1.1.0
+  9: '05-grammar-hints', // 1.1.0
+  2: '06-navigation',
+  3: '07-notes-codex',
+  4: '08-writing-sprint',
+  5: '09-version-history',
 };
 
 // Scene number -> the NAME of the widget that must be MOUNTED inside the
@@ -314,6 +293,10 @@ const Map<int, String> _expectedWidget = {
   3: 'NotesSidebar',
   4: 'SprintWidget',
   5: 'SnapshotManagementDialog',
+  6: 'EditorScreen',
+  7: 'EditorScreen',
+  8: 'EditorScreen',
+  9: 'EditorScreen',
 };
 
 void main() async {
@@ -387,6 +370,7 @@ class _CaptureAppState extends State<_CaptureApp> {
   Widget? _shot;
   String _shotId = '';
   _Target _target = _targets.first;
+  bool _nestOverlay = false;
 
   @override
   void didChangeDependencies() {
@@ -411,8 +395,20 @@ class _CaptureAppState extends State<_CaptureApp> {
     if (scene == 2) shortcuts.toggleLeftSidebar();
     if (scene == 3) shortcuts.toggleRightSidebar();
 
+    final String content = switch (scene) {
+      6 => kFormattingDoc,
+      7 => draftManuscript(typo: true),
+      8 || 9 => draftManuscript(grammar: scene == 9),
+      _ => kManuscript,
+    };
+    final search = SearchProvider();
+    if (scene == 8) {
+      search.setQuery('lamp');
+      search.toggleSearch(isOpen: true);
+      search.updateMatchOffsets(content);
+    }
     final editor = ScreenshotEditorProvider(
-      content: kManuscript,
+      content: content,
       pageWidth: _pageWidthFor(t),
     );
     final SprintController sprint = scene == 4
@@ -448,7 +444,10 @@ class _CaptureAppState extends State<_CaptureApp> {
         ChangeNotifierProvider<EditorProvider>.value(value: editor),
         ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
         ChangeNotifierProvider<SettingsProvider>.value(
-          value: ScreenshotSettingsProvider(),
+          value: ScreenshotSettingsProvider(
+            spell: scene == 7,
+            grammar: scene == 9,
+          ),
         ),
         ChangeNotifierProvider<HistoryProvider>.value(
           value: ScreenshotHistoryProvider(),
@@ -459,7 +458,7 @@ class _CaptureAppState extends State<_CaptureApp> {
         ChangeNotifierProvider<NotesProvider>.value(
           value: ScreenshotNotesProvider(seedNotes()),
         ),
-        ChangeNotifierProvider<SearchProvider>(create: (_) => SearchProvider()),
+        ChangeNotifierProvider<SearchProvider>.value(value: search),
         ChangeNotifierProvider<SprintController>.value(value: sprint),
       ],
       child: child,
@@ -485,6 +484,7 @@ class _CaptureAppState extends State<_CaptureApp> {
         // (seeding a controller, starting a round, pushing a route), so the
         // retry below must remount THIS SAME widget rather than call the builder
         // again — see _mountAndVerify().
+        _nestOverlay = scene == 7;
         final sceneWidget = _buildScene(scene, t);
         // Mount the scene and CHECK we actually landed on it. One retry with a
         // forced fresh mount clears the transient case; a second failure is
@@ -524,6 +524,7 @@ class _CaptureAppState extends State<_CaptureApp> {
             );
           }
         }
+        if (scene == 7) await _openContextMenu();
         await _capture(t, scene);
       }
     }
@@ -638,6 +639,43 @@ class _CaptureAppState extends State<_CaptureApp> {
     // double-failing here.
     if (ctx == null || !ctx.mounted) return true;
     return _isMountedUnder(ctx, expected);
+  }
+
+  /// Scene 7 (1.1.0): select the misspelled word and open the editor's own
+  /// right-click menu (spelling suggestions, Add to note, Add to attributions).
+  /// The menu lives in the nested Overlay inside the capture boundary.
+  Future<void> _openContextMenu() async {
+    EditableTextState? ets;
+    void walk(Element el) {
+      if (ets != null) return;
+      if (el is StatefulElement && el.state is EditableTextState) {
+        ets = el.state as EditableTextState;
+        return;
+      }
+      el.visitChildren(walk);
+    }
+
+    // Spell check runs a debounced native pass; give it time.
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    _boundaryKey.currentContext?.visitChildElements(walk);
+    final e = ets;
+    if (e == null) {
+      _skipped.add('$_currentShotId: no EditableText for context menu');
+      return;
+    }
+    final text = e.textEditingValue.text;
+    final at = text.indexOf('paitent');
+    e.widget.focusNode.requestFocus();
+    await _settle();
+    e.userUpdateTextEditingValue(
+      e.textEditingValue.copyWith(
+        selection: TextSelection(baseOffset: at, extentOffset: at + 'paitent'.length),
+      ),
+      SelectionChangedCause.longPress,
+    );
+    await _settle();
+    e.showToolbar();
+    await _settle();
   }
 
   Future<void> _capture(_Target t, int scene) async {
@@ -793,7 +831,13 @@ class _CaptureAppState extends State<_CaptureApp> {
                       child: SizedBox(
                         width: _target.w,
                         height: _target.h,
-                        child: shot,
+                        child: _nestOverlay
+                            ? Overlay(
+                                initialEntries: [
+                                  OverlayEntry(builder: (_) => shot),
+                                ],
+                              )
+                            : shot,
                       ),
                     ),
                   ),

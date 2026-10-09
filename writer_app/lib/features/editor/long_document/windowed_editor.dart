@@ -266,6 +266,16 @@ class WindowedEditorState extends State<WindowedEditor> {
   int _clickCount = 0;
   bool _reloadPending = false;
 
+  // Mouse drag auto-scroll: while a drag holds the pointer near (or past) the
+  // top or bottom edge, the page scrolls on a timer and the selection keeps
+  // following the pointer. A drag that started in the field and reached a
+  // static line is driven from here (the field only knows its window).
+  final GlobalKey _pageKey = GlobalKey();
+  Offset? _dragPointer;
+  Timer? _autoScroll;
+  bool _fieldDragOut = false;
+  int? _fieldDragAnchor;
+
   /// Number of window moves (tests and the perf harness read it).
   int windowMoves = 0;
 
@@ -308,6 +318,7 @@ class WindowedEditorState extends State<WindowedEditor> {
     window.removeListener(_onWindowChanged);
     doc.removeListener(_onDocChanged);
     if (identical(_editors[doc], this)) _editors[doc] = null;
+    _autoScroll?.cancel();
     window.dispose();
     scroll.dispose();
     super.dispose();
@@ -463,6 +474,8 @@ class WindowedEditorState extends State<WindowedEditor> {
   void _onWindowChanged() {
     if (_applying || _reloadPending) return;
     final wv = window.value;
+    // A field drag that left the field: the pointer handler owns the selection.
+    if (_fieldDragOut && wv.text == _lastWindowText) return;
     if (wv.text != _lastWindowText && _isWide(doc.selection) && _replaceWideSelection(wv.text)) return;
     if (wv.text == _lastWindowText && _isWide(doc.selection)) {
       // The field only sees the part of the selection inside the window.
@@ -858,6 +871,9 @@ class WindowedEditorState extends State<WindowedEditor> {
     if (hit == null) return;
     if (hit.onField) {
       _fieldPointer = true;
+      _downPos = e.position;
+      _fieldDragOut = false;
+      _fieldDragAnchor = null;
       return;
     }
     if (e.kind == PointerDeviceKind.mouse && e.buttons != kPrimaryMouseButton) return;
@@ -872,6 +888,14 @@ class WindowedEditorState extends State<WindowedEditor> {
   }
 
   void _onPointerMove(PointerMoveEvent e) {
+    if (_fieldPointer) {
+      if (e.kind == PointerDeviceKind.mouse && (e.position - _downPos).distance >= 4) {
+        _dragPointer = e.position;
+        _extendDragTo(e.position);
+        _updateAutoScroll();
+      }
+      return;
+    }
     final int? anchor = _dragAnchor;
     if (anchor == null) return;
     if (e.kind != PointerDeviceKind.mouse) {
@@ -881,12 +905,106 @@ class WindowedEditorState extends State<WindowedEditor> {
     }
     if (!_dragging && (e.position - _downPos).distance < 4) return;
     _dragging = true;
-    final hit = _hitDoc(e.position);
+    _dragPointer = e.position;
+    _extendDragTo(e.position);
+    _updateAutoScroll();
+  }
+
+  /// Extends the dragged selection to the text under [global] (clamped onto
+  /// the page, so a pointer past the edge selects the nearest line). An
+  /// auto-scroll tick ([scrolled]) also drives a drag over the field, which
+  /// gets no pointer event while the page moves under a still pointer.
+  void _extendDragTo(Offset global, {bool scrolled = false}) {
+    final hit = _hitDoc(_clampToPage(global));
     if (hit == null) return;
-    _setDocSelection(TextSelection(baseOffset: anchor, extentOffset: hit.offset), move: false);
+    final int? anchor = _dragAnchor;
+    if (anchor != null) {
+      _setDocSelection(TextSelection(baseOffset: anchor, extentOffset: hit.offset), move: false);
+      return;
+    }
+    if (!_fieldPointer || (hit.onField && !_fieldDragOut && !scrolled)) return; // the field drags its own selection
+    _fieldDragOut = true;
+    _fieldDragAnchor ??= doc.selection.isValid ? doc.selection.baseOffset : hit.offset;
+    _setDocSelection(TextSelection(baseOffset: _fieldDragAnchor!, extentOffset: hit.offset), move: false);
+  }
+
+  Offset _clampToPage(Offset global) {
+    final view = context.findRenderObject() as RenderBox?;
+    final page = _pageKey.currentContext?.findRenderObject() as RenderBox?;
+    if (view == null || page == null || !view.hasSize || !page.hasSize) return global;
+    final double top = view.localToGlobal(Offset.zero).dy;
+    final double left = page.localToGlobal(Offset.zero).dx;
+    const double pad = 61; // inside the page's text column
+    return Offset(
+      global.dx.clamp(left + pad, max(left + pad, left + page.size.width - pad)),
+      global.dy.clamp(top + 1, top + view.size.height - 1),
+    );
+  }
+
+  /// Pixels per tick (16 ms) for a pointer at global [y]: zero away from the
+  /// edges, growing with the distance into (and past) the edge zone.
+  double _autoScrollStep(double y) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return 0;
+    final double top = box.localToGlobal(Offset.zero).dy, bottom = top + box.size.height;
+    const double edge = 48, maxStep = 80;
+    if (y < top + edge) return -min(maxStep, (top + edge - y) * 0.5);
+    if (y > bottom - edge) return min(maxStep, (y - (bottom - edge)) * 0.5);
+    return 0;
+  }
+
+  void _updateAutoScroll() {
+    final pos = _dragPointer;
+    if (pos == null || _autoScrollStep(pos.dy) == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    _autoScroll ??= Timer.periodic(const Duration(milliseconds: 16), (_) => _autoScrollTick());
+  }
+
+  void _stopAutoScroll() {
+    _autoScroll?.cancel();
+    _autoScroll = null;
+  }
+
+  void _autoScrollTick() {
+    final pos = _dragPointer;
+    if (!mounted || pos == null || !scroll.hasClients) {
+      _stopAutoScroll();
+      return;
+    }
+    final double step = _autoScrollStep(pos.dy);
+    if (step == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    final p = scroll.position;
+    final double to = (scroll.offset + step).clamp(p.minScrollExtent, p.maxScrollExtent);
+    if (to == scroll.offset) return;
+    scroll.jumpTo(to);
+    // Hit-test once the scrolled lines are laid out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final at = _dragPointer;
+      if (mounted && at != null) _extendDragTo(at, scrolled: true);
+    });
   }
 
   void _onPointerUp(PointerEvent e) {
+    _dragPointer = null;
+    _stopAutoScroll();
+    if (_fieldPointer && _fieldDragOut) {
+      _fieldPointer = false;
+      _fieldDragOut = false;
+      _fieldDragAnchor = null;
+      // As for a drag on static lines: bring a selection that fits into the field.
+      final sel = doc.selection;
+      if (_isWide(sel) && sel.end - sel.start <= kWindowSelectionCapChars) {
+        moveWindowTo(sel);
+      } else if (_movePending) {
+        _maybeMove();
+      }
+      return;
+    }
     if (_fieldPointer) {
       _fieldPointer = false;
       // A double click whose first click was on a static line: the window
@@ -1058,6 +1176,7 @@ class WindowedEditorState extends State<WindowedEditor> {
       height: double.infinity,
       alignment: Alignment(widget.horizontalPosition * 2 - 1, 0),
       child: Container(
+        key: _pageKey,
         width: widget.pageWidth,
         decoration: BoxDecoration(
           color: widget.theme.backgroundColor,

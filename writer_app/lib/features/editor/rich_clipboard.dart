@@ -4,10 +4,9 @@
 //
 // Native channel on macOS (MainFlutterWindow.swift) and iOS (ios/Runner/
 // AppDelegate.swift, UIPasteboard): HTML, plain text and a private markdown
-// type on one pasteboard item. Windows has an UNCOMPILED, UNTESTED C++ draft
-// (windows/runner/clipboard_channel.cpp, CF_HTML + CF_UNICODETEXT) that is not
-// in the build yet, so Windows keeps the old behaviour (markdown as plain
-// text). See docs/WINDOWS_1.1.0_HANDOFF.md.
+// type on one pasteboard item. Windows (windows/runner/clipboard_channel.cpp,
+// untested on Windows) writes CF_UNICODETEXT, "HTML Format" (CF_HTML) and a
+// private registered markdown format. See docs/WINDOWS_1.1.0_HANDOFF.md.
 
 import 'dart:io';
 
@@ -170,7 +169,8 @@ class RichClipboard {
           !Platform.environment.containsKey('FLUTTER_TEST'));
 
   /// Platforms with a native `setRich` / `getMarkdown` / `getHtml` handler.
-  static bool isSupportedOn(TargetPlatform p) => p == TargetPlatform.macOS || p == TargetPlatform.iOS;
+  static bool isSupportedOn(TargetPlatform p) =>
+      p == TargetPlatform.macOS || p == TargetPlatform.iOS || p == TargetPlatform.windows;
 
   /// Copies `[start, end)` of [text].
   static Future<void> copy(String text, int start, int end) async {
@@ -195,8 +195,8 @@ class RichClipboard {
 
   /// The HTML another app put on the clipboard (Word, a browser, mail), or null
   /// when there is none or this platform cannot read it.
-  /// macOS (NSPasteboard) and iOS (UIPasteboard, "public.html") read it natively.
-  /// TODO(item 22): Windows ("HTML Format") needs a native channel; until then it pastes plain text.
+  /// macOS (NSPasteboard), iOS (UIPasteboard, "public.html") and Windows
+  /// ("HTML Format", fragment extracted natively) read it through the channel.
   static Future<String?> readHtml() async {
     if (!isSupported) return null;
     try {

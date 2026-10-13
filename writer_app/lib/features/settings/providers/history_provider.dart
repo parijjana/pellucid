@@ -114,7 +114,7 @@ class HistoryProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> loadProjectStats(String? projectPath) async {
     if (_currentProjectPath != null && _currentProjectPath != projectPath) {
-      await saveStatsNow();
+      await saveStatsNow(remoteInBackground: true);
     }
     _currentProjectPath = projectPath;
     _initialWordCount = -1;
@@ -253,7 +253,13 @@ class HistoryProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> saveStatsNow() async {
+  /// Persists the current project's stats and today's history row.
+  ///
+  /// With [remoteInBackground] the Drive upload is started but not awaited, so
+  /// a project switch never waits on the network (it used to cost one Drive
+  /// round-trip here and a second inside [loadProjectStats]). The local files
+  /// are always written before this returns.
+  Future<void> saveStatsNow({bool remoteInBackground = false}) async {
     _persistTimer?.cancel();
     _persistTimer = null;
     _dirty = false;
@@ -264,7 +270,12 @@ class HistoryProvider extends ChangeNotifier with WidgetsBindingObserver {
           final normalizedPath = _currentProjectPath!.replaceAll('\\', '/');
           final projectName = normalizedPath.split('/').last;
           final statsJson = jsonEncode(_currentProjectStats.toJson());
-          await _syncProvider.syncStats(projectName: projectName, statsJson: statsJson);
+          final upload = _syncProvider.syncStats(projectName: projectName, statsJson: statsJson);
+          if (remoteInBackground) {
+            unawaited(upload.catchError((Object _) {}));
+          } else {
+            await upload;
+          }
         } catch (e) {
           // Silent fallback
         }

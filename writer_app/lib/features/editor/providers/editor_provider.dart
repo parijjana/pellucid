@@ -123,7 +123,16 @@ class EditorProvider extends ChangeNotifier {
   }
 
   Future<void> loadProject(String? projectPath, {bool isMirror = false}) async {
+    // A pending 2 s autosave belongs to the project we are leaving. Cancelling
+    // it without writing would drop the last keystrokes typed before a switch.
+    final pendingSave = _debounceTimer?.isActive ?? false;
+    final leavingPath = _currentProjectPath;
+    final leavingContent = _content;
+    final leavingWritable = !_documentLoadFailed && !_isMirrorProject;
     _debounceTimer?.cancel();
+    if (pendingSave && leavingPath != null && leavingWritable) {
+      await _storageService.saveDocument(leavingPath, leavingContent);
+    }
     _syncDebounceTimer?.cancel();
     _syncDebounceTimer = null;
     _syncThrottleTimer?.cancel();

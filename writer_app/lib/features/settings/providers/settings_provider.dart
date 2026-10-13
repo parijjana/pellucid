@@ -547,9 +547,16 @@ class SettingsProvider extends ChangeNotifier {
     if (_masterDirectoryPath == null) return false;
     if (!StorageService.isValidProjectName(name)) return false;
     final cleanName = name.trim();
+    final alreadyListed = _availableProjects.any((p) => p.name == cleanName);
     await _storageService.initProject(_masterDirectoryPath!, cleanName);
-    await refreshProjects();
-    await setCurrentProject(cleanName);
+    if (!alreadyListed) {
+      // Incremental add: re-reading every project's stats (and, for projects
+      // with no word count yet, their whole manuscript) just to learn about
+      // one new folder made the library size part of the cost.
+      final stats = await _storageService.readProjectStats('$_masterDirectoryPath/$cleanName');
+      _availableProjects = [..._availableProjects, ProjectInfo(name: cleanName, stats: stats)];
+    }
+    await setCurrentProject(cleanName); // notifies listeners
     return true;
   }
 

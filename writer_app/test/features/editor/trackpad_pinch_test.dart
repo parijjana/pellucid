@@ -1,3 +1,7 @@
+import 'package:pellucid/features/editor/long_document/windowed_editor.dart';
+import 'package:pellucid/features/editor/long_document/windowed_paper_area.dart';
+import 'package:pellucid/features/editor/list_marker.dart';
+import 'package:pellucid/features/editor/providers/editor_font.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,6 +103,12 @@ void main() {
 
   setUp(() {
     zoomCalls.clear();
+    when(() => mockSettings.bulletStyle).thenReturn(BulletStyle.defaultStyle);
+    when(() => mockSettings.editorFont).thenReturn(EditorFont.values.first);
+    when(() => mockSettings.grammarHintsEnabled).thenReturn(false);
+    when(() => mockSettings.smartPunctuationEnabled).thenReturn(false);
+    when(() => mockSettings.autoContinueListsEnabled).thenReturn(false);
+    when(() => mockSettings.attributionDuplicateHighlightEnabled).thenReturn(false);
     when(() => mockEditor.content)
         .thenReturn(List.generate(200, (i) => 'Line $i of text').join('\n\n'));
     when(() => mockEditor.setZoomLevel(any())).thenAnswer((inv) {
@@ -167,6 +177,18 @@ void main() {
       await tester.sendEventToBinding(pointer.panZoomEnd());
       await tester.pump();
       expect(zoomCalls.last, closeTo(1.30, 1e-9));
+    });
+
+    testWidgets('pinch works while the windowed long-document editor is shown',
+        (tester) async {
+      debugForceWindowedEditor = true;
+      addTearDown(() => debugForceWindowedEditor = false);
+      when(() => mockEditor.content).thenReturn(
+          List.generate(20000, (i) => 'Line $i of some text here').join('\n\n'));
+      await desktop(tester);
+      expect(find.byType(WindowedEditor), findsOneWidget);
+      await pinch(tester, 1.12);
+      expect(zoomCalls.last, closeTo(1.10, 1e-9));
     });
   });
 }

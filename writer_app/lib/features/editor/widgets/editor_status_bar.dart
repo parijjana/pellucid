@@ -149,12 +149,15 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
                 ),
                 if (settings.currentSessionEnabled) ...[
                   const SizedBox(width: 24),
-                  SessionTimerWidget(
-                    theme: widget.theme,
-                    current: settings.currentSessionTime,
-                    target: settings.targetSessionTime,
-                    showTarget: settings.targetSessionEnabled,
-                    isPeeked: shortcuts.isSessionPeeked,
+                  ValueListenableBuilder<Duration>(
+                    valueListenable: settings.sessionTimeListenable,
+                    builder: (context, current, _) => SessionTimerWidget(
+                      theme: widget.theme,
+                      current: current,
+                      target: settings.targetSessionTime,
+                      showTarget: settings.targetSessionEnabled,
+                      isPeeked: shortcuts.isSessionPeeked,
+                    ),
                   ),
                 ],
               ],
@@ -185,13 +188,16 @@ class _EditorStatusBarState extends State<EditorStatusBar> {
                   const SizedBox(width: 16),
                 ],
                 if (settings.focusTimerEnabled) ...[
-                  PomodoroWidget(
-                    theme: widget.theme,
-                    remaining: settings.pomodoroRemaining,
-                    isActive: settings.isPomodoroActive,
-                    onStart: settings.startPomodoro,
-                    onPause: settings.pausePomodoro,
-                    onReset: settings.resetPomodoro,
+                  ValueListenableBuilder<Duration>(
+                    valueListenable: settings.pomodoroRemainingListenable,
+                    builder: (context, remaining, _) => PomodoroWidget(
+                      theme: widget.theme,
+                      remaining: remaining,
+                      isActive: settings.isPomodoroActive,
+                      onStart: settings.startPomodoro,
+                      onPause: settings.pausePomodoro,
+                      onReset: settings.resetPomodoro,
+                    ),
                   ),
                   const SizedBox(width: 16),
                 ],

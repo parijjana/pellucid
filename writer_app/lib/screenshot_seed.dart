@@ -2,6 +2,7 @@
 // serve seeded display state without touching the real DB, disk, or network.
 // Used ONLY by lib/screenshot_main.dart. Never imported by the shipped app.
 
+import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 
 import 'features/sidebar/providers/note_card.dart';
@@ -177,6 +178,12 @@ class ScreenshotSettingsProvider extends SettingsProvider {
   bool get targetSessionEnabled => true;
   @override
   Duration get currentSessionTime => const Duration(hours: 1, minutes: 47);
+  @override
+  ValueListenable<Duration> get sessionTimeListenable =>
+      ValueNotifier(currentSessionTime);
+  @override
+  ValueListenable<Duration> get pomodoroRemainingListenable =>
+      ValueNotifier(pomodoroRemaining);
   @override
   Duration get targetSessionTime => const Duration(hours: 2, minutes: 0);
   @override

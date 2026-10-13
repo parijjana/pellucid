@@ -120,7 +120,7 @@ void main() {
         
         historyProvider.updateWordCount(180);
 
-        async.elapse(const Duration(seconds: 6));
+        async.elapse(const Duration(seconds: 31)); // throttled persist window is 30 s
 
         verify(() => mockSyncProvider.syncStats(projectName: 'path', statsJson: any(named: 'statsJson'))).called(1);
       });

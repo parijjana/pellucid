@@ -45,13 +45,16 @@ class SettingsProvider extends ChangeNotifier {
   bool _currentSessionEnabled = false;
   bool _targetSessionEnabled = false;
   Duration _targetSessionTime = const Duration(minutes: 60);
-  Duration _currentSessionTime = Duration.zero;
+  /// Per-second clocks live in their own notifiers so a tick never calls
+  /// notifyListeners on this (app-wide) provider; only the widgets that show
+  /// them listen.
+  final ValueNotifier<Duration> _sessionTime = ValueNotifier(Duration.zero);
   Timer? _sessionTimer;
 
   // Focus/Pomodoro Settings
   bool _focusTimerEnabled = false;
   final Duration _pomodoroDuration = const Duration(minutes: 25);
-  Duration _pomodoroRemaining = const Duration(minutes: 25);
+  final ValueNotifier<Duration> _pomodoroRemainingN = ValueNotifier(const Duration(minutes: 25));
   bool _isPomodoroActive = false;
   Timer? _pomodoroTimer;
 
@@ -196,9 +199,11 @@ class SettingsProvider extends ChangeNotifier {
   bool get currentSessionEnabled => _currentSessionEnabled;
   bool get targetSessionEnabled => _targetSessionEnabled;
   Duration get targetSessionTime => _targetSessionTime;
-  Duration get currentSessionTime => _currentSessionTime;
+  Duration get currentSessionTime => _sessionTime.value;
+  ValueListenable<Duration> get sessionTimeListenable => _sessionTime;
+  ValueListenable<Duration> get pomodoroRemainingListenable => _pomodoroRemainingN;
   bool get focusTimerEnabled => _focusTimerEnabled;
-  Duration get pomodoroRemaining => _pomodoroRemaining;
+  Duration get pomodoroRemaining => _pomodoroRemainingN.value;
   bool get isPomodoroActive => _isPomodoroActive;
   DateTime? get alarmTime => _alarmTime;
   bool get isAlarmTriggered => _isAlarmTriggered;
@@ -572,8 +577,9 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Timer? _alarmTimer;
   void _startAlarmChecker() {
-    Timer.periodic(const Duration(seconds: 1), (timer) {
+    _alarmTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_alarmTime != null && !_isAlarmTriggered) {
         final now = DateTime.now();
         if (now.isAfter(_alarmTime!) || now.isAtSameMomentAs(_alarmTime!)) {
@@ -597,13 +603,14 @@ class SettingsProvider extends ChangeNotifier {
     _isPomodoroActive = true;
     _pomodoroTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isWindowFocused) return;
-      if (_pomodoroRemaining.inSeconds > 0) {
-        _pomodoroRemaining -= const Duration(seconds: 1);
+      if (_pomodoroRemainingN.value.inSeconds > 0) {
+        _pomodoroRemainingN.value -= const Duration(seconds: 1);
       } else {
+        // Only the finish changes anything beyond the clock (active flag).
         _isPomodoroActive = false;
         timer.cancel();
+        notifyListeners();
       }
-      notifyListeners();
     });
     notifyListeners();
   }
@@ -616,7 +623,7 @@ class SettingsProvider extends ChangeNotifier {
 
   void resetPomodoro() {
     pausePomodoro();
-    _pomodoroRemaining = _pomodoroDuration;
+    _pomodoroRemainingN.value = _pomodoroDuration;
     notifyListeners();
   }
 
@@ -628,8 +635,7 @@ class SettingsProvider extends ChangeNotifier {
   void _startSessionTracker() {
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isWindowFocused) return;
-      _currentSessionTime += const Duration(seconds: 1);
-      notifyListeners();
+      _sessionTime.value += const Duration(seconds: 1);
     });
   }
 
@@ -675,7 +681,10 @@ class SettingsProvider extends ChangeNotifier {
   @override
   void dispose() {
     _sessionTimer?.cancel();
+    _alarmTimer?.cancel();
     _pomodoroTimer?.cancel();
+    _sessionTime.dispose();
+    _pomodoroRemainingN.dispose();
     super.dispose();
   }
 }

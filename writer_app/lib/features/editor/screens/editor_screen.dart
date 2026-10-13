@@ -44,6 +44,10 @@ import '../utils/toc_parser.dart';
 import '../../../core/platform_context.dart';
 import '../../sidebar/widgets/snapshot_management_dialog.dart';
 
+/// Test hook: how many times the editor screen has built.
+@visibleForTesting
+int editorScreenBuildCount = 0;
+
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
 
@@ -489,6 +493,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    editorScreenBuildCount++;
     final theme = context.watch<ThemeProvider>().currentTheme;
     final editorProvider = context.watch<EditorProvider>();
     final settings = context.watch<SettingsProvider>();

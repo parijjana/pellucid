@@ -19,7 +19,13 @@ abstract class EditorSpellService implements SpellCheckService {
   Future<void> ignoreWord(String word, {Locale? locale});
 }
 
-class NativeSpellCheckService implements EditorSpellService {
+/// Spell services that can produce suggestions for one word on demand, so the
+/// whole-document check does not have to (guesses cost ~15 ms per word).
+abstract class LazySuggestionService {
+  Future<List<String>> suggestionsFor(String word, {Locale? locale});
+}
+
+class NativeSpellCheckService implements EditorSpellService, LazySuggestionService {
   const NativeSpellCheckService();
 
   /// Platforms with a native handler for [_channel].
@@ -45,6 +51,8 @@ class NativeSpellCheckService implements EditorSpellService {
         {
           'text': text,
           'language': locale.languageCode,
+          // Suggestions are fetched per word when the context menu opens.
+          'withSuggestions': false,
           // Windows spell checkers are keyed by full tags ("en-GB").
           'locale': locale.toLanguageTag(),
         },
@@ -65,6 +73,20 @@ class NativeSpellCheckService implements EditorSpellService {
       }).toList();
     } catch (e) {
       return [];
+    }
+  }
+
+  @override
+  Future<List<String>> suggestionsFor(String word, {Locale? locale}) async {
+    if (!isSupported || !isLearnableWord(word)) return const [];
+    try {
+      final r = await _channel.invokeMethod<List<dynamic>>('suggest', {
+        'word': word,
+        'language': (locale ?? const Locale('en')).languageCode,
+      });
+      return r == null ? const [] : List<String>.from(r);
+    } catch (_) {
+      return const [];
     }
   }
 

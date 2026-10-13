@@ -16,6 +16,22 @@ const _newNote = '\u0000new';
 /// [documentOffset] is where the field's text starts in the document the
 /// spell checker ran on (non-zero only in the long-document editor).
 Widget buildEditorContextMenu(BuildContext context, EditableTextState editable, {int documentOffset = 0}) {
+  final driver = SpellCheckDriver.maybeOf(editable.context);
+  final sel0 = editable.textEditingValue.selection;
+  final first = driver == null || !sel0.isValid
+      ? null
+      : driver.hitAt((sel0.isCollapsed ? sel0.baseOffset : sel0.start) + documentOffset);
+  if (first == null || first.suggestions.isNotEmpty) {
+    return _buildMenu(context, editable, documentOffset, null);
+  }
+  // The check leaves suggestions out (they cost ~15 ms a word): ask for this word's.
+  return FutureBuilder<List<String>>(
+    future: driver!.suggestionsFor(first.word),
+    builder: (ctx, snap) => _buildMenu(ctx, editable, documentOffset, snap.data),
+  );
+}
+
+Widget _buildMenu(BuildContext context, EditableTextState editable, int documentOffset, List<String>? lazySuggestions) {
   final value = editable.textEditingValue;
   final sel = value.selection;
   final items = <ContextMenuButtonItem>[];
@@ -33,10 +49,11 @@ Widget buildEditorContextMenu(BuildContext context, EditableTextState editable, 
           docHit.word,
           docHit.suggestions,
         );
+  final suggestions = (hit != null && hit.suggestions.isEmpty && lazySuggestions != null) ? lazySuggestions : hit?.suggestions;
   if (driver != null &&
       hit != null &&
       (sel.isCollapsed || (sel.start >= hit.range.start && sel.end <= hit.range.end))) {
-    for (final s in hit.suggestions.take(5)) {
+    for (final s in (suggestions ?? hit.suggestions).take(5)) {
       items.add(ContextMenuButtonItem(
         label: s,
         onPressed: () {

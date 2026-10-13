@@ -46,7 +46,29 @@ class MainFlutterWindow: NSWindow {
           return
         }
         let language = args["language"] as? String ?? "en"
-        
+        let withSuggestions = args["withSuggestions"] as? Bool ?? true
+
+        // A whole manuscript has hundreds of flagged words and guesses(...) costs
+        // ~15 ms each, so the old loop froze the UI thread for many seconds.
+        // requestChecking runs the scan off the main thread; suggestions are
+        // fetched on demand ("suggest") unless the caller asks for them.
+        if !withSuggestions {
+          let length = (text as NSString).length
+          NSSpellChecker.shared.requestChecking(
+            of: text,
+            range: NSRange(location: 0, length: length),
+            types: NSTextCheckingResult.CheckingType.spelling.rawValue,
+            options: nil,
+            inSpellDocumentWithTag: 0
+          ) { _, checked, _, _ in
+            let items: [[String: Any]] = checked.map {
+              ["start": $0.range.location, "end": $0.range.location + $0.range.length, "suggestions": [String]()]
+            }
+            DispatchQueue.main.async { result(items) }
+          }
+          return
+        }
+
         let spellChecker = NSSpellChecker.shared
         var results: [[String: Any]] = []
         let nsStringText = text as NSString
@@ -79,6 +101,19 @@ class MainFlutterWindow: NSWindow {
         }
         
         result(results)
+      } else if call.method == "suggest" {
+        guard let args = call.arguments as? [String: Any],
+              let word = args["word"] as? String, !word.isEmpty,
+              word.unicodeScalars.count <= 64 else {
+          result([String]())
+          return
+        }
+        let language = args["language"] as? String ?? "en"
+        let ns = word as NSString
+        let guesses = NSSpellChecker.shared.guesses(
+          forWordRange: NSRange(location: 0, length: ns.length), in: word, language: language,
+          inSpellDocumentWithTag: 0) ?? []
+        result(guesses)
       } else if call.method == "learnWord" || call.method == "ignoreWord" {
         // One word only, as on the Dart side (isLearnableWord): 1-64 code
         // points, no whitespace or control characters. learnWord writes the

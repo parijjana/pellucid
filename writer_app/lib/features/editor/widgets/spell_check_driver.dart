@@ -200,6 +200,16 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
     return null;
   }
 
+  /// Suggestions for [word]: those the check returned, else asked of the
+  /// service on demand (the whole-document check does not compute them).
+  Future<List<String>> suggestionsFor(String word) async {
+    final cached = _suggestions[word];
+    if (cached != null && cached.isNotEmpty) return cached;
+    final svc = _service;
+    if (svc is! LazySuggestionService) return const [];
+    return (svc as LazySuggestionService).suggestionsFor(word, locale: _locale);
+  }
+
   /// Learn spelling: add [word] to the user dictionary.
   Future<void> learn(String word) async {
     _ignored.add(word.toLowerCase()); // underline goes at once, even if native fails

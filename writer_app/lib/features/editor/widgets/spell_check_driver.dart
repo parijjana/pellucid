@@ -81,7 +81,9 @@ class _SpellScope extends InheritedWidget {
 }
 
 class SpellCheckDriverState extends State<SpellCheckDriver> {
-  static const _pause = Duration(milliseconds: 400);
+  // A human pause, not the gap between keystrokes: checking a long document
+  // costs real CPU, so wait until typing has actually stopped.
+  static const _pause = Duration(milliseconds: 1500);
 
   Timer? _debounce;
   String? _checkedText;

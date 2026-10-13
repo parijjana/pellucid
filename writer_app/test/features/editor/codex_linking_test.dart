@@ -106,7 +106,7 @@ void main() {
   group('MarkdownEditingController Codex span integration', () {
     final theme = WriterTheme.presets[0];
     final Color fg = theme.foregroundColor;
-    final Color underlineColor = fg.withValues(alpha: 0.18);
+    final Color underlineColor = fg.withValues(alpha: 0.45);
     late TextStyle baseStyle;
 
     setUp(() {

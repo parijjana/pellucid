@@ -179,7 +179,7 @@ class MainFlutterWindow: NSWindow {
 /// untouched. Returns nil on any failure (the other types are still written).
 func pellucidRtfData(fromHtml html: String) -> Data? {
   let wrapped = "<html><head><meta charset=\"utf-8\"><style>"
-    + "body { font-family: -apple-system, 'Helvetica Neue'; font-size: 10pt; }"
+    + "body { font-family: -apple-system, 'Helvetica Neue'; font-size: 12px; }"
     + "</style></head><body>" + html + "</body></html>"
   guard let data = wrapped.data(using: .utf8) else { return nil }
   guard let attributed = try? NSAttributedString(

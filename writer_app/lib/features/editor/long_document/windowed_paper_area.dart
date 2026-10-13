@@ -54,7 +54,12 @@ Widget? windowedPaperArea(EditorPaperArea area) {
     index: area.codexIndex,
     notes: area.notes,
     onActivate: area.onOpenNote,
-    offsetAt: (global) => windowedEditorFor(doc)?.docOffsetAtPoint(global),
+    offsetAt: (global) {
+      // Only the per-line windows render (and scan) text here, so scan the
+      // whole document for the doc-offset lookup; cached until the next edit.
+      area.codexIndex.rangesFor(doc.text);
+      return windowedEditorFor(doc)?.docOffsetAtPoint(global);
+    },
     child: SpellCheckDriver(
       enabled: area.spellCheckEnabled,
       focusNode: area.focusNode,

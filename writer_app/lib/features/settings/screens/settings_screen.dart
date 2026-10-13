@@ -526,8 +526,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final notesProvider = context.read<NotesProvider>();
               final historyProvider = context.read<HistoryProvider>();
 
-              await historyProvider.saveStatsNow();
-              await editorProvider.flushSync(
+              await historyProvider.saveStatsNow(remoteInBackground: true);
+              editorProvider.flushSyncInBackground(
                 syncProvider: syncProvider,
                 projectName: settings.currentProjectName,
               );
@@ -547,8 +547,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final historyProvider = context.read<HistoryProvider>();
 
               if (!isActive) {
-                await historyProvider.saveStatsNow();
-                await editorProvider.flushSync(
+                await historyProvider.saveStatsNow(remoteInBackground: true);
+                editorProvider.flushSyncInBackground(
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
                 );
@@ -1210,21 +1210,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final historyProvider = context.read<HistoryProvider>();
                 final navigator = Navigator.of(context);
 
-                await historyProvider.saveStatsNow();
+                final name = controller.text;
+                // Close first: nothing below needs the dialog, and the work
+                // that follows must not keep it on screen.
+                navigator.pop();
+
+                await historyProvider.saveStatsNow(remoteInBackground: true);
                 // Upload of the old project runs in the background: creating a
                 // project must not wait on the network.
                 editorProvider.flushSyncInBackground(
                   syncProvider: syncProvider,
                   projectName: settings.currentProjectName,
                 );
-                final success = await settings.createProject(controller.text);
+                final success = await settings.createProject(name);
                 if (success && mounted) {
                   final path = settings.currentProjectPath;
                   await editorProvider.loadProject(path);
-                  await notesProvider.loadProject(path, projectName: controller.text);
+                  await notesProvider.loadProject(path, projectName: name);
                   await historyProvider.loadProjectStats(path);
-                  await settings.refreshProjects();
-                  navigator.pop();
                 }
               }
             },

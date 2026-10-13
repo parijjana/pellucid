@@ -81,7 +81,9 @@ class _SpellScope extends InheritedWidget {
 }
 
 class SpellCheckDriverState extends State<SpellCheckDriver> {
-  static const _pause = Duration(milliseconds: 400);
+  // A human pause, not the gap between keystrokes: checking a long document
+  // costs real CPU, so wait until typing has actually stopped.
+  static const _pause = Duration(milliseconds: 1500);
 
   Timer? _debounce;
   String? _checkedText;
@@ -198,6 +200,16 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
       }
     }
     return null;
+  }
+
+  /// Suggestions for [word]: those the check returned, else asked of the
+  /// service on demand (the whole-document check does not compute them).
+  Future<List<String>> suggestionsFor(String word) async {
+    final cached = _suggestions[word];
+    if (cached != null && cached.isNotEmpty) return cached;
+    final svc = _service;
+    if (svc is! LazySuggestionService) return const [];
+    return (svc as LazySuggestionService).suggestionsFor(word, locale: _locale);
   }
 
   /// Learn spelling: add [word] to the user dictionary.

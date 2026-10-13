@@ -330,7 +330,7 @@ class MarkdownEditingController extends TextEditingController {
 
     final TextStyle mentionStyle = baseStyle.copyWith(
       decoration: TextDecoration.underline,
-      decorationColor: theme.foregroundColor.withValues(alpha: 0.18),
+      decorationColor: theme.foregroundColor.withValues(alpha: 0.45),
       decorationThickness: 1.0,
     );
     final int segEnd = absOffset + segment.length;

@@ -318,6 +318,16 @@ class WindowedEditorState extends State<WindowedEditor> {
     _load(planWindow(buffer, sel.start, sel.end), sel);
     window.addListener(_onWindowChanged);
     doc.addListener(_onDocChanged);
+    // The editor swapped in while the writer was typing (a paste carried a
+    // short document over the threshold): the focus node already has focus,
+    // so the new field never sees a focus change and would not open its input
+    // connection. Without one every keystroke is dropped until the next click.
+    if (widget.focusNode.hasFocus) WidgetsBinding.instance.addPostFrameCallback((_) => _reattachInput());
+  }
+
+  void _reattachInput() {
+    if (!mounted || !widget.focusNode.hasFocus) return;
+    widget.focusNode.context?.findAncestorStateOfType<EditableTextState>()?.requestKeyboard();
   }
 
   @override

@@ -117,8 +117,8 @@ class MacMenuBarWrapper extends StatelessWidget {
     final historyProvider = context.read<HistoryProvider>();
 
     // 1. Flush/save current project stats and sync
-    await historyProvider.saveStatsNow();
-    await editorProvider.flushSync(
+    await historyProvider.saveStatsNow(remoteInBackground: true);
+    editorProvider.flushSyncInBackground(
       syncProvider: syncProvider,
       projectName: settings.currentProjectName,
     );
@@ -141,7 +141,7 @@ class MacMenuBarWrapper extends StatelessWidget {
     final historyProvider = context.read<HistoryProvider>();
 
     // 1. Flush/save current project stats and sync
-    await historyProvider.saveStatsNow();
+    await historyProvider.saveStatsNow(remoteInBackground: true);
     // (the upload runs in the background; creating must not wait on the network)
     editorProvider.flushSyncInBackground(
       syncProvider: syncProvider,

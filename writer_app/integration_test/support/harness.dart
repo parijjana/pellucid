@@ -73,6 +73,11 @@ Future<void> assertIsolated() async {
   print('E2E|isolation|app support dir = $support');
 }
 
+void step(String s) {
+  // ignore: avoid_print
+  print('STEP|${DateTime.now().toIso8601String().substring(11, 23)}|$s');
+}
+
 /// The fixture is expensive to build; share one.
 final Fixture fixture = buildFixture();
 
@@ -99,6 +104,24 @@ class Rig {
   TextSelection get sel => doc.selection;
   FocusNode get focus => win.widget.focusNode;
 
+  /// Document equals [expected], reporting only the first difference (never the 600 kB).
+  void expectDoc(String expected, String reason) {
+    final actual = doc.text;
+    if (actual == expected) return;
+    int i = 0;
+    final n = actual.length < expected.length ? actual.length : expected.length;
+    while (i < n && actual.codeUnitAt(i) == expected.codeUnitAt(i)) {
+      i++;
+    }
+    String snip(String t) {
+      final a = (i - 30).clamp(0, t.length), b = (i + 40).clamp(0, t.length);
+      return t.substring(a, b).replaceAll('\n', r'\n');
+    }
+
+    fail('$reason: document differs at $i (len ${actual.length} vs expected ${expected.length}); '
+        'actual "...${snip(actual)}..." expected "...${snip(expected)}..."');
+  }
+
   Future<void> pump([int frames = 3]) async {
     for (int i = 0; i < frames; i++) {
       await tester.pump(const Duration(milliseconds: 16));
@@ -107,10 +130,13 @@ class Rig {
 
   /// Scrolls so [offset] is a third down the view (as Find and the TOC do).
   Future<void> reveal(int offset, {double fraction = 1 / 3}) async {
-    final f = win.revealOffset(offset, fraction: fraction, duration: Duration.zero);
-    for (int i = 0; i < 6; i++) {
+    step('reveal $offset');
+    bool done = false;
+    final f = win.revealOffset(offset, fraction: fraction, duration: Duration.zero).then((_) => done = true);
+    for (int i = 0; i < 80 && !done; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
+    if (!done) throw StateError('reveal($offset) did not finish in 80 frames');
     await f;
     await pump();
   }
@@ -174,13 +200,13 @@ class Rig {
 
   /// What the platform does for typed text: a new value on the field.
   Future<void> typeText(String s, {int gapMs = 30}) async {
+    step('typeText');
     for (final ch in s.characters) {
-      final st = tester.testTextInput.editingState!;
-      final cur = st['text'] as String;
-      final b = st['selectionBase'] as int;
-      final e = st['selectionExtent'] as int;
+      // The field's own current value (the test input channel's editingState goes stale).
+      final v = win.window.value;
+      final b = v.selection.baseOffset, e = v.selection.extentOffset;
       final lo = b < e ? b : e, hi = b < e ? e : b;
-      final next = cur.replaceRange(lo, hi, ch);
+      final next = v.text.replaceRange(lo, hi, ch);
       tester.testTextInput.updateEditingValue(
           TextEditingValue(text: next, selection: TextSelection.collapsed(offset: lo + ch.length)));
       await tester.pump(Duration(milliseconds: gapMs));
@@ -189,6 +215,7 @@ class Rig {
 
   Future<void> key(LogicalKeyboardKey k,
       {bool meta = false, bool shift = false, bool alt = false, bool ctrl = false}) async {
+    step('key ${k.keyLabel} meta=$meta shift=$shift');
     if (meta) await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     if (alt) await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
@@ -204,6 +231,7 @@ class Rig {
   /// Puts the caret at [offset] by setting the document selection (as Find /
   /// a jump does) and gives the editor focus.
   Future<void> placeCaret(int offset) async {
+    step('placeCaret $offset');
     doc.selection = TextSelection.collapsed(offset: offset);
     await pump(4);
     focus.requestFocus();
@@ -221,6 +249,7 @@ class Rig {
   Future<void> dispose() async {
     await tester.pumpWidget(const SizedBox());
     settings.dispose();
+    tester.testTextInput.unregister();
     debugDefaultTargetPlatformOverride = null;
   }
 
@@ -236,8 +265,13 @@ class Rig {
 /// fixture by default) and a codex note "Darcy".
 Future<Rig> mount(WidgetTester tester,
     {String? text, Size size = const Size(1400, 900), bool spell = false, bool codex = false}) async {
+  step('mount start');
   await assertIsolated();
   debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  // The integration binding talks to the real macOS text-input plugin; to drive composing text and
+  // typing deterministically the platform channel is replaced by the test text-input harness. The
+  // widget tree above it (EditableText, formatters, the windowed editor) is the real one.
+  tester.testTextInput.register();
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -307,6 +341,7 @@ Future<Rig> mount(WidgetTester tester,
   for (int i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
+  step('mount pumped');
   rig = Rig._(tester, fx, root, projectPath, editor, settings, search, notes, shortcuts,
       ActiveEditor.controller! as MarkdownEditingController, darcy.id, clip, clipboard);
   // Keep the rig's clipboard view live.
@@ -399,5 +434,5 @@ void check(String name, Future<void> Function(WidgetTester tester) body, {String
     }
     // ignore: avoid_print
     print('XFAIL|$name|$knownBug|${failure.toString().split('\n').first}');
-  }, timeout: const Timeout(Duration(minutes: 6)));
+  }, timeout: const Timeout(Duration(seconds: 150)));
 }

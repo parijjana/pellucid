@@ -39,10 +39,10 @@ for p in prints:
 rows = OrderedDict()
 for tid, (res, skipped) in results.items():
     name = names.get(tid, "?")
-    m = re.match(r"(?:.*?)Check (\d+)", name)
+    m = re.match(r"(?:.*?)Check (\w+)", name)
     if not m:
         continue
-    num = int(m.group(1))
+    num = m.group(1)
     if skipped:
         status = "SKIP"
     elif name in xfail:
@@ -55,12 +55,12 @@ for tid, (res, skipped) in results.items():
 
 print("\n==== RESULTS BY CHECK ====")
 bad = 0
-for num in sorted(rows):
+for num in sorted(rows, key=lambda k: (0, int(k)) if k.isdigit() else (1, k)):
     sts = [r[0] for r in rows[num]]
     agg = "FAIL" if "FAIL" in sts else ("XFAIL" if "XFAIL" in sts else ("SKIP" if all(s == "SKIP" for s in sts) else "PASS"))
     if agg == "FAIL":
         bad += 1
-    print(f"Check {num:>2}  {agg:<6}")
+    print(f"Check {num:>5}  {agg:<6}")
     for st, name, why in rows[num]:
         print(f"           {st:<6} {name}" + (f"\n                  {why}" if why else ""))
 

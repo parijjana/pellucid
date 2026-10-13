@@ -10,6 +10,8 @@ import 'package:integration_test/integration_test.dart';
 import 'package:pellucid/features/editor/hidden_markers.dart';
 import 'package:pellucid/features/editor/long_document/windowed_editor.dart';
 
+import 'checks/checks_nav.dart';
+import 'checks/checks_perf.dart';
 import 'support/harness.dart';
 
 void main() {
@@ -359,4 +361,7 @@ void main() {
     handle.dispose();
     await rig.dispose();
   });
+
+  registerNavChecks();
+  registerPerfChecks();
 }

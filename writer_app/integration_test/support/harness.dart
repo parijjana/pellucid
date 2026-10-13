@@ -40,6 +40,7 @@ import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/sync/services/token_store.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fixture.dart';
@@ -246,7 +247,12 @@ class Rig {
     }
   }
 
+  bool _disposed = false;
+
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _live = null;
     await tester.pumpWidget(const SizedBox());
     settings.dispose();
     tester.testTextInput.unregister();
@@ -263,12 +269,44 @@ class Rig {
 
 /// Mounts a fresh EditorScreen over a fresh temp project holding [text] (the
 /// fixture by default) and a codex note "Darcy".
+bool _windowSized = false;
+bool _printedSize = false;
+
+/// Resizes this test app's own window once. The view's size is NOT overridden through tester.view:
+/// a faked size makes the engine drop most rasterised frames (raster time reads 0), which would
+/// make the frame-timing numbers meaningless.
+Future<void> ensureWindowSize(WidgetTester tester, Size logical) async {
+  if (!_windowSized) {
+    _windowSized = true;
+    try {
+      await windowManager.ensureInitialized();
+      await windowManager.setSize(logical);
+      await windowManager.center();
+    } catch (e) {
+      // ignore: avoid_print
+      print('EVID|window|could not resize the test window: $e');
+    }
+    for (int i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+  final v = tester.view;
+  // ignore: avoid_print
+  if (!_printedSize) print('EVID|window|logical size ${v.physicalSize.width / v.devicePixelRatio} x ${v.physicalSize.height / v.devicePixelRatio} at dpr ${v.devicePixelRatio}');
+  _printedSize = true;
+}
+
+Rig? _live;
+
 final List<Directory> createdRoots = [];
+
+/// What Pellucid's rich copy put on the (mocked) pasteboard.
+final Map<String, String> richClipboard = {};
 
 /// [reuse]: an existing temp root from an earlier mount (reopen the same project from disk).
 Future<Rig> mount(WidgetTester tester,
     {String? text,
-    Size size = const Size(1400, 900),
+    Size size = const Size(1280, 800),
     bool spell = false,
     bool codex = false,
     bool typewriter = false,
@@ -280,9 +318,7 @@ Future<Rig> mount(WidgetTester tester,
   // typing deterministically the platform channel is replaced by the test text-input harness. The
   // widget tree above it (EditableText, formatters, the windowed editor) is the real one.
   tester.testTextInput.register();
-  tester.view.physicalSize = size;
-  tester.view.devicePixelRatio = 1;
-  addTearDown(tester.view.reset);
+  await ensureWindowSize(tester, size);
 
   final fx = fixture;
   final Directory root = reuse ?? await Directory.systemTemp.createTemp('pellucid_e2e_');
@@ -322,6 +358,7 @@ Future<Rig> mount(WidgetTester tester,
   // In-memory pasteboard: never touch the owner's clipboard.
   final clip = <String>[];
   late Rig rig;
+  richClipboard.clear();
   String clipboard = '';
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
     if (call.method == 'Clipboard.setData') {
@@ -335,6 +372,25 @@ Future<Rig> mount(WidgetTester tester,
   });
   tester.binding.defaultBinaryMessenger
       .setMockMethodCallHandler(const MethodChannel('dev.fluttercommunity.plus/charging'), (_) async => null);
+  // Pellucid's own rich-clipboard channel writes the REAL NSPasteboard on macOS; replace it with a store.
+  tester.binding.defaultBinaryMessenger
+      .setMockMethodCallHandler(const MethodChannel('com.overengineeredhobbies.pellucid/clipboard'), (call) async {
+    switch (call.method) {
+      case 'setRich':
+        final a = call.arguments as Map;
+        richClipboard
+          ..['plain'] = a['plain'] as String? ?? ''
+          ..['markdown'] = a['markdown'] as String? ?? ''
+          ..['html'] = a['html'] as String? ?? '';
+        clipboard = richClipboard['markdown']!;
+        return null;
+      case 'getMarkdown':
+        return richClipboard['markdown'];
+      case 'getHtml':
+        return null;
+    }
+    return null;
+  });
 
   await tester.pumpWidget(MultiProvider(
     providers: [
@@ -356,12 +412,13 @@ Future<Rig> mount(WidgetTester tester,
   step('mount pumped');
   rig = Rig._(tester, fx, root, projectPath, editor, settings, search, notes, shortcuts,
       ActiveEditor.controller! as MarkdownEditingController, darcy.id, clip, clipboard);
-  // Keep the rig's clipboard view live.
+  _live = rig;
   return rig;
 }
 
 extension RigClipboard on Rig {
-  Future<String> readClipboard() async => (await Clipboard.getData('text/plain'))?.text ?? '';
+  /// The markdown of the last rich copy/cut (falls back to the plain system clipboard mock).
+  Future<String> readClipboard() async => richClipboard['markdown'] ?? (await Clipboard.getData('text/plain'))?.text ?? '';
 }
 
 // ---------------------------------------------------------------- timing ---
@@ -431,20 +488,28 @@ class FrameRecorder {
 /// app bug: it passes while the bug exists and fails (loudly) once fixed.
 void check(String name, Future<void> Function(WidgetTester tester) body, {String? knownBug}) {
   testWidgets(name, (tester) async {
-    if (knownBug == null) {
-      await body(tester);
-      return;
-    }
     Object? failure;
+    StackTrace? trace;
     try {
       await body(tester);
-    } catch (e) {
+    } catch (e, st) {
       failure = e;
+      trace = st;
+    }
+    // Always leave the app tree, the text-input mock and the platform override as found, so a failing
+    // (or expected-failing) check cannot poison the ones after it.
+    try {
+      await _live?.dispose();
+    } catch (_) {}
+    debugDefaultTargetPlatformOverride = null;
+    if (knownBug == null) {
+      if (failure != null) Error.throwWithStackTrace(failure, trace!);
+      return;
     }
     if (failure == null) {
       fail('XFAIL test passed unexpectedly: the app bug may be fixed ($knownBug)');
     }
     // ignore: avoid_print
-    print('XFAIL|$name|$knownBug|${failure.toString().split('\n').first}');
-  }, timeout: const Timeout(Duration(seconds: 150)));
+    print('XFAIL|$name|$knownBug|${failure.toString().split('\n').take(3).join(' ')}');
+  }, timeout: const Timeout(Duration(seconds: 240)));
 }

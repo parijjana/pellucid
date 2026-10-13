@@ -70,3 +70,6 @@ writer_app/store_submission
 # template. It has to live in lib/ because its imports are lib-rooted, but it
 # is a throwaway and does not belong in the repo.
 writer_app/lib/screenshot_main_p3.dart
+
+# Test fixtures are data, not build output.
+!writer_app/test/fixtures/*.html

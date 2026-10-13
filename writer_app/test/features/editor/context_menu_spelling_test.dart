@@ -2,9 +2,12 @@
 // context menu (backlog item 4), against a fake spell service. Codex names are
 // known words.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pellucid/features/editor/marker_aware_editing.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
 import 'package:pellucid/features/editor/services/native_spell_check_service.dart';
 import 'package:pellucid/features/editor/widgets/editor_context_menu.dart';
@@ -177,6 +180,50 @@ void main() {
     expect(find.text('Add to attributions'), findsOneWidget);
     expect(find.text('Copy'), findsOneWidget);
     expect(find.text('Cut'), findsOneWidget);
+  }, variant: macOnly);
+
+  testWidgets('Paste is in the very first menu build, whatever the clipboard probe says', (tester) async {
+    // The clipboard probe never answers (a slow promised pasteboard), then says
+    // "empty": the menu must not wait for it nor change shape afterwards.
+    final probe = Completer<Map<String, dynamic>>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.hasStrings') return probe.future;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    var builds = 0;
+    final shapes = <String>[];
+    controller = MarkdownEditingController(text: text, theme: WriterTheme.presets.first);
+    focus = FocusNode();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: TextField(
+          controller: controller,
+          focusNode: focus,
+          maxLines: null,
+          contextMenuBuilder: (c, s) {
+            builds++;
+            shapes.add(MarkerAwareEditing.routedButtonItems(s).map((i) => i.type.name).join(','));
+            return buildEditorContextMenu(c, s);
+          },
+        ),
+      ),
+    ));
+    await openMenu(tester, const TextSelection.collapsed(offset: 3));
+    expect(find.text('Paste'), findsOneWidget, reason: 'present before the probe answers');
+    expect(find.text('Paste as plain text'), findsOneWidget);
+    final before = builds;
+    probe.complete({'value': false});
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Paste'), findsOneWidget, reason: 'stays when the clipboard is empty');
+    expect(shapes.toSet().length, 1, reason: 'menu content never changed: $shapes');
+    expect(builds - before, lessThanOrEqualTo(1));
+    // Pressing Paste on an empty clipboard is a harmless no-op.
+    await tester.tap(find.text('Paste'));
+    await tester.pump();
+    expect(controller.text, text);
   }, variant: macOnly);
 
   test('codexKnownWords splits titles into lower-case words and skips attributions', () {

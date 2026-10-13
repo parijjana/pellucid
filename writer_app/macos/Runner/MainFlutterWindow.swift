@@ -126,6 +126,10 @@ class MainFlutterWindow: NSWindow {
         item.setString(plain, forType: .string)
         item.setString("<meta charset=\"utf-8\">" + html, forType: .html)
         item.setString(markdown, forType: markdownType)
+        // Apple Pages (and TextEdit) read RTF, not public.html, for rich paste.
+        if let rtf = pellucidRtfData(fromHtml: html) {
+          item.setData(rtf, forType: .rtf)
+        }
         pasteboard.writeObjects([item])
         result(nil)
       case "getMarkdown":
@@ -165,3 +169,28 @@ class MainFlutterWindow: NSWindow {
     return nil
   }
 }
+
+
+// BEGIN pellucidRtf
+/// RTF for the copied HTML, so Pages/TextEdit keep formatting. The wrapper's
+/// font style applies to this conversion only; the HTML on the pasteboard is
+/// untouched. Returns nil on any failure (the other types are still written).
+func pellucidRtfData(fromHtml html: String) -> Data? {
+  let wrapped = "<html><head><meta charset=\"utf-8\"><style>"
+    + "body { font-family: -apple-system, 'Helvetica Neue'; font-size: 10pt; }"
+    + "</style></head><body>" + html + "</body></html>"
+  guard let data = wrapped.data(using: .utf8) else { return nil }
+  guard let attributed = try? NSAttributedString(
+    data: data,
+    options: [
+      .documentType: NSAttributedString.DocumentType.html,
+      .characterEncoding: String.Encoding.utf8.rawValue,
+    ],
+    documentAttributes: nil
+  ), attributed.length > 0 else { return nil }
+  return attributed.rtf(
+    from: NSRange(location: 0, length: attributed.length),
+    documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+  )
+}
+// END pellucidRtf

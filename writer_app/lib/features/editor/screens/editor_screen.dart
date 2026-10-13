@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../word_count.dart';
 import '../caret_formatting.dart';
@@ -667,6 +668,17 @@ class _EditorScreenState extends State<EditorScreen> {
                                           onScaleUpdate: _onScaleUpdate,
                                           child: paperArea,
                                         );
+                                      } else {
+                                        // Desktop: trackpad pinch arrives as
+                                        // pan/zoom pointer events. A plain
+                                        // Listener stays out of the gesture
+                                        // arena, so it cannot steal text
+                                        // selection drags or scrolling.
+                                        paperArea = Listener(
+                                          onPointerPanZoomStart: _onTrackpadPanZoomStart,
+                                          onPointerPanZoomUpdate: _onTrackpadPanZoomUpdate,
+                                          child: paperArea,
+                                        );
                                       }
                                       return paperArea;
                                     },
@@ -967,8 +979,22 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (details.pointerCount > 1 && details.scale != 1.0) {
-      context.read<EditorProvider>().setZoomLevel(_initialScaleZoom * details.scale);
+    if (details.pointerCount > 1) _applyPinchScale(details.scale);
+  }
+
+  void _onTrackpadPanZoomStart(PointerPanZoomStartEvent event) {
+    _initialScaleZoom = context.read<EditorProvider>().zoomLevel;
+  }
+
+  void _onTrackpadPanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    _applyPinchScale(event.scale);
+  }
+
+  /// Shared by touch pinch and trackpad pinch; a scale of exactly 1.0 means a
+  /// pure pan (two-finger scroll) and must not touch the zoom.
+  void _applyPinchScale(double scale) {
+    if (scale != 1.0) {
+      context.read<EditorProvider>().setZoomLevel(_initialScaleZoom * scale);
     }
   }
 }

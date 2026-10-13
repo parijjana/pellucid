@@ -42,7 +42,7 @@ class DailyStats {
   }
 }
 
-class HistoryProvider extends ChangeNotifier {
+class HistoryProvider extends ChangeNotifier with WidgetsBindingObserver {
   final SettingsDatabase _db;
   final StorageService _storageService;
   final SyncProvider? _syncProvider;
@@ -65,6 +65,27 @@ class HistoryProvider extends ChangeNotifier {
         _syncProvider = syncProvider {
     _loadHistoryFromDB();
     _startMetricsTracker();
+    try {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+    } catch (_) {
+      // No binding (plain unit tests): lifecycle flush is simply unavailable.
+    }
+  }
+
+  bool _observing = false;
+
+  /// How often the in-memory counters are written out while the user keeps
+  /// working. Blur, app pause, project switch and dispose flush immediately.
+  static const Duration persistInterval = Duration(seconds: 30);
+
+  /// Today's editor time, ticking every second. Listen to this (not the
+  /// provider) to show it live, so a tick never rebuilds a whole screen.
+  final ValueNotifier<Duration> editorTimeToday = ValueNotifier(Duration.zero);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _flushIfDirty();
   }
 
   List<DailyStats> get history => List.unmodifiable(_history);
@@ -82,6 +103,7 @@ class HistoryProvider extends ChangeNotifier {
         _history.insert(0, newToday);
         return newToday;
       });
+    editorTimeToday.value = _todayStats!.editorTime;
     notifyListeners();
   }
 
@@ -148,11 +170,15 @@ class HistoryProvider extends ChangeNotifier {
   }
 
   void setEditorFocus(bool focused) {
+    final lost = _isEditorFocused && !focused;
     _isEditorFocused = focused;
+    if (lost) _flushIfDirty();
   }
 
   void setNotesFocus(bool focused) {
+    final lost = _isNotesFocused && !focused;
     _isNotesFocused = focused;
+    if (lost) _flushIfDirty();
   }
 
   void _startMetricsTracker() {
@@ -171,45 +197,30 @@ class HistoryProvider extends ChangeNotifier {
             totalTimeSpent: _currentProjectStats.totalTimeSpent + const Duration(seconds: 1),
           );
         }
-        _autoSaveToDB();
-        _autoSaveProjectStats();
-        notifyListeners();
+        // A tick only touches memory: no notifyListeners (nothing rebuilds on
+        // the clock) and no write; persistence is throttled by _markDirty.
+        editorTimeToday.value = _todayStats!.editorTime;
+        _markDirty();
       }
     });
   }
 
-  Timer? _dbDebouncer;
-  void _autoSaveToDB() {
-    _dbDebouncer?.cancel();
-    _dbDebouncer = Timer(const Duration(seconds: 10), () {
-      if (_todayStats != null) {
-        _db.upsertHistory(
-          _todayStats!.date, 
-          _todayStats!.editorTime.inSeconds, 
-          _todayStats!.notesTime.inSeconds, 
-          _todayStats!.wordCountDelta
-        );
-      }
+  bool _dirty = false;
+  Timer? _persistTimer;
+
+  /// Records that memory is ahead of storage and makes sure a write happens
+  /// within [persistInterval]. Repeated calls do not postpone that write.
+  void _markDirty() {
+    _dirty = true;
+    _persistTimer ??= Timer(persistInterval, () {
+      _persistTimer = null;
+      _flushIfDirty();
     });
   }
 
-  Timer? _statsDebouncer;
-  void _autoSaveProjectStats() {
-    if (_currentProjectPath == null) return;
-    _statsDebouncer?.cancel();
-    _statsDebouncer = Timer(const Duration(seconds: 5), () async {
-      await _storageService.saveProjectStats(_currentProjectPath!, _currentProjectStats);
-      if (_syncProvider != null && _syncProvider.isLoggedIn) {
-        try {
-          final normalizedPath = _currentProjectPath!.replaceAll('\\', '/');
-          final projectName = normalizedPath.split('/').last;
-          final statsJson = jsonEncode(_currentProjectStats.toJson());
-          await _syncProvider.syncStats(projectName: projectName, statsJson: statsJson);
-        } catch (e) {
-          // Silent fallback
-        }
-      }
-    });
+  void _flushIfDirty() {
+    if (!_dirty) return;
+    unawaited(saveStatsNow().catchError((_) {}));
   }
 
   int _initialWordCount = -1;
@@ -226,8 +237,7 @@ class HistoryProvider extends ChangeNotifier {
     
     _currentProjectStats = _currentProjectStats.copyWith(totalWordCount: count);
     
-    _autoSaveToDB();
-    _autoSaveProjectStats();
+    _markDirty();
     notifyListeners();
   }
 
@@ -239,13 +249,14 @@ class HistoryProvider extends ChangeNotifier {
       totalTimeSpent: _currentProjectStats.totalTimeSpent,
       wordGoal: (goal != null && goal > 0) ? goal : null,
     );
-    _autoSaveProjectStats();
+    _markDirty();
     notifyListeners();
   }
 
   Future<void> saveStatsNow() async {
-    _statsDebouncer?.cancel();
-    _dbDebouncer?.cancel();
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    _dirty = false;
     if (_currentProjectPath != null) {
       await _storageService.saveProjectStats(_currentProjectPath!, _currentProjectStats);
       if (_syncProvider != null && _syncProvider.isLoggedIn) {
@@ -272,8 +283,10 @@ class HistoryProvider extends ChangeNotifier {
   @override
   void dispose() {
     _metricsTimer?.cancel();
-    _dbDebouncer?.cancel();
-    _statsDebouncer?.cancel();
+    _persistTimer?.cancel();
+    if (_observing) WidgetsBinding.instance.removeObserver(this);
+    _flushIfDirty();
+    editorTimeToday.dispose();
     super.dispose();
   }
 }

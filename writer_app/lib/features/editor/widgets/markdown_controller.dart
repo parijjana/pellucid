@@ -719,119 +719,24 @@ class MarkdownEditingController extends TextEditingController {
       return;
     }
 
-    final selectedText = text.substring(selection.start, selection.end);
-    
     if (tag.endsWith(' ') || tag == 'body') {
       // Line-based formatting (Title, Heading, Subheading, Bullet, Body)
       _toggleLineFormat(tag);
     } else {
       // Selection-based formatting (Bold, Italic)
-      _toggleSelectionFormat(tag, selectedText);
+      _toggleSelectionFormat(tag);
     }
   }
 
-  void _toggleSelectionFormat(String tag, String selectedText) {
+  void _toggleSelectionFormat(String tag) {
     final selection = this.selection;
-    final ranges = _findFormatRanges(text, 0);
-    final activeRange = _findActiveRangeForTag(ranges, tag, selection.start, selection.end);
-
-    String newText;
-    int newStart;
-    int newEnd;
-
-    if (activeRange != null) {
-      // Remove formatting
-      final r = activeRange;
-      if (r.tag == tag) {
-        // Simple remove
-        final prefixLen = r.contentStart - r.start;
-        newText = text.replaceRange(r.contentEnd, r.end, '');
-        newText = newText.replaceRange(r.start, r.contentStart, '');
-        newStart = selection.start - prefixLen;
-        newEnd = selection.end - prefixLen;
-      } else if (r.tag == '***' && tag == '**') {
-        // Convert *** to * (Remove Bold, keep Italic)
-        newText = text.replaceRange(r.contentEnd, r.end, '*');
-        newText = newText.replaceRange(r.start, r.contentStart, '*');
-        newStart = selection.start - 2; // prefix *** (3) to * (1) -> shifted by 2
-        newEnd = selection.end - 2;
-      } else if (r.tag == '***' && tag == '*') {
-        // Convert *** to ** (Remove Italic, keep Bold)
-        newText = text.replaceRange(r.contentEnd, r.end, '**');
-        newText = newText.replaceRange(r.start, r.contentStart, '**');
-        newStart = selection.start - 1; // prefix *** (3) to ** (2) -> shifted by 1
-        newEnd = selection.end - 1;
-      } else {
-        newText = text;
-        newStart = selection.start;
-        newEnd = selection.end;
-      }
-    } else {
-      // Add formatting
-      final endTag = tag == '<u>' ? '</u>' : tag;
-      newText = text.replaceRange(selection.start, selection.end, '$tag$selectedText$endTag');
-      newStart = selection.start + tag.length;
-      newEnd = selection.end + tag.length;
-    }
-
+    final toggle = toggleInlineOnSelection(text, selection.start, selection.end, tag);
+    if (toggle == null) return;
     value = value.copyWith(
-      text: newText,
-      selection: TextSelection(
-        baseOffset: newStart.clamp(0, newText.length),
-        extentOffset: newEnd.clamp(0, newText.length),
-      ),
+      text: toggle.text,
+      selection: TextSelection(baseOffset: toggle.start, extentOffset: toggle.end),
+      composing: TextRange.empty,
     );
-  }
-
-  List<_FormatRange> _findFormatRanges(String text, int offset) {
-    final List<_FormatRange> ranges = [];
-    _findRangesRecursive(text, offset, ranges);
-    return ranges;
-  }
-
-  void _findRangesRecursive(String text, int offset, List<_FormatRange> ranges) {
-    final regex = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|<u>.*?</u>|~~.*?~~)');
-    final matches = regex.allMatches(text);
-    
-    for (final match in matches) {
-      final matchText = match.group(0)!;
-      final matchStart = offset + match.start;
-      final matchEnd = offset + match.end;
-      
-      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
-        ranges.add(_FormatRange('***', matchStart, matchStart + 3, matchEnd - 3, matchEnd));
-        _findRangesRecursive(matchText.substring(3, matchText.length - 3), matchStart + 3, ranges);
-      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
-        ranges.add(_FormatRange('**', matchStart, matchStart + 2, matchEnd - 2, matchEnd));
-        _findRangesRecursive(matchText.substring(2, matchText.length - 2), matchStart + 2, ranges);
-      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
-        ranges.add(_FormatRange('*', matchStart, matchStart + 1, matchEnd - 1, matchEnd));
-        _findRangesRecursive(matchText.substring(1, matchText.length - 1), matchStart + 1, ranges);
-      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
-        ranges.add(_FormatRange('~~', matchStart, matchStart + 2, matchEnd - 2, matchEnd));
-        _findRangesRecursive(matchText.substring(2, matchText.length - 2), matchStart + 2, ranges);
-      } else if (matchText.startsWith('<u>') && matchText.endsWith('</u>') && matchText.length >= 7) {
-        ranges.add(_FormatRange('<u>', matchStart, matchStart + 3, matchEnd - 4, matchEnd));
-        _findRangesRecursive(matchText.substring(3, matchText.length - 4), matchStart + 3, ranges);
-      }
-    }
-  }
-
-  _FormatRange? _findActiveRangeForTag(List<_FormatRange> ranges, String targetTag, int selStart, int selEnd) {
-    for (final r in ranges) {
-      if (selStart >= r.contentStart && selEnd <= r.contentEnd) {
-        if (r.tag == targetTag) {
-          return r;
-        }
-        if (targetTag == '**' && r.tag == '***') {
-          return r;
-        }
-        if (targetTag == '*' && r.tag == '***') {
-          return r;
-        }
-      }
-    }
-    return null;
   }
 
   void _toggleLineFormat(String tag) {
@@ -911,16 +816,6 @@ class MarkdownEditingController extends TextEditingController {
     value = next;
     return true;
   }
-}
-
-class _FormatRange {
-  final String tag;
-  final int start;
-  final int contentStart;
-  final int contentEnd;
-  final int end;
-  
-  _FormatRange(this.tag, this.start, this.contentStart, this.contentEnd, this.end);
 }
 
 /// One line's spans plus the line-relative state they were built from:

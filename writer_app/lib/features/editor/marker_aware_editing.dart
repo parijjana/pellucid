@@ -69,7 +69,30 @@ class MarkerAwareEditing extends StatelessWidget {
   /// The field's default cut/copy/paste/select-all items, with cut, copy and
   /// paste routed through [markerCopy] / [markerPaste]. The editor's own menu
   /// (editor_context_menu.dart) builds on these.
+  ///
+  /// Paste is ALWAYS present (unless read-only). The field only lists Paste once
+  /// its async clipboard probe has answered, so the menu would first build
+  /// without it and then rebuild with it a frame or more later: a visible
+  /// flicker, and a longer one when the probe is slow. The press handler reads
+  /// the clipboard itself and does nothing when it is empty.
   static List<ContextMenuButtonItem> routedButtonItems(EditableTextState state) {
+    final items = _routed(state);
+    if (!state.widget.readOnly && !items.any((i) => i.type == ContextMenuButtonType.paste)) {
+      final at = items.indexWhere((i) => i.type == ContextMenuButtonType.selectAll);
+      items.insert(at < 0 ? items.length : at, _pasteItem(state));
+    }
+    return items;
+  }
+
+  static ContextMenuButtonItem _pasteItem(EditableTextState state) => ContextMenuButtonItem(
+        type: ContextMenuButtonType.paste,
+        onPressed: () {
+          markerPaste(state, SelectionChangedCause.toolbar);
+          state.hideToolbar();
+        },
+      );
+
+  static List<ContextMenuButtonItem> _routed(EditableTextState state) {
     return [
       for (final item in state.contextMenuButtonItems)
         switch (item.type) {

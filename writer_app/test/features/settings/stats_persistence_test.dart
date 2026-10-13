@@ -91,6 +91,49 @@ void main() {
       });
     });
 
+    test('persistence is throttled to 30 s while focused, and flushed on blur with no lost seconds', () {
+      fakeAsync((async) {
+        historyProvider = HistoryProvider(
+          settingsDatabase: mockSettingsDatabase,
+          storageService: mockStorageService,
+        );
+        historyProvider.loadProjectStats('/test/path');
+        async.flushMicrotasks();
+        clearInteractions(mockSettingsDatabase);
+        clearInteractions(mockStorageService);
+
+        historyProvider.setEditorFocus(true);
+        async.elapse(const Duration(seconds: 29));
+        verifyNever(() => mockSettingsDatabase.upsertHistory(any(), any(), any(), any()));
+        verifyNever(() => mockStorageService.saveProjectStats(any(), any()));
+
+        // The 30 s window opens at the first tick (t=1), so it closes at t=31.
+        async.elapse(const Duration(seconds: 2));
+        async.flushMicrotasks();
+        verify(() => mockSettingsDatabase.upsertHistory(any(), 31, 0, 0)).called(1);
+        verify(() => mockStorageService.saveProjectStats('/test/path', any())).called(1);
+
+        // 7 more seconds, then blur: written immediately, nothing lost.
+        async.elapse(const Duration(seconds: 7));
+        verifyNever(() => mockSettingsDatabase.upsertHistory(any(), 38, any(), any()));
+        historyProvider.setEditorFocus(false);
+        async.flushMicrotasks();
+        verify(() => mockSettingsDatabase.upsertHistory(any(), 38, 0, 0)).called(1);
+        final saved = verify(() => mockStorageService.saveProjectStats('/test/path', captureAny())).captured;
+        expect((saved.last as ProjectStats).totalTimeSpent.inSeconds, 120 + 38);
+
+        // Ticks never notify listeners.
+        var notified = 0;
+        historyProvider.addListener(() => notified++);
+        historyProvider.setEditorFocus(true);
+        async.elapse(const Duration(seconds: 5));
+        expect(notified, 0);
+        expect(historyProvider.editorTimeToday.value.inSeconds, 43);
+        historyProvider.setEditorFocus(false);
+        async.flushMicrotasks();
+      });
+    });
+
     test('saveStatsNow immediately writes to filesystem and DB without database debounce', () async {
       historyProvider = HistoryProvider(
         settingsDatabase: mockSettingsDatabase,

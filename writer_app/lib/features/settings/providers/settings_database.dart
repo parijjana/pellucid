@@ -180,13 +180,22 @@ class SettingsDatabase {
     });
   }
 
+  /// Adds a settings column unless it is already there. Store 1.0.1 reopening a
+  /// newer DB resets user_version, so every upgrade step must be safe to re-run.
+  Future<void> _addSettingsColumn(Database db, String columnDef) async {
+    final name = columnDef.split(' ').first;
+    final columns = await db.rawQuery('PRAGMA table_info(settings)');
+    if (columns.any((c) => c['name'] == name)) return;
+    await db.execute('ALTER TABLE settings ADD COLUMN $columnDef');
+  }
+
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE settings ADD COLUMN current_project_name TEXT');
+      await _addSettingsColumn(db, 'current_project_name TEXT');
     }
     if (oldVersion < 3) {
       await db.execute('''
-        CREATE TABLE history (
+        CREATE TABLE IF NOT EXISTS history (
           date TEXT PRIMARY KEY,
           editor_seconds INTEGER,
           notes_seconds INTEGER,
@@ -195,46 +204,46 @@ class SettingsDatabase {
       ''');
     }
     if (oldVersion < 4) {
-      await db.execute('ALTER TABLE settings ADD COLUMN last_synced_time TEXT');
+      await _addSettingsColumn(db, 'last_synced_time TEXT');
     }
     if (oldVersion < 5) {
-      await db.execute('ALTER TABLE settings ADD COLUMN battery_guard_enabled INTEGER DEFAULT 1');
-      await db.execute('ALTER TABLE settings ADD COLUMN battery_alert_threshold INTEGER DEFAULT 20');
+      await _addSettingsColumn(db, 'battery_guard_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'battery_alert_threshold INTEGER DEFAULT 20');
     }
     if (oldVersion < 6) {
-      await db.execute('ALTER TABLE settings ADD COLUMN show_battery_percentage INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'show_battery_percentage INTEGER DEFAULT 1');
     }
     if (oldVersion < 7) {
-      await db.execute('ALTER TABLE settings ADD COLUMN last_notes_fullscreen_state INTEGER DEFAULT 0');
+      await _addSettingsColumn(db, 'last_notes_fullscreen_state INTEGER DEFAULT 0');
     }
     if (oldVersion < 8) {
-      await db.execute('ALTER TABLE settings ADD COLUMN google_client_id TEXT');
-      await db.execute('ALTER TABLE settings ADD COLUMN google_client_secret TEXT');
+      await _addSettingsColumn(db, 'google_client_id TEXT');
+      await _addSettingsColumn(db, 'google_client_secret TEXT');
     }
     if (oldVersion < 9) {
-      await db.execute('ALTER TABLE settings ADD COLUMN sync_interval_minutes INTEGER DEFAULT 30');
+      await _addSettingsColumn(db, 'sync_interval_minutes INTEGER DEFAULT 30');
     }
     if (oldVersion < 10) {
-      await db.execute('ALTER TABLE settings ADD COLUMN typewriter_enabled INTEGER DEFAULT 0');
-      await db.execute('ALTER TABLE settings ADD COLUMN paragraph_focus_enabled INTEGER DEFAULT 0');
+      await _addSettingsColumn(db, 'typewriter_enabled INTEGER DEFAULT 0');
+      await _addSettingsColumn(db, 'paragraph_focus_enabled INTEGER DEFAULT 0');
     }
     if (oldVersion < 11) {
-      await db.execute('ALTER TABLE settings ADD COLUMN codex_linking_enabled INTEGER DEFAULT 0');
+      await _addSettingsColumn(db, 'codex_linking_enabled INTEGER DEFAULT 0');
     }
     if (oldVersion < 12) {
-      await db.execute('ALTER TABLE settings ADD COLUMN toc_word_counts_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'toc_word_counts_enabled INTEGER DEFAULT 1');
     }
     if (oldVersion < 13) {
-      await db.execute('ALTER TABLE settings ADD COLUMN daily_word_goal INTEGER DEFAULT 0');
+      await _addSettingsColumn(db, 'daily_word_goal INTEGER DEFAULT 0');
     }
     if (oldVersion < 14) {
-      await db.execute('ALTER TABLE settings ADD COLUMN spell_check_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'spell_check_enabled INTEGER DEFAULT 1');
     }
     if (oldVersion < 15) {
-      await db.execute('ALTER TABLE settings ADD COLUMN master_directory_bookmark TEXT');
+      await _addSettingsColumn(db, 'master_directory_bookmark TEXT');
     }
     if (oldVersion < 16) {
-      await db.execute('ALTER TABLE settings ADD COLUMN last_full_backup_time TEXT');
+      await _addSettingsColumn(db, 'last_full_backup_time TEXT');
     }
     if (oldVersion < 17) {
       await db.execute('''
@@ -253,16 +262,16 @@ class SettingsDatabase {
       ''');
     }
     if (oldVersion < 19) {
-      await db.execute("ALTER TABLE settings ADD COLUMN editor_font TEXT DEFAULT 'serif'");
+      await _addSettingsColumn(db, "editor_font TEXT DEFAULT 'serif'");
     }
     if (oldVersion < 20) {
-      await db.execute('ALTER TABLE settings ADD COLUMN grammar_hints_enabled INTEGER DEFAULT 1');
-      await db.execute('ALTER TABLE settings ADD COLUMN smart_punctuation_enabled INTEGER DEFAULT 1');
-      await db.execute('ALTER TABLE settings ADD COLUMN auto_continue_lists_enabled INTEGER DEFAULT 1');
-      await db.execute('ALTER TABLE settings ADD COLUMN attribution_duplicate_highlight_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'grammar_hints_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'smart_punctuation_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'auto_continue_lists_enabled INTEGER DEFAULT 1');
+      await _addSettingsColumn(db, 'attribution_duplicate_highlight_enabled INTEGER DEFAULT 1');
     }
     if (oldVersion < 21) {
-      await db.execute("ALTER TABLE settings ADD COLUMN bullet_style TEXT DEFAULT 'classic'");
+      await _addSettingsColumn(db, "bullet_style TEXT DEFAULT 'classic'");
     }
   }
 

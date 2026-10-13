@@ -63,4 +63,15 @@ void main() {
       await db.close();
     });
   }
+
+  test('re-running upgrades from v17 on a v21 DB is safe (store 1.0.1 reset user_version)', () async {
+    final db = await _open();
+    await SettingsDatabase.instance.createForTest(db);
+    await db.update('settings', {'editor_font': 'sans'});
+    await SettingsDatabase.instance.upgradeForTest(db, 17);
+    final cols = await _columns(db);
+    _added.forEach((name, dflt) => expect(cols[name], dflt, reason: name));
+    expect((await db.query('settings')).single['editor_font'], 'sans');
+    await db.close();
+  });
 }

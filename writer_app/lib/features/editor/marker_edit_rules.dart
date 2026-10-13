@@ -21,6 +21,7 @@
 
 import 'package:flutter/services.dart';
 
+import 'caret_formatting.dart';
 import 'hidden_markers.dart';
 import 'list_editing.dart';
 import 'list_marker.dart';
@@ -470,4 +471,192 @@ class MarkerCaret {
     if (text == newValue.text && selection == sel) return newValue;
     return newValue.copyWith(text: text, selection: selection, composing: TextRange.empty);
   }
+}
+
+/// Result of [toggleInlineOnSelection]: the new text and selection.
+class SelectionToggle {
+  final String text;
+  final int start;
+  final int end;
+  const SelectionToggle(this.text, this.start, this.end);
+}
+
+class _Edit {
+  final int pos;
+  final int del;
+  final String ins;
+  final int seq;
+  const _Edit(this.pos, this.del, this.ins, this.seq);
+}
+
+bool _sameInlineTag(InlineRun r, String tag) => r.tag == tag || (r.tag == '***' && (tag == '*' || tag == '**'));
+
+bool _tagOn(FormattingState f, String tag) => switch (tag) {
+      '**' => f.bold,
+      '*' => f.italic,
+      '<u>' => f.underline,
+      _ => f.strikethrough,
+    };
+
+/// Bold/italic/underline/strikethrough applied to a (non-collapsed) selection.
+///
+/// Works from the runs the renderer itself sees ([scanLine]), one line at a
+/// time (a marker pair never spans a line break, so a selection over several
+/// lines is wrapped line by line). Whitespace and hidden markers at the edges
+/// are left outside the new markers; a run of the same style that the
+/// selection touches is merged into the new one; a run of another style that
+/// the new markers would cross is closed and reopened around them. The
+/// result is always balanced. When every visible character already has the
+/// style it is removed instead. Null when nothing can change or the result
+/// could not be proven to render the same text with the style flipped.
+SelectionToggle? toggleInlineOnSelection(String text, int selStart, int selEnd, String tag) {
+  if (selStart >= selEnd || selEnd > text.length) return null;
+  final bool turnOff = _tagOn(formattingAt(text, TextSelection(baseOffset: selStart, extentOffset: selEnd)), tag);
+  final String closeTag = tag == '<u>' ? '</u>' : tag;
+  final edits = <_Edit>[];
+  int seq = 0;
+  void add(int pos, int del, String ins) => edits.add(_Edit(pos, del, ins, seq++));
+
+  int? firstA;
+  int? lastB;
+  int at = selStart;
+  while (at <= selEnd && at <= text.length) {
+    final line = scanLineAt(text, at);
+    final int next = line.lineEnd + 1;
+    final bool inlineLine = line.prefix == null || line.list != null;
+    int a = at > selStart ? at : selStart;
+    int b = selEnd < line.lineEnd ? selEnd : line.lineEnd;
+    at = next;
+    if (!inlineLine || a >= b) continue;
+    bool skip(int k) => line.isHidden(k) || text[k].trim().isEmpty;
+    while (a < b && skip(a)) {
+      a++;
+    }
+    while (b > a && skip(b - 1)) {
+      b--;
+    }
+    if (a >= b) continue;
+    final runs = line.runs;
+
+    // Settle the edges so the new markers cannot cross a run.
+    for (int pass = 0; pass < 8; pass++) {
+      bool changed = false;
+      for (final q in runs) {
+        if (q.end <= a || q.start >= b) continue;
+        if (q.contentStart <= a && b <= q.contentEnd) continue;
+        if (a <= q.start && q.end <= b) continue;
+        if (_sameInlineTag(q, tag) && !turnOff) {
+          final int na = a < q.start ? a : q.start;
+          final int nb = b > q.end ? b : q.end;
+          if (na != a || nb != b) {
+            a = na;
+            b = nb;
+            changed = true;
+          }
+        } else {
+          if (q.start < a && a <= q.contentStart) {
+            a = q.start;
+            changed = true;
+          }
+          if (q.contentEnd <= b && b < q.end) {
+            b = q.end;
+            changed = true;
+          }
+        }
+      }
+      if (!changed) break;
+    }
+
+    // Different-style runs that the markers at [p] would land inside.
+    String around(int p, String marker, bool Function(InlineRun) inside) {
+      final z = runs.where((r) => !_sameInlineTag(r, tag) && r.contentStart < p && p < r.contentEnd && inside(r)).toList()
+        ..sort((x, y) => x.start.compareTo(y.start));
+      return z.reversed.map((r) => r.closingTag).join() + marker + z.map((r) => r.tag).join();
+    }
+
+    if (!turnOff) {
+      if (runs.any((r) => _sameInlineTag(r, tag) && r.contentStart <= a && b <= r.contentEnd)) continue;
+      add(a, 0, around(a, tag, (r) => b > r.contentEnd));
+      for (final r in runs) {
+        if (_sameInlineTag(r, tag) && a <= r.start && r.end <= b) {
+          final String keep = r.tag == '***' ? (tag == '*' ? '**' : '*') : '';
+          add(r.start, r.contentStart - r.start, keep);
+          add(r.contentEnd, r.end - r.contentEnd, keep);
+        }
+      }
+      add(b, 0, around(b, closeTag, (r) => a < r.contentStart));
+    } else {
+      for (final r in runs) {
+        if (!_sameInlineTag(r, tag) || !(r.contentStart < b && a < r.contentEnd)) continue;
+        bool visibleIn(int from, int to) {
+          for (int k = from; k < to; k++) {
+            if (!line.isHidden(k) && !text[k].trim().isEmpty) return true;
+          }
+          return false;
+        }
+
+        final bool left = visibleIn(r.contentStart, a);
+        final bool right = visibleIn(b, r.contentEnd);
+        if (r.tag == '***') {
+          if (left || right) return null;
+          final String keep = tag == '*' ? '**' : '*';
+          add(r.start, r.contentStart - r.start, keep);
+          add(r.contentEnd, r.end - r.contentEnd, keep);
+          continue;
+        }
+        if (left) {
+          add(a, 0, around(a, r.closingTag, (z) => z.start > r.start));
+        } else {
+          add(r.start, r.contentStart - r.start, '');
+        }
+        if (right) {
+          add(b, 0, around(b, r.tag, (z) => z.start > r.start));
+        } else {
+          add(r.contentEnd, r.end - r.contentEnd, '');
+        }
+      }
+    }
+    firstA ??= a;
+    lastB = b;
+  }
+  if (firstA == null || lastB == null || edits.isEmpty) return null;
+
+  edits.sort((x, y) => x.pos != y.pos ? x.pos.compareTo(y.pos) : x.seq.compareTo(y.seq));
+  final out = StringBuffer();
+  int cursor = 0;
+  for (final e in edits) {
+    if (e.pos < cursor) return null; // overlapping edits: not provably safe
+    out.write(text.substring(cursor, e.pos));
+    out.write(e.ins);
+    cursor = e.pos + e.del;
+  }
+  out.write(text.substring(cursor));
+  final String newText = out.toString();
+
+  int map(int p, bool inclusive) {
+    int o = 0;
+    int c = 0;
+    for (final e in edits) {
+      if (inclusive ? e.pos > p : e.pos >= p) break;
+      o += e.pos - c + e.ins.length;
+      c = e.pos + e.del;
+    }
+    return o + (p > c ? p - c : 0);
+  }
+
+  final int ns = map(firstA, true);
+  final int ne = map(lastB, false);
+  if (ns > ne || ne > newText.length) return null;
+
+  // Proof: the reader sees the same characters, and the style flipped.
+  final int delta = newText.length - text.length;
+  final int regionStart = lineStartOf(text, selStart);
+  final int regionEnd = lineEndOf(text, selEnd);
+  if (regionEnd + delta > newText.length) return null;
+  if (visibleText(text.substring(regionStart, regionEnd)) != visibleText(newText.substring(regionStart, regionEnd + delta))) {
+    return null;
+  }
+  final after = formattingAt(newText, TextSelection(baseOffset: ns, extentOffset: ne));
+  if (ns < ne && _tagOn(after, tag) == turnOff) return null;
+  return SelectionToggle(newText, ns, ne);
 }

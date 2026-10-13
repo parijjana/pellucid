@@ -123,13 +123,15 @@ class MainFlutterWindow: NSWindow {
         }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
-        item.setString(plain, forType: .string)
-        item.setString("<meta charset=\"utf-8\">" + html, forType: .html)
-        item.setString(markdown, forType: markdownType)
-        // Apple Pages (and TextEdit) read RTF, not public.html, for rich paste.
+        // Richest type first: some apps (Pages) take the first type they
+        // understand in pasteboard order, so plain text must come last.
+        // Pages reads RTF, not public.html, for rich paste.
         if let rtf = pellucidRtfData(fromHtml: html) {
           item.setData(rtf, forType: .rtf)
         }
+        item.setString("<meta charset=\"utf-8\">" + html, forType: .html)
+        item.setString(markdown, forType: markdownType)
+        item.setString(plain, forType: .string)
         pasteboard.writeObjects([item])
         result(nil)
       case "getMarkdown":

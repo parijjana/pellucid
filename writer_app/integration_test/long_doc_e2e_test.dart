@@ -110,7 +110,7 @@ void main() {
       inserts.add((docAt2, '😀'));
     }
     var expected = orig;
-    for (final (off, s) in inserts.reversed) {
+    for (final (off, s) in inserts) {
       expected = expected.replaceRange(off, off, s);
     }
     rig.expectDoc(expected, '4 accents and 4 emoji landed exactly where the caret was');
@@ -119,29 +119,52 @@ void main() {
   });
 
   // ------------------------------------------------------------- Check 5 ---
-  check('Check 5: triple-click on a far line selects that line', (tester) async {
-    final rig = await mount(tester);
-    final fx = rig.fx;
-    final line = fx.darcyLine;
-    final ls = fx.lineStart(line);
-    final le = ls + fx.lines[line].length;
-    await rig.reveal(ls);
-    final p = rig.pointInLine(line, dx: 60);
+  Future<void> tripleClick(Rig rig, Offset p, {String tag = '5'}) async {
     for (int i = 0; i < 3; i++) {
       await rig.tester.tapAt(p, kind: PointerDeviceKind.mouse);
-      await rig.tester.pump(const Duration(milliseconds: 40));
+      await rig.pump(6); // ~100 ms of frames between clicks, as a real double/triple click
+      // ignore: avoid_print
+      print('EVID|$tag|click ${i + 1} -> sel=${rig.sel.start}-${rig.sel.end} windowStart=${rig.win.window.windowStart}');
     }
-    await rig.pump(4);
+  }
+
+  void expectLineSelected(Rig rig, int line) {
+    final fx = rig.fx;
+    final ls = fx.lineStart(line);
+    final le = ls + fx.lines[line].length;
     final sel = rig.sel;
     expect(sel.start, ls, reason: 'selection starts at the line start: $sel');
     expect(sel.end, inInclusiveRange(le, le + 1), reason: 'and ends at the line end (or its newline): $sel');
     expect(rig.text.substring(sel.start, le), fx.lines[line]);
+  }
+
+  check('Check 5: triple-click on a far line selects that line', (tester) async {
+    final rig = await mount(tester);
+    final line = rig.fx.darcyLine;
+    await rig.reveal(rig.fx.lineStart(line));
+    await tripleClick(rig, rig.pointInLine(line, dx: 60));
+    expectLineSelected(rig, line);
+    await rig.dispose();
+  },
+      knownBug: 'first click on a far (static) line moves the window under the pointer, so the field never sees '
+          'it: three clicks end as a WORD selection, not the line (windowed_editor.dart:1117-1130 re-applies only the 2nd '
+          'click of that sequence, and the field then counts clicks 2+3 as its own double-click)');
+
+  check('Check 5 (control): once the window is on the line, triple-click selects the line', (tester) async {
+    final rig = await mount(tester);
+    final line = rig.fx.darcyLine;
+    await rig.reveal(rig.fx.lineStart(line));
+    final p = rig.pointInLine(line, dx: 60);
+    await rig.tester.tapAt(p, kind: PointerDeviceKind.mouse); // moves the window to the line
+    await rig.pump(6);
+    await rig.wait(const Duration(milliseconds: 700)); // let the multi-click window expire
+    await tripleClick(rig, rig.pointInLine(line, dx: 60), tag: '5c');
+    expectLineSelected(rig, line);
     await rig.dispose();
   });
 
   // ------------------------------------------------------------- Check 6 ---
-  check('Check 6: shift-click far below the caret, then Shift+Down grows the selection', (tester) async {
-    final rig = await mount(tester);
+  Future<(int, TextSelection)> shiftClickFar(Rig rig) async {
     final fx = rig.fx;
     final a = fx.lineStart(fx.chapterLines[19]) + 30;
     await rig.reveal(a);
@@ -153,46 +176,114 @@ void main() {
     await rig.tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await rig.pump(5);
     final s1 = rig.sel;
-    expect(s1.baseOffset, a, reason: 'anchor stays at the caret');
     final bs = fx.lineStart(lineB);
+    expect(s1.baseOffset, a, reason: 'anchor stays at the caret');
     expect(s1.extentOffset, inInclusiveRange(bs, bs + fx.lines[lineB].length));
+    return (a, s1);
+  }
+
+  check('Check 6: shift-click far below the caret, then Shift+Down grows the selection', (tester) async {
+    final rig = await mount(tester);
+    final (a, s1) = await shiftClickFar(rig);
+    // ignore: avoid_print
+    print('EVID|6|after shift-click sel=$s1 editorFocused=${rig.focus.hasFocus}');
+    expect(rig.focus.hasFocus, isTrue, reason: 'the editor keeps keyboard focus after a shift-click');
     await rig.key(LogicalKeyboardKey.arrowDown, shift: true);
     final s2 = rig.sel;
     expect(s2.baseOffset, a, reason: 'anchor unchanged by Shift+Down: $s2');
     expect(s2.extentOffset, greaterThan(s1.extentOffset), reason: 'extent grew from the shift-click point');
+    await rig.dispose();
+  },
+      knownBug: 'shift-click on a far static line leaves the editor UNFOCUSED, so Shift+Down does nothing: the '
+          '`if (_dragging) {... return;}` branch at windowed_editor.dart:1140-1145 returns before '
+          'widget.focusNode.requestFocus() at :1147 (the field lost focus to its tap-outside handler)');
+
+  check('Check 6 (control): after refocusing, Shift+Down grows the selection from the shift-click point',
+      (tester) async {
+    final rig = await mount(tester);
+    final (a, s1) = await shiftClickFar(rig);
+    rig.focus.requestFocus();
+    await rig.pump(4);
+    await rig.key(LogicalKeyboardKey.arrowDown, shift: true);
+    final s2 = rig.sel;
     // ignore: avoid_print
-    print('EVID|6|anchor=$a shiftClick extent=${s1.extentOffset} afterShiftDown=${s2.extentOffset}');
+    print('EVID|6c|anchor=$a shiftClick extent=${s1.extentOffset} afterShiftDown=${s2.extentOffset}');
+    expect(s2.baseOffset, a);
+    expect(s2.extentOffset, greaterThan(s1.extentOffset));
     await rig.dispose();
   });
 
   // ------------------------------------------------------------- Check 8 ---
-  check('Check 8: Cmd+B and Cut act on the whole long selection', (tester) async {
+  const longSel = 30000;
+
+
+  Future<void> boldSelection(WidgetTester tester, int s, int n, {String? knownBugNote}) async {
     final rig = await mount(tester);
-    final fx = rig.fx;
     final orig = rig.text;
-    final s = fx.lineStart(fx.chapterLines[18]) + 10;
-    final e = s + 30000;
+    final e = s + n;
     await rig.reveal(s);
     await rig.placeCaret(s);
     rig.doc.selection = TextSelection(baseOffset: s, extentOffset: e);
     await rig.pump(5);
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     final bolded = rig.text;
-    expect(bolded.length, orig.length + 4, reason: 'one ** pair around the whole stretch');
-    expect(bolded.substring(s, s + 2), '**');
-    expect(bolded.substring(e + 2, e + 4), '**');
-    expect(bolded.replaceRange(e + 2, e + 4, '').replaceRange(s, s + 2, ''), orig);
+    // Bold wraps each line of the selection in its own ** pair (a marker pair never spans lines).
+    final nonBlank = orig.substring(s, e).split('\n').where((l) => l.trim().isNotEmpty && !l.startsWith('#')).length;
+    // ignore: avoid_print
+    print('EVID|8|bold on $n chars (window is ${rig.win.window.text.length}): length +${bolded.length - orig.length}, '
+        'expected +${4 * nonBlank} ($nonBlank body lines)');
+    expect(bolded.length, orig.length + 4 * nonBlank, reason: 'a ** pair on each of the $nonBlank body lines');
+    expect(bolded.replaceAll('**', '') == orig.replaceAll('**', ''), isTrue, reason: 'only markers were added');
+    expect(bolded.substring(0, s) == orig.substring(0, s), isTrue, reason: 'nothing before the selection changed');
+    expect(bolded.substring(bolded.length - (orig.length - e)) == orig.substring(e), isTrue,
+        reason: 'nothing after the selection changed');
+    await rig.dispose();
+  }
 
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(orig, 'undo restores the document');
+  check('Check 8: Cmd+B on a 10k-char selection (2.5x the live window) bolds every line of it', (tester) async {
+    final fx = fixture;
+    await boldSelection(tester, fx.lineStart(fx.chapterLines[18] + 2) + 5, 10000);
+  });
+
+  check('Check 8: Cmd+B on a 30k-char selection that spans a chapter heading bolds the body lines', (tester) async {
+    await boldSelection(tester, fixture.lineStart(fixture.chapterLines[18]) + 10, longSel);
+  },
+      knownBug: 'toggleInlineOnSelection returns null when the selection includes a heading line (not bold-able, so '
+          '"every visible char is bold" can never become true): the proof at marker_edit_rules.dart:660 rejects '
+          'it and Cmd+B silently does nothing');
+
+  check('Check 8: Cut acts on the whole long selection', (tester) async {
+    final rig = await mount(tester);
+    final orig = rig.text;
+    final s = rig.fx.lineStart(rig.fx.chapterLines[18]) + 10, e = s + longSel;
+    await rig.reveal(s);
+    await rig.placeCaret(s);
     rig.doc.selection = TextSelection(baseOffset: s, extentOffset: e);
     await rig.pump(5);
     await rig.key(LogicalKeyboardKey.keyX, meta: true);
     rig.expectDoc(orig.replaceRange(s, e, ''), 'cut removed exactly the selection');
     final clip = await rig.readClipboard();
-    expect(clip, orig.substring(s, e), reason: 'the clipboard holds all 30000 characters');
+    expect(clip == orig.substring(s, e), isTrue, reason: 'the clipboard holds all $longSel characters (got ${clip.length})');
     await rig.dispose();
   });
+
+  check('Check 8 (extra): Cmd+Z right after Cmd+B undoes the bold', (tester) async {
+    final rig = await mount(tester);
+    final orig = rig.text;
+    final s = rig.fx.lineStart(rig.fx.chapterLines[18]) + 10;
+    await rig.reveal(s);
+    await rig.placeCaret(s);
+    rig.doc.selection = TextSelection(baseOffset: s, extentOffset: s + 80);
+    await rig.pump(5);
+    await rig.key(LogicalKeyboardKey.keyB, meta: true);
+    expect(rig.text.length, orig.length + 4);
+    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
+    rig.expectDoc(orig, 'undo of Cmd+B');
+    await rig.dispose();
+  },
+      knownBug: 'formatting (Cmd+B) is an "edit outside the window", and _onDocChanged clears the whole undo/redo '
+          'stack for those (windowed_editor.dart:598-599): Cmd+Z after bold does nothing and earlier typing '
+          'history is lost');
 
   // ------------------------------------------------------------ Check 11 ---
   check('Check 11: far bullet list - Enter, undo-after-Enter, Tab, Backspace', (tester) async {

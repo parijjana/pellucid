@@ -263,8 +263,16 @@ class Rig {
 
 /// Mounts a fresh EditorScreen over a fresh temp project holding [text] (the
 /// fixture by default) and a codex note "Darcy".
+final List<Directory> createdRoots = [];
+
+/// [reuse]: an existing temp root from an earlier mount (reopen the same project from disk).
 Future<Rig> mount(WidgetTester tester,
-    {String? text, Size size = const Size(1400, 900), bool spell = false, bool codex = false}) async {
+    {String? text,
+    Size size = const Size(1400, 900),
+    bool spell = false,
+    bool codex = false,
+    bool typewriter = false,
+    Directory? reuse}) async {
   step('mount start');
   await assertIsolated();
   debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -277,13 +285,16 @@ Future<Rig> mount(WidgetTester tester,
   addTearDown(tester.view.reset);
 
   final fx = fixture;
-  final root = await Directory.systemTemp.createTemp('pellucid_e2e_');
+  final Directory root = reuse ?? await Directory.systemTemp.createTemp('pellucid_e2e_');
   final projectPath = '${root.path}/Long Book';
-  await Directory(projectPath).create(recursive: true);
-  await File('$projectPath/document.md').writeAsString(text ?? fx.text);
-  final darcy = NoteCard(title: 'Darcy', content: 'Proud, rich, and misjudged.', category: 'people');
-  await File('$projectPath/notes.json').writeAsString(jsonEncode([darcy.toJson()]));
-  await File('$projectPath/stats.json').writeAsString('{}');
+  final darcy = NoteCard(id: 'note-darcy-0001', title: 'Darcy', content: 'Proud, rich, and misjudged.', category: 'people');
+  if (reuse == null) {
+    createdRoots.add(root);
+    await Directory(projectPath).create(recursive: true);
+    await File('$projectPath/document.md').writeAsString(text ?? fx.text);
+    await File('$projectPath/notes.json').writeAsString(jsonEncode([darcy.toJson()]));
+    await File('$projectPath/stats.json').writeAsString('{}');
+  }
 
   final storage = StorageService();
   final editor = EditorProvider(storageService: storage, settingsDatabase: _MemDb());
@@ -297,6 +308,7 @@ Future<Rig> mount(WidgetTester tester,
   );
   settings.toggleCodexLinking(codex);
   settings.toggleSpellCheck(spell);
+  settings.toggleTypewriter(typewriter);
   final sync = _Sync();
   when(() => sync.status).thenReturn(SyncStatus.idle);
   when(() => sync.isLoggedIn).thenReturn(false);

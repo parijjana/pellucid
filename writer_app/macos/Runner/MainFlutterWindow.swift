@@ -138,7 +138,12 @@ class MainFlutterWindow: NSWindow {
         result(pasteboard.string(forType: markdownType))
       case "getHtml":
         // Pasting formatted text (item 22): the HTML other apps put on the pasteboard.
-        result(pasteboard.string(forType: .html))
+        // Pages and TextEdit offer no HTML, only RTF/RTFD: convert that to simple HTML.
+        if let html = pasteboard.string(forType: .html), !html.isEmpty {
+          result(html)
+        } else {
+          result(pellucidHtmlFromPasteboard(pasteboard))
+        }
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -196,3 +201,115 @@ func pellucidRtfData(fromHtml html: String) -> Data? {
   )
 }
 // END pellucidRtf
+
+// BEGIN pellucidRtfToHtml
+/// Pasted RTF/RTFD (Pages, TextEdit) to SIMPLE HTML for the Dart converter.
+/// Structure only: paragraphs, bold/italic/underline/strike, links, lists.
+/// Colours, fonts and sizes are dropped; no headings are guessed.
+func pellucidHtmlFromAttributed(_ attr: NSAttributedString) -> String? {
+  func esc(_ s: String) -> String {
+    return s.replacingOccurrences(of: "&", with: "&amp;")
+      .replacingOccurrences(of: "<", with: "&lt;")
+      .replacingOccurrences(of: ">", with: "&gt;")
+      .replacingOccurrences(of: "\"", with: "&quot;")
+  }
+  func isOrdered(_ l: NSTextList) -> Bool {
+    let f = l.markerFormat.rawValue.lowercased()
+    for k in ["disc", "circle", "square", "hyphen", "diamond", "check", "box"] where f.contains(k) { return false }
+    return f.contains("decimal") || f.contains("roman") || f.contains("alpha") || f.contains("latin")
+  }
+  let ns = attr.string as NSString
+  var out = ""
+  var stack: [Bool] = []  // open lists, true = ordered
+  var liOpen: [Bool] = []  // whether the <li> at each depth is still open
+  func closeTo(_ depth: Int) {
+    while stack.count > depth {
+      if liOpen.removeLast() { out += "</li>" }
+      out += stack.removeLast() ? "</ol>" : "</ul>"
+    }
+  }
+  var loc = 0
+  while loc < ns.length {
+    let pr = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+    loc = pr.location + pr.length
+    var lineRange = pr
+    while lineRange.length > 0 {
+      let c = ns.character(at: lineRange.location + lineRange.length - 1)
+      if c == 10 || c == 13 || c == 0x2028 || c == 0x2029 { lineRange.length -= 1 } else { break }
+    }
+    let style = attr.attribute(.paragraphStyle, at: pr.location, effectiveRange: nil) as? NSParagraphStyle
+    let lists = style?.textLists ?? []
+    // Drop the "\t•\t" / "\t1.\t" marker text Cocoa leaves at the start of list paragraphs.
+    if let last = lists.last {
+      let marker = last.marker(forItemNumber: 1)
+      let first = ns.substring(with: lineRange)
+      if first.hasPrefix("\t"), let r = first.range(of: "\t", range: first.index(after: first.startIndex)..<first.endIndex) {
+        let mk = String(first[first.index(after: first.startIndex)..<r.lowerBound])
+        let looksLikeMarker = mk == marker || mk.isEmpty || mk.count <= 8 && !mk.contains(" ")
+        if looksLikeMarker {
+          let dropUtf16 = first[first.startIndex..<r.upperBound].utf16.count
+          lineRange = NSRange(location: lineRange.location + dropUtf16, length: lineRange.length - dropUtf16)
+        }
+      }
+    }
+    var inline = ""
+    if lineRange.length > 0 {
+      attr.enumerateAttributes(in: lineRange, options: []) { attrs, range, _ in
+        let text = ns.substring(with: range)
+          .replacingOccurrences(of: "\u{2028}", with: "\n")
+          .replacingOccurrences(of: "\u{00A0}", with: " ")
+          .replacingOccurrences(of: "\u{FFFC}", with: "")
+        if text.isEmpty { return }
+        var t = esc(text).replacingOccurrences(of: "\n", with: "<br>")
+        var link: String? = nil
+        if let u = attrs[.link] as? URL { link = u.absoluteString } else if let s = attrs[.link] as? String { link = s }
+        if let font = attrs[.font] as? NSFont {
+          let tr = font.fontDescriptor.symbolicTraits
+          if tr.contains(.italic) { t = "<i>" + t + "</i>" }
+          if tr.contains(.bold) { t = "<b>" + t + "</b>" }
+        }
+        if let n = attrs[.strikethroughStyle] as? Int, n != 0 { t = "<s>" + t + "</s>" }
+        if link == nil, let n = attrs[.underlineStyle] as? Int, n != 0 { t = "<u>" + t + "</u>" }
+        if let l = link { t = "<a href=\"" + esc(l) + "\">" + t + "</a>" }
+        inline += t
+      }
+    }
+    if !lists.isEmpty {
+      let depth = lists.count
+      closeTo(depth)
+      // A different list kind at the same depth (bullets then numbers) is a new list.
+      if stack.count == depth, stack[depth - 1] != isOrdered(lists[depth - 1]) { closeTo(depth - 1) }
+      if stack.count == depth, liOpen[depth - 1] { out += "</li>"; liOpen[depth - 1] = false }
+      while stack.count < depth {
+        let ord = isOrdered(lists[stack.count])
+        stack.append(ord)
+        liOpen.append(false)
+        out += ord ? "<ol>" : "<ul>"
+      }
+      out += "<li>" + inline
+      liOpen[depth - 1] = true
+    } else {
+      closeTo(0)
+      if inline.isEmpty { out += "<p><br></p>" } else { out += "<p>" + inline + "</p>" }
+    }
+  }
+  closeTo(0)
+  return out.isEmpty ? nil : out
+}
+
+/// RTF (preferred) or RTFD pasteboard content as simple HTML; nil if none.
+func pellucidHtmlFromPasteboard(_ pb: NSPasteboard) -> String? {
+  var attr: NSAttributedString? = nil
+  if let d = pb.data(forType: .rtf) {
+    attr = NSAttributedString(rtf: d, documentAttributes: nil)
+  }
+  if attr == nil, let d = pb.data(forType: .rtfd) {
+    attr = NSAttributedString(rtfd: d, documentAttributes: nil)
+  }
+  if attr == nil, let d = pb.data(forType: NSPasteboard.PasteboardType("com.apple.flat-rtfd")) {
+    attr = NSAttributedString(rtfd: d, documentAttributes: nil)
+  }
+  guard let a = attr, a.length > 0 else { return nil }
+  return pellucidHtmlFromAttributed(a)
+}
+// END pellucidRtfToHtml

@@ -60,7 +60,7 @@ PRODUCT_NAME = PellucidE2E
 XC
 
 echo "=== flutter test (build + run) ==="
-flutter test "${E2E_TEST_FILE:-integration_test/long_doc_e2e_test.dart}" -d macos --machine "$@" > "$OUT/machine.jsonl" 2> "$OUT/stderr.log"
+flutter test "${E2E_TEST_FILE:-integration_test/long_doc_e2e_test.dart}" -d macos --dart-define=E2E_FIXTURES="$APP_DIR/test/fixtures" --machine "$@" > "$OUT/machine.jsonl" 2> "$OUT/stderr.log"
 RC=$?
 echo "flutter test exit code: $RC   (raw output: $OUT)"
 

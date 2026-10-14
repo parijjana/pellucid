@@ -27,6 +27,7 @@ import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
 import 'package:pellucid/features/editor/providers/sprint_controller.dart';
 import 'package:pellucid/features/editor/providers/storage_service.dart';
 import 'package:pellucid/features/editor/providers/theme_provider.dart';
+import 'package:pellucid/features/editor/rich_clipboard.dart';
 import 'package:pellucid/features/editor/screens/editor_screen.dart';
 import 'package:pellucid/features/editor/widgets/editor_selection_actions.dart';
 import 'package:pellucid/features/editor/widgets/markdown_controller.dart';
@@ -37,6 +38,7 @@ import 'package:pellucid/features/settings/providers/settings_database.dart';
 import 'package:pellucid/features/settings/providers/settings_provider.dart';
 import 'package:pellucid/features/sidebar/providers/note_card.dart';
 import 'package:pellucid/features/sidebar/providers/notes_provider.dart';
+import 'package:pellucid/features/sync/models/logical_file.dart';
 import 'package:pellucid/features/sync/providers/sync_provider.dart';
 import 'package:pellucid/features/sync/services/token_store.dart';
 import 'package:provider/provider.dart';
@@ -59,9 +61,40 @@ class _Secrets implements SecretStore {
   Future<void> delete(String key) async {}
 }
 
-class _Sync extends Mock implements SyncProvider {}
+/// Mocked Google sync: never touches the network. Records every manuscript upload so a check can assert
+/// that one happened (and after how long). [loggedIn] makes the editor believe a Drive is connected.
+class SyncSpy extends Mock implements SyncProvider {
+  bool loggedIn = false;
+  Duration latency = Duration.zero;
+  final List<({String project, String content})> uploads = [];
+  int finished = 0;
+  SyncStatus _st = SyncStatus.idle;
+  @override
+  SyncStatus get status => _st;
+  @override
+  bool get isLoggedIn => loggedIn;
+  @override
+  DateTime? get lastSynced => null;
+  @override
+  Future<void> syncCurrentFile({required String projectName, required LogicalFile fileName, required String content}) async {
+    uploads.add((project: projectName, content: content));
+    await Future<void>.delayed(latency);
+    finished++;
+    _st = SyncStatus.success;
+  }
 
-class _Hist extends Mock implements HistoryProvider {}
+  @override
+  Future<void> syncStats({required String projectName, required String statsJson}) async {}
+  @override
+  Future<String?> getLatestContent({required String projectName, required LogicalFile fileName}) async => null;
+}
+
+class _Hist extends Mock implements HistoryProvider {
+  @override
+  Future<void> saveStatsNow({bool remoteInBackground = false}) async {}
+  @override
+  Future<void> loadProjectStats(String? projectPath) async {}
+}
 
 /// Refuses to run unless the test app is the isolated e2e bundle and every
 /// path it will touch is under the system temp directory.
@@ -92,18 +125,21 @@ class Rig {
   final SearchProvider search;
   final NotesProvider notes;
   final ShortcutsProvider shortcuts;
+  final SyncSpy sync;
   final MarkdownEditingController doc;
   final String codexId;
   final List<String> clipboardLog;
   String clipboard;
 
   Rig._(this.tester, this.fx, this.root, this.projectPath, this.editor, this.settings, this.search, this.notes,
-      this.shortcuts, this.doc, this.codexId, this.clipboardLog, this.clipboard);
+      this.shortcuts, this.sync, this.doc, this.codexId, this.clipboardLog, this.clipboard);
 
   WindowedEditorState get win => tester.state<WindowedEditorState>(find.byType(WindowedEditor));
   String get text => doc.text;
   TextSelection get sel => doc.selection;
-  FocusNode get focus => win.widget.focusNode;
+  bool get windowed => find.byType(WindowedEditor).evaluate().isNotEmpty;
+  EditableTextState get field => tester.state<EditableTextState>(find.byType(EditableText).first);
+  FocusNode get focus => windowed ? win.widget.focusNode : field.widget.focusNode;
 
   /// Document equals [expected], reporting only the first difference (never the 600 kB).
   void expectDoc(String expected, String reason) {
@@ -204,7 +240,7 @@ class Rig {
     step('typeText');
     for (final ch in s.characters) {
       // The field's own current value (the test input channel's editingState goes stale).
-      final v = win.window.value;
+      final v = windowed ? win.window.value : field.textEditingValue;
       final b = v.selection.baseOffset, e = v.selection.extentOffset;
       final lo = b < e ? b : e, hi = b < e ? e : b;
       final next = v.text.replaceRange(lo, hi, ch);
@@ -303,10 +339,15 @@ final List<Directory> createdRoots = [];
 /// What Pellucid's rich copy put on the (mocked) pasteboard.
 final Map<String, String> richClipboard = {};
 
+/// The HTML another app (Word, a browser) is pretending to have put on the pasteboard; what `getHtml` returns.
+String? externalHtml;
+
 /// [reuse]: an existing temp root from an earlier mount (reopen the same project from disk).
 Future<Rig> mount(WidgetTester tester,
     {String? text,
     Size size = const Size(1280, 800),
+    bool loggedIn = false,
+    bool masterDir = false,
     bool spell = false,
     bool codex = false,
     bool typewriter = false,
@@ -345,10 +386,11 @@ Future<Rig> mount(WidgetTester tester,
   settings.toggleCodexLinking(codex);
   settings.toggleSpellCheck(spell);
   settings.toggleTypewriter(typewriter);
-  final sync = _Sync();
-  when(() => sync.status).thenReturn(SyncStatus.idle);
-  when(() => sync.isLoggedIn).thenReturn(false);
-  when(() => sync.lastSynced).thenReturn(null);
+  final sync = SyncSpy()..loggedIn = loggedIn;
+  if (masterDir) {
+    await settings.setMasterDirectory(root.path);
+    await settings.setCurrentProject('Long Book');
+  }
   final hist = _Hist();
   when(() => hist.history).thenReturn([]);
   when(() => hist.currentProjectStats).thenReturn(ProjectStats());
@@ -359,6 +401,7 @@ Future<Rig> mount(WidgetTester tester,
   final clip = <String>[];
   late Rig rig;
   richClipboard.clear();
+  externalHtml = null;
   String clipboard = '';
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
     if (call.method == 'Clipboard.setData') {
@@ -367,6 +410,7 @@ Future<Rig> mount(WidgetTester tester,
       return null;
     }
     if (call.method == 'Clipboard.getData') return <String, dynamic>{'text': clipboard};
+    if (call.method == 'E2E.probe') return 'mocked';
     if (call.method == 'Clipboard.hasStrings') return <String, dynamic>{'value': clipboard.isNotEmpty};
     return null;
   });
@@ -376,6 +420,8 @@ Future<Rig> mount(WidgetTester tester,
   tester.binding.defaultBinaryMessenger
       .setMockMethodCallHandler(const MethodChannel('com.overengineeredhobbies.pellucid/clipboard'), (call) async {
     switch (call.method) {
+      case 'E2E.probe':
+        return 'mocked';
       case 'setRich':
         final a = call.arguments as Map;
         richClipboard
@@ -387,7 +433,7 @@ Future<Rig> mount(WidgetTester tester,
       case 'getMarkdown':
         return richClipboard['markdown'];
       case 'getHtml':
-        return null;
+        return externalHtml;
     }
     return null;
   });
@@ -410,13 +456,31 @@ Future<Rig> mount(WidgetTester tester,
     await tester.pump(const Duration(milliseconds: 50));
   }
   step('mount pumped');
-  rig = Rig._(tester, fx, root, projectPath, editor, settings, search, notes, shortcuts,
+  rig = Rig._(tester, fx, root, projectPath, editor, settings, search, notes, shortcuts, sync,
       ActiveEditor.controller! as MarkdownEditingController, darcy.id, clip, clipboard);
   _live = rig;
   return rig;
 }
 
 extension RigClipboard on Rig {
+  /// Proves both clipboard channels are the in-memory mocks (a probe method only the mocks answer),
+  /// and that the app will use the rich channel. Call before any copy / cut / paste.
+  Future<void> assertClipboardMocked() async {
+    final a = await SystemChannels.platform.invokeMethod<String>('E2E.probe');
+    final b = await const MethodChannel('com.overengineeredhobbies.pellucid/clipboard').invokeMethod<String>('E2E.probe');
+    expect(a, 'mocked', reason: 'system clipboard channel is the in-memory mock');
+    expect(b, 'mocked', reason: 'rich pasteboard channel is the in-memory mock');
+    expect(RichClipboard.isSupported, isTrue, reason: 'rich clipboard path is active (and mocked)');
+  }
+
+  /// Puts [plain] (and optionally [html] as another app's formatted flavour) on the mocked pasteboard.
+  Future<void> setExternalClipboard(String plain, {String? html}) async {
+    await assertClipboardMocked();
+    richClipboard.clear();
+    externalHtml = html;
+    await Clipboard.setData(ClipboardData(text: plain));
+  }
+
   /// The markdown of the last rich copy/cut (falls back to the plain system clipboard mock).
   Future<String> readClipboard() async => richClipboard['markdown'] ?? (await Clipboard.getData('text/plain'))?.text ?? '';
 }

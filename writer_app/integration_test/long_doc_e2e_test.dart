@@ -224,7 +224,10 @@ void main() {
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     final bolded = rig.text;
     // Bold wraps each line of the selection in its own ** pair (a marker pair never spans lines).
-    final nonBlank = orig.substring(s, e).split('\n').where((l) => l.trim().isNotEmpty && !l.startsWith('#')).length;
+    // (judge a line by its whole text: a selection starting inside a heading must not count that heading's tail)
+    final int firstLineStart = orig.lastIndexOf('\n', s - 1) + 1;
+    final nonBlank =
+        orig.substring(firstLineStart, e).split('\n').where((l) => l.trim().isNotEmpty && !l.startsWith('#')).length;
     // ignore: avoid_print
     print('EVID|8|bold on $n chars (window is ${rig.win.window.text.length}): length +${bolded.length - orig.length}, '
         'expected +${4 * nonBlank} ($nonBlank body lines)');

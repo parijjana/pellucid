@@ -147,10 +147,7 @@ void main() {
     await tripleClick(rig, rig.pointInLine(line, dx: 60));
     expectLineSelected(rig, line);
     await rig.dispose();
-  },
-      knownBug: 'first click on a far (static) line moves the window under the pointer, so the field never sees '
-          'it: three clicks end as a WORD selection, not the line (windowed_editor.dart:1117-1130 re-applies only the 2nd '
-          'click of that sequence, and the field then counts clicks 2+3 as its own double-click)');
+  });
 
   check('Check 5 (control): once the window is on the line, triple-click selects the line', (tester) async {
     final rig = await mount(tester);

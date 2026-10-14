@@ -408,7 +408,7 @@ void main() {
     final at = tester.getTopLeft(find.byType(RichText).first) + const Offset(12, 6);
     for (int i = 0; i < 3; i++) {
       await tester.tapAt(at, kind: PointerDeviceKind.mouse);
-      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 220));
     }
     await tester.pump();
     final sel = doc.selection;

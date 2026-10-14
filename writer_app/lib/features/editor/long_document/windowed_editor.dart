@@ -506,10 +506,11 @@ class WindowedEditorState extends State<WindowedEditor> {
       return;
     }
     _movePending = false;
-    final docSel = _toDoc(window.selection);
     // After the current frame: the field must finish handling the key first.
+    // The selection is read then, not now: a click handled in between (the
+    // multi-click word/line selection) must not be undone by a stale caret.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_composing) moveWindowTo(docSel);
+      if (mounted && !_composing) moveWindowTo(_toDoc(window.selection));
     });
   }
 

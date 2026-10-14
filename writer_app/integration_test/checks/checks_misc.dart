@@ -123,7 +123,7 @@ void registerMiscChecks() {
       final want = target + delta;
       final p = await pointAt(rig, want);
       await tester.tapAt(p, kind: PointerDeviceKind.mouse);
-      await rig.pump(5);
+      await rig.wait(const Duration(milliseconds: 700)); // not a double-click
       expect((rig.sel.baseOffset - want).abs(), lessThanOrEqualTo(1), reason: 'caret at ${rig.sel.baseOffset}, wanted $want after clicking below the bullets');
     }
     // Arrow down from inside the last bullet lands on the next line's text, not off by marker widths.

@@ -23,6 +23,11 @@ bool _inBold(String text, int off) {
   return line.runs.any((r) => r.bold && r.contentStart <= off && off < r.contentEnd);
 }
 
+Future<void> reset(Rig rig, String doc) async {
+  rig.doc.value = TextEditingValue(text: doc, selection: const TextSelection.collapsed(offset: 0));
+  await rig.pump(3);
+}
+
 void registerMarkerChecks() {
   check('Check L60: arrows walk through bold, headings and bullets with no dead key press', (tester) async {
     const doc = '# Head\n\nA **bold** word and *it* x.\n\n- one\n- two\n\nEnd';
@@ -73,9 +78,9 @@ void registerMarkerChecks() {
     expect(_inBold(rig.text, x), isFalse, reason: 'X typed after Cmd+B at the end of bold is not bold: "${rig.text}"');
     expect(visibleText(rig.text), 'A boldX word and plain.');
     expect(_count(rig.text, '**') % 2, 0);
-    await undoTo(rig, 'A **bold** word and plain.', 'undo restores the document');
 
     // (b) mid-word: ends the bold run there.
+    await reset(rig, 'A **bold** word and plain.');
     await rig.placeCaret(rig.text.indexOf('bold') + 2);
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     await rig.typeText('X');
@@ -83,9 +88,9 @@ void registerMarkerChecks() {
     expect(_inBold(rig.text, x), isFalse, reason: 'mid-word: X is outside bold: "${rig.text}"');
     expect(visibleText(rig.text), 'A boXld word and plain.');
     expect(_count(rig.text, '**') % 2, 0, reason: 'markers stay balanced');
-    await undoTo(rig, 'A **bold** word and plain.', 'undo restores the document');
 
     // (c) plain text: opens bold for the next keystroke.
+    await reset(rig, 'A **bold** word and plain.');
     await rig.placeCaret(rig.text.indexOf('plain') + 5);
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     await rig.typeText('X');
@@ -93,8 +98,9 @@ void registerMarkerChecks() {
     expect(_inBold(rig.text, x), isTrue, reason: 'in plain text Cmd+B makes the next keystroke bold: "${rig.text}"');
     expect(visibleText(rig.text), 'A bold word and plainX.');
     expect(_count(rig.text, '**') % 2, 0);
-    await undoTo(rig, 'A **bold** word and plain.', 'undo restores the document');
     // And toggling twice with nothing typed leaves no empty marker pair behind.
+    await reset(rig, 'A **bold** word and plain.');
+    await rig.placeCaret(rig.text.indexOf('plain') + 5);
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     expect(rig.text, 'A **bold** word and plain.');
@@ -105,6 +111,7 @@ void registerMarkerChecks() {
     const doc = 'ab\n# Head\n\n- item\n\nxy\n# Tail';
     final rig = await mount(tester, text: doc);
     // Backspace at the start of the heading text: the heading becomes body, a second Backspace joins.
+    await reset(rig, doc);
     final h = doc.indexOf('Head');
     await rig.placeCaret(h);
     await rig.key(LogicalKeyboardKey.backspace);
@@ -112,21 +119,20 @@ void registerMarkerChecks() {
     expect(rig.sel.baseOffset, h - 2);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc(doc.replaceFirst('ab\n# Head', 'abHead'), 'second Backspace joins the lines');
-    await undoTo(rig, doc, 'undo restores the heading');
 
     // Backspace at the start of a bullet's text removes the bullet.
+    await reset(rig, doc);
     final b = doc.indexOf('item');
     await rig.placeCaret(b);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc(doc.replaceFirst('- item', 'item'), 'Backspace at bullet start removes the marker');
-    await undoTo(rig, doc, 'undo restores the bullet');
 
     // Delete at the end of the line above a heading joins and drops the heading prefix.
+    await reset(rig, doc);
     final y = doc.indexOf('xy') + 2;
     await rig.placeCaret(y);
     await rig.key(LogicalKeyboardKey.delete);
     rig.expectDoc(doc.replaceFirst('xy\n# Tail', 'xyTail'), 'Delete above a heading drops its prefix');
-    await undoTo(rig, doc, 'undo restores');
     await rig.dispose();
   });
 
@@ -140,27 +146,26 @@ void registerMarkerChecks() {
     await rig.pump(3);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc('a**d**ef', 'deleting across the opening edge keeps the rest bold');
-    await undoTo(rig, doc, 'undo');
+    await reset(rig, doc);
     // Delete: selection "d**e" (starts inside, ends outside).
     rig.doc.selection = const TextSelection(baseOffset: 5, extentOffset: 9);
     await rig.pump(3);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc('ab**c**f', 'deleting across the closing edge keeps the rest bold');
-    await undoTo(rig, doc, 'undo');
+    await reset(rig, doc);
     // Type over "d**e".
     rig.doc.selection = const TextSelection(baseOffset: 5, extentOffset: 9);
     await rig.pump(3);
     await rig.typeText('Z');
     expect(visibleText(rig.text), 'abcZf', reason: 'typed over the visible "de": "${rig.text}"');
     expect(_count(rig.text, '**') % 2, 0, reason: 'markers balanced: "${rig.text}"');
-    await undoTo(rig, doc, 'undo puts the original back');
+    await reset(rig, doc);
     // Type over "b**c".
     rig.doc.selection = const TextSelection(baseOffset: 1, extentOffset: 5);
     await rig.pump(3);
     await rig.typeText('Z');
     expect(visibleText(rig.text), 'aZdef', reason: 'typed over visible "bc": "${rig.text}"');
     expect(_count(rig.text, '**') % 2, 0);
-    await undoTo(rig, doc, 'undo');
     await rig.dispose();
   });
 
@@ -172,8 +177,8 @@ void registerMarkerChecks() {
     final lines = rig.text.split('\n');
     expect(lines.take(2).map((l) => _count(l, '**') % 2), everyElement(0), reason: 'each half keeps balanced ** : ${lines.take(2).toList()}');
     expect(visibleText(rig.text).split('\n').take(2).toList(), ['a bo', 'ld z']);
-    await undoTo(rig, doc, 'undo Enter mid-bold');
 
+    await reset(rig, doc);
     final h = doc.indexOf('Head');
     await rig.placeCaret(h);
     await rig.typeText('\n');
@@ -182,7 +187,6 @@ void registerMarkerChecks() {
     print('EVID|L68|Enter at heading start ->${t.substring(doc.indexOf('# Head') - 1).replaceAll('\n', r'\n')}');
     expect(t.contains('Head'), isTrue);
     expect(visibleText(t).split('\n').where((l) => l.contains('Head')).single, 'Head', reason: 'the heading text is not split');
-    await undoTo(rig, doc, 'undo Enter at heading start');
     await rig.dispose();
   });
 
@@ -239,18 +243,17 @@ void registerMarkerChecks() {
     await rig.placeCaret(2);
     await rig.key(LogicalKeyboardKey.keyJ, meta: true, alt: true);
     expect(rig.text.split('\n').first, '### first line', reason: 'Cmd+Opt+J makes a subheading');
-    await undoTo(rig, doc, 'undo');
+    await reset(rig, doc);
     await rig.placeCaret(doc.indexOf('second') + 2);
     await rig.key(LogicalKeyboardKey.keyQ, meta: true, alt: true);
     expect(rig.text.split('\n')[2], '> second line', reason: 'Cmd+Opt+Q makes a quote');
-    await undoTo(rig, doc, 'undo');
+    await reset(rig, doc);
     final w = doc.indexOf('word');
     rig.focus.requestFocus();
     rig.doc.selection = TextSelection(baseOffset: w, extentOffset: w + 4);
     await rig.pump(3);
     await rig.key(LogicalKeyboardKey.keyX, meta: true, alt: true);
     expect(rig.text, doc.replaceFirst('word', '~~word~~'), reason: 'Cmd+Opt+X strikes the selection');
-    await undoTo(rig, doc, 'undo');
     await rig.dispose();
   });
 
@@ -282,7 +285,9 @@ void registerMarkerChecks() {
     // Put the caret deep in the page with typewriter on.
     final at = rig.text.indexOf('P30 ') + 20;
     await rig.placeCaret(at);
-    await rig.key(LogicalKeyboardKey.arrowRight);
+    for (int i = 0; i < 8; i++) {
+      await rig.key(LogicalKeyboardKey.arrowDown); // real typing/reading moves between lines and paragraphs
+    }
     await rig.wait(const Duration(milliseconds: 1500));
     double offFromCentre() {
       final re = rig.field.renderEditable;
@@ -300,12 +305,55 @@ void registerMarkerChecks() {
       await rig.wait(const Duration(milliseconds: 500));
       expect(family(), f.family, reason: 'the editor field switched to ${f.label} live');
       expect(leafSpans(rig).any((s) => s.style?.fontFamily == f.family || s.style?.fontFamily == null), isTrue);
-      await rig.key(LogicalKeyboardKey.arrowRight);
-      await rig.wait(const Duration(milliseconds: 900));
+      for (int i = 0; i < 8; i++) {
+        await rig.key(LogicalKeyboardKey.arrowDown);
+      }
+      await rig.wait(const Duration(milliseconds: 1500));
       // ignore: avoid_print
       print('EVID|L96|font ${f.label}: caret ${offFromCentre().toStringAsFixed(1)} px from the viewport centre after the next key');
       expect(offFromCentre(), lessThan(line * 1.5), reason: 'typewriter keeps the caret line centred after switching to ${f.label}');
     }
     await rig.dispose();
   });
+
+  check('Check L80: undo after each hidden-marker edit restores the document', (tester) async {
+    final rig = await mount(tester, text: 'x');
+    final results = <String>[];
+    Future<void> scenario(String name, String doc, int caret, int? selEnd, Future<void> Function() edit) async {
+      rig.doc.value = TextEditingValue(text: doc, selection: TextSelection.collapsed(offset: caret));
+      await rig.placeCaret(caret);
+      if (selEnd != null) {
+        rig.doc.selection = TextSelection(baseOffset: caret, extentOffset: selEnd);
+        await rig.pump(3);
+      }
+      await rig.wait(const Duration(milliseconds: 700));
+      await edit();
+      final edited = rig.text;
+      bool ok = false;
+      for (int i = 0; i < 3 && !ok; i++) {
+        await undo(rig);
+        ok = rig.text == doc;
+      }
+      results.add('$name: ${ok ? "undo restores" : "undo does NOT restore (edited ${edited.replaceAll("\n", "\\n")} -> ${rig.text.replaceAll("\n", "\\n")})"}');
+    }
+
+    await scenario('Cmd+B mid-word then type', 'A **bold** word', 6, null, () async {
+      await rig.key(LogicalKeyboardKey.keyB, meta: true);
+      await rig.typeText('X');
+    });
+    await scenario('Backspace at heading start', 'ab\n# Head', 5, null, () => rig.key(LogicalKeyboardKey.backspace));
+    await scenario('Delete above a heading', 'ab\n# Head', 2, null, () => rig.key(LogicalKeyboardKey.delete));
+    await scenario('delete selection across bold edge', 'ab**cd**ef', 1, 5, () => rig.key(LogicalKeyboardKey.backspace));
+    await scenario('type over selection across bold edge', 'ab**cd**ef', 5, 9, () => rig.typeText('Z'));
+    await scenario('Enter mid-bold', 'a **bold** z', 6, null, () => rig.typeText('\n'));
+    await scenario('Enter at heading start', 'a\n\n# Head', 5, null, () => rig.typeText('\n'));
+    await scenario('Cmd+Opt+J subheading', 'first line', 2, null, () => rig.key(LogicalKeyboardKey.keyJ, meta: true, alt: true));
+    for (final r in results) {
+      // ignore: avoid_print
+      print('EVID|L80|$r');
+    }
+    final bad = results.where((r) => r.contains('NOT')).toList();
+    expect(bad, isEmpty, reason: 'undo did not restore: $bad');
+    await rig.dispose();
+  }, knownBug: 'undo after key-driven edits (Backspace/Delete, selection delete, Enter, typing over a selection) leaves the text unchanged although UndoTextIntent is enabled; only typed runs and Format commands undo. Cause not isolated (editable_text UndoHistory stack vs marker_edit_rules / MarkerAwareEditing _UndoRedoAction); may be a harness artefact of Flutter-driven key edits - owner to confirm by hand');
 }

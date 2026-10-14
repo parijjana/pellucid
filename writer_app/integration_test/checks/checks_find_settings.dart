@@ -71,9 +71,13 @@ void registerFindSettingsChecks() {
     expect(find.text('PUBLISH & EXPORT'), findsOneWidget, reason: 'and expands again');
     // Setup opens its switches.
     expect(find.text('Smart Punctuation'), findsOneWidget);
+    await tester.ensureVisible(setup);
+    await rig.pump(4);
     await tester.tap(setup);
     await rig.pump(6);
     expect(find.text('Smart Punctuation'), findsNothing, reason: 'Setup collapses too');
+    await tester.ensureVisible(setup);
+    await rig.pump(4);
     await tester.tap(setup);
     await rig.pump(6);
     expect(find.text('Smart Punctuation'), findsOneWidget);

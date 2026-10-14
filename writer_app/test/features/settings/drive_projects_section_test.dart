@@ -107,7 +107,7 @@ void main() {
     expect(find.text('On this device'), findsOneWidget);
     expect(find.text('Sketches'), findsOneWidget);
     expect(find.text('Copy here'), findsOneWidget);
-    expect(find.textContaining('1 of 2 not on this device'), findsOneWidget);
+    expect(find.textContaining("1 of 2 isn't on this device yet"), findsOneWidget);
   });
 
   testWidgets('a pull refreshes the local library and reports the outcome',

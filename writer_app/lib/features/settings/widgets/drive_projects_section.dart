@@ -140,8 +140,7 @@ class _DriveProjectsSectionState extends State<DriveProjectsSection> {
                     ? 'Projects saved to Drive from your other devices.'
                     : remote.isEmpty
                         ? 'No projects found in your Drive vault.'
-                        : '${remote.where((p) => p.isPullable).length} of '
-                            '${remote.length} not on this device.',
+                        : _vaultSummary(remote.where((p) => p.isPullable).length, remote.length),
                 style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 13),
               ),
             ),
@@ -208,4 +207,12 @@ class _DriveProjectsSectionState extends State<DriveProjectsSection> {
       ),
     );
   }
+}
+
+/// "All 7 are on this device." / "2 of 7 aren't on this device yet." (no double negative).
+String _vaultSummary(int missing, int total) {
+  if (missing == 0) return total == 1 ? 'It is on this device.' : 'All $total are on this device.';
+  return missing == 1 && total == 1
+      ? "It isn't on this device yet."
+      : "$missing of $total ${missing == 1 ? "isn't" : "aren't"} on this device yet.";
 }

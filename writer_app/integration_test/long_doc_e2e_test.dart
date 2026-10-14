@@ -195,10 +195,7 @@ void main() {
     expect(s2.baseOffset, a, reason: 'anchor unchanged by Shift+Down: $s2');
     expect(s2.extentOffset, greaterThan(s1.extentOffset), reason: 'extent grew from the shift-click point');
     await rig.dispose();
-  },
-      knownBug: 'shift-click on a far static line leaves the editor UNFOCUSED, so Shift+Down does nothing: the '
-          '`if (_dragging) {... return;}` branch at windowed_editor.dart:1140-1145 returns before '
-          'widget.focusNode.requestFocus() at :1147 (the field lost focus to its tap-outside handler)');
+  });
 
   check('Check 6 (control): after refocusing, Shift+Down grows the selection from the shift-click point',
       (tester) async {

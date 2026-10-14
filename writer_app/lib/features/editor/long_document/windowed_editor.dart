@@ -1139,6 +1139,8 @@ class WindowedEditorState extends State<WindowedEditor> {
     if (anchor == null || e is! PointerUpEvent) return;
     if (_dragging) {
       _dragging = false;
+      // Keep the keyboard: after a shift-click or a drag, Shift+arrows extend.
+      widget.focusNode.requestFocus();
       // Bring a selection that fits into the field, so shift+arrows extend it.
       final sel = doc.selection;
       if (_isWide(sel) && sel.end - sel.start <= kWindowSelectionCapChars) moveWindowTo(sel);

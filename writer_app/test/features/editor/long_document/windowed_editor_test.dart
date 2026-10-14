@@ -358,6 +358,52 @@ void main() {
     expect(word.isNotEmpty, isTrue);
   });
 
+  testWidgets('triple click on a far static line selects the whole line', (tester) async {
+    final text = generateManuscript(12000, seed: 17);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    s.scroll.jumpTo(-600);
+    await tester.pump();
+    final at = tester.getTopLeft(find.byType(RichText).first) + const Offset(12, 6);
+    for (int i = 0; i < 3; i++) {
+      await tester.tapAt(at, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump();
+    final sel = doc.selection;
+    final line = s.buffer.lineOfOffset(sel.start);
+    final ls = s.buffer.lineStart(line);
+    expect(sel.start, ls, reason: '$sel');
+    expect(sel.end, ls + s.buffer.line(line).length, reason: '$sel');
+    expect(sel.isCollapsed, isFalse);
+  });
+
+  testWidgets('shift-click on a far static line keeps focus, so Shift+Down extends', (tester) async {
+    final text = generateManuscript(12000, seed: 16);
+    final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])
+      ..selection = TextSelection.collapsed(offset: text.length ~/ 2);
+    final s = await _pump(tester, doc);
+    final focus = s.widget.focusNode;
+    focus.requestFocus();
+    await tester.pumpAndSettle();
+    s.scroll.jumpTo(-600);
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+    int line = s.span.first - 1;
+    while (s.buffer.line(line).length < 10 || find.byKey(ValueKey('L$line')).evaluate().isEmpty) {
+      line--;
+    }
+    await tester.tapAt(
+      tester.getTopLeft(find.byKey(ValueKey('L$line'))) + const Offset(12, 8),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+    await tester.pump();
+    await tester.pump();
+    expect(focus.hasFocus, isTrue);
+  });
+
   testWidgets('revealOffset scrolls a far line into view without moving the caret', (tester) async {
     final text = generateManuscript(20000, seed: 18);
     final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])

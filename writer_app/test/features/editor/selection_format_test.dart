@@ -96,4 +96,30 @@ void main() {
     }
     expect(problems.take(10).toList(), isEmpty, reason: '${problems.length} problems');
   });
+
+  group('selection that includes a heading line (E2E-8a)', () {
+    const text = 'first body\n## A heading\nsecond body';
+
+    test('bold applies to the body lines and skips the heading', () {
+      final c = make(text, 0, text.length)..toggleFormat('**');
+      expect(c.text, '**first body**\n## A heading\n**second body**');
+    });
+
+    test('bold again on the same selection removes it from the body lines', () {
+      final c = make(text, 0, text.length)..toggleFormat('**');
+      c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
+      c.toggleFormat('**');
+      expect(c.text, text);
+    });
+
+    test('italic skips the heading too', () {
+      final c = make(text, 0, text.length)..toggleFormat('*');
+      expect(c.text, '*first body*\n## A heading\n*second body*');
+    });
+
+    test('a selection of only a heading still does nothing', () {
+      final c = make(text, 11, 22)..toggleFormat('**');
+      expect(c.text, text);
+    });
+  });
 }

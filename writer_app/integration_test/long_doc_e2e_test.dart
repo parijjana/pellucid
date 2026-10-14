@@ -246,10 +246,7 @@ void main() {
 
   check('Check 8: Cmd+B on a 30k-char selection that spans a chapter heading bolds the body lines', (tester) async {
     await boldSelection(tester, fixture.lineStart(fixture.chapterLines[18]) + 10, longSel);
-  },
-      knownBug: 'toggleInlineOnSelection returns null when the selection includes a heading line (not bold-able, so '
-          '"every visible char is bold" can never become true): the proof at marker_edit_rules.dart:660 rejects '
-          'it and Cmd+B silently does nothing');
+  });
 
   check('Check 8: Cut acts on the whole long selection', (tester) async {
     final rig = await mount(tester);

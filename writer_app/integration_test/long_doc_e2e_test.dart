@@ -275,11 +275,11 @@ void main() {
     expect(rig.text.length, orig.length + 4);
     await rig.key(LogicalKeyboardKey.keyZ, meta: true);
     rig.expectDoc(orig, 'undo of Cmd+B');
+    expect(rig.sel, TextSelection(baseOffset: s, extentOffset: s + 80), reason: 'undo restores the selection');
+    await rig.key(LogicalKeyboardKey.keyZ, meta: true, shift: true);
+    expect(rig.text.length, orig.length + 4, reason: 'Cmd+Shift+Z redoes the bold');
     await rig.dispose();
-  },
-      knownBug: 'formatting (Cmd+B) is an "edit outside the window", and _onDocChanged clears the whole undo/redo '
-          'stack for those (windowed_editor.dart:598-599): Cmd+Z after bold does nothing and earlier typing '
-          'history is lost');
+  });
 
   // ------------------------------------------------------------ Check 11 ---
   check('Check 11: far bullet list - Enter, undo-after-Enter, Tab, Backspace', (tester) async {

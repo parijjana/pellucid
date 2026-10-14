@@ -180,6 +180,46 @@ void main() {
     _expectCoherent(s, doc, typed);
   });
 
+  for (final tag in ['**', '*', '<u>', '~~', '## ']) {
+    testWidgets('formatting with "$tag" is one undo step, with typing history kept (E2E-8b)', (tester) async {
+      final original = generateManuscript(12000, seed: 8);
+      final doc = MarkdownEditingController(text: original, theme: WriterTheme.presets[0])
+        ..selection = TextSelection.collapsed(offset: original.length ~/ 2);
+      final s = await _pump(tester, doc);
+      _typeInWindow(s, s.window.selection.extentOffset, 0, 'x');
+      await tester.pump();
+      final typed = doc.text;
+      // Select a stretch of body text and format it.
+      final int a = doc.selection.baseOffset;
+      final sel = TextSelection(baseOffset: a, extentOffset: a + 40);
+      doc.selection = sel;
+      await tester.pump();
+      doc.toggleFormat(tag);
+      await tester.pump();
+      await tester.pump();
+      final formatted = doc.text;
+      expect(formatted, isNot(typed), reason: 'the format changed the text');
+      expect(s.canUndo, isTrue);
+      s.undo();
+      await tester.pump();
+      await tester.pump();
+      expect(doc.text, typed, reason: 'one undo reverts the format');
+      expect(doc.selection, sel, reason: 'and restores the selection');
+      _expectCoherent(s, doc, typed);
+      s.redo();
+      await tester.pump();
+      await tester.pump();
+      expect(doc.text, formatted);
+      _expectCoherent(s, doc, formatted);
+      // The typing before it is still undoable.
+      s.undo();
+      s.undo();
+      await tester.pump();
+      await tester.pump();
+      expect(doc.text, original);
+    });
+  }
+
   testWidgets('composing text holds the window still until it is committed', (tester) async {
     final text = generateManuscript(12000, seed: 6);
     final doc = MarkdownEditingController(text: text, theme: WriterTheme.presets[0])

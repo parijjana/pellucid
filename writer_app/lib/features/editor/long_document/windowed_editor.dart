@@ -243,6 +243,11 @@ class WindowedEditorState extends State<WindowedEditor> {
   bool _applying = false; // our own write to the window or the document
   bool _movePending = false;
 
+  /// The document selection as of the last change notification (the value a
+  /// change that arrives from outside replaces).
+  TextSelection _docSelSeen = const TextSelection.collapsed(offset: 0);
+  void _trackDocSelection() => _docSelSeen = doc.selection;
+
   final List<_DocEdit> _undo = [];
   final List<_DocEdit> _redo = [];
   static const Duration _coalesceGap = Duration(milliseconds: 800);
@@ -318,6 +323,8 @@ class WindowedEditorState extends State<WindowedEditor> {
     _load(planWindow(buffer, sel.start, sel.end), sel);
     window.addListener(_onWindowChanged);
     doc.addListener(_onDocChanged);
+    _docSelSeen = doc.selection;
+    doc.addListener(_trackDocSelection); // after _onDocChanged: it must see the old value
     // The editor swapped in while the writer was typing (a paste carried a
     // short document over the threshold): the focus node already has focus,
     // so the new field never sees a focus change and would not open its input
@@ -335,9 +342,12 @@ class WindowedEditorState extends State<WindowedEditor> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onDocChanged);
+      oldWidget.controller.removeListener(_trackDocSelection);
       if (identical(_editors[oldWidget.controller], this)) _editors[oldWidget.controller] = null;
       widget.controller.addListener(_onDocChanged);
+      widget.controller.addListener(_trackDocSelection);
       _editors[widget.controller] = this;
+      _docSelSeen = doc.selection;
       _resetFromDoc();
     }
   }
@@ -347,6 +357,7 @@ class WindowedEditorState extends State<WindowedEditor> {
     SemanticsBinding.instance.removeSemanticsEnabledListener(_onSemanticsEnabled);
     window.removeListener(_onWindowChanged);
     doc.removeListener(_onDocChanged);
+    doc.removeListener(_trackDocSelection);
     if (identical(_editors[doc], this)) _editors[doc] = null;
     _autoScroll?.cancel();
     window.dispose();
@@ -593,11 +604,14 @@ class WindowedEditorState extends State<WindowedEditor> {
     _copySettings();
     if (!identical(doc.text, _lastDocText) && doc.text != buffer.text) {
       // An edit made outside the window (formatting command, Replace, load).
+      // It is one undo step (Cmd+B, a Format-menu toggle, Replace): the text
+      // and the selection from before it come back with Cmd+Z, and go again
+      // with Cmd+Shift+Z. Earlier typing history stays.
       final d = diffReplacement(buffer.text, doc.text);
+      final String removed = buffer.text.substring(d.start, d.end);
       buffer.replace(d.start, d.end, d.inserted);
       _lastDocText = doc.text;
-      _undo.clear();
-      _redo.clear();
+      _record(d.start, removed, d.inserted, _docSelSeen, doc.selection);
       _syncWindowTo(doc.selection, force: true);
       return;
     }

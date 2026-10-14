@@ -312,7 +312,7 @@ void registerMarkerChecks() {
       expect(offFromCentre(), lessThan(line * 1.5), reason: 'typewriter keeps the caret line centred after switching to ${f.label}');
     }
     await rig.dispose();
-  });
+  }, knownBug: 'typewriter (editor_screen.dart:225-285, typewriter_scroll.dart): after typing, the caret line sits ~300 px from the viewport centre (edge of the view) in the normal editor, before and after a font switch; font switch itself works. Cause not isolated (typewriterTargetOffset estimate vs real layout)');
 
   check('Check L80: undo after each hidden-marker edit restores the document', (tester) async {
     final rig = await mount(tester, text: 'x');
@@ -353,5 +353,5 @@ void registerMarkerChecks() {
     final bad = results.where((r) => r.contains('NOT')).toList();
     expect(bad, isEmpty, reason: 'undo did not restore: $bad');
     await rig.dispose();
-  }, knownBug: 'typewriter (editor_screen.dart:225-285, typewriter_scroll.dart): after typing, the caret line sits ~300 px from the viewport centre (edge of the view) in the normal editor, before and after a font switch; font switch itself works. Cause not isolated (typewriterTargetOffset estimate vs real layout)');
+  });
 }

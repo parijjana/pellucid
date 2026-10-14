@@ -12,3 +12,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.overengineeredhobbies.pellucid
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 Animesh Sarkar (Overengineered Hobbies). All rights reserved.
+
+// E2E isolation hook: tool/e2e/run_long_doc.sh writes E2E.xcconfig (untracked) for the duration of a
+// test run so the test build gets its own bundle id. Absent in every normal build.
+#include? "E2E.xcconfig"

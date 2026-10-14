@@ -498,6 +498,32 @@ bool _tagOn(FormattingState f, String tag) => switch (tag) {
       _ => f.strikethrough,
     };
 
+/// Whether every visible character of the formattable lines in the selection
+/// has [tag]. Block lines that carry no inline styling (headings, quotes) are
+/// left out when the selection also covers formattable lines; without any such
+/// line this is exactly [formattingAt].
+bool _selectionHasTag(String text, int selStart, int selEnd, String tag) {
+  final whole = TextSelection(baseOffset: selStart, extentOffset: selEnd);
+  int at = selStart;
+  bool blocked = false;
+  final spans = <TextSelection>[];
+  while (at <= selEnd && at <= text.length) {
+    final line = scanLineAt(text, at);
+    final int from = at > selStart ? at : selStart;
+    final int to = selEnd < line.lineEnd ? selEnd : line.lineEnd;
+    at = line.lineEnd + 1;
+    if (from >= to) continue;
+    if (line.prefix == null || line.list != null) {
+      spans.add(TextSelection(baseOffset: from, extentOffset: to));
+    } else {
+      blocked = true;
+    }
+  }
+  if (!blocked) return _tagOn(formattingAt(text, whole), tag);
+  if (spans.isEmpty) return false;
+  return spans.every((r) => _tagOn(formattingAt(text, r), tag));
+}
+
 /// Bold/italic/underline/strikethrough applied to a (non-collapsed) selection.
 ///
 /// Works from the runs the renderer itself sees ([scanLine]), one line at a
@@ -506,12 +532,13 @@ bool _tagOn(FormattingState f, String tag) => switch (tag) {
 /// are left outside the new markers; a run of the same style that the
 /// selection touches is merged into the new one; a run of another style that
 /// the new markers would cross is closed and reopened around them. The
-/// result is always balanced. When every visible character already has the
-/// style it is removed instead. Null when nothing can change or the result
+/// result is always balanced. Heading, quote and other block lines that cannot
+/// carry inline styling are skipped; the body lines around them are formatted.
+/// When every visible character already has the style it is removed instead. Null when nothing can change or the result
 /// could not be proven to render the same text with the style flipped.
 SelectionToggle? toggleInlineOnSelection(String text, int selStart, int selEnd, String tag) {
   if (selStart >= selEnd || selEnd > text.length) return null;
-  final bool turnOff = _tagOn(formattingAt(text, TextSelection(baseOffset: selStart, extentOffset: selEnd)), tag);
+  final bool turnOff = _selectionHasTag(text, selStart, selEnd, tag);
   final String closeTag = tag == '<u>' ? '</u>' : tag;
   final edits = <_Edit>[];
   int seq = 0;
@@ -656,7 +683,6 @@ SelectionToggle? toggleInlineOnSelection(String text, int selStart, int selEnd, 
   if (visibleText(text.substring(regionStart, regionEnd)) != visibleText(newText.substring(regionStart, regionEnd + delta))) {
     return null;
   }
-  final after = formattingAt(newText, TextSelection(baseOffset: ns, extentOffset: ne));
-  if (ns < ne && _tagOn(after, tag) == turnOff) return null;
+  if (ns < ne && _selectionHasTag(newText, ns, ne, tag) == turnOff) return null;
   return SelectionToggle(newText, ns, ne);
 }

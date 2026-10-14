@@ -121,7 +121,7 @@ void registerMiscChecks() {
     final target = doc.indexOf('target paragraph');
     for (final delta in [0, 5, 12]) {
       final want = target + delta;
-      final p = rig.pointAtOffset(want);
+      final p = await pointAt(rig, want);
       await tester.tapAt(p, kind: PointerDeviceKind.mouse);
       await rig.pump(5);
       expect((rig.sel.baseOffset - want).abs(), lessThanOrEqualTo(1), reason: 'caret at ${rig.sel.baseOffset}, wanted $want after clicking below the bullets');

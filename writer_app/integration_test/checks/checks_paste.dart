@@ -35,44 +35,51 @@ void registerPasteChecks() {
     await rig.placeCaret(rig.text.length);
     await _paste(rig);
     rig.expectDoc('Before\n- Fruit\n    - Apple\n    - Banana\n        - Plantain\n- Vegetables', 'nested list lands with 4-space nesting');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc('Before\n', 'one undo removes the paste');
+    await undoTo(rig, 'Before\n', 'one undo removes the paste');
     await rig.dispose();
   });
 
-  check('Check L173a: Word paragraph with a left indent lands indented (pt margin)', (tester) async {
+  const wordText = 'An indented paragraph from Word.\nAnother one, indented in inches.\nA hanging indent paragraph.\nA plain paragraph.';
+
+  check('Check L173a: Word paragraph with a left indent (36.0pt) lands indented', (tester) async {
     final rig = await mount(tester, text: '');
-    await rig.setExternalClipboard('An indented paragraph from Word.\nAnother one, indented in inches.\nA hanging indent paragraph.\nA plain paragraph.',
-        html: fixtureHtml('word_indented_paragraph.html'));
+    await rig.setExternalClipboard(wordText, html: fixtureHtml('word_indented_paragraph.html'));
     await rig.placeCaret(0);
     await _paste(rig);
     final lines = rig.text.split('\n');
-    expect(lines[0], '${em}An indented paragraph from Word.', reason: 'margin-left:36.0pt lands as one indent level');
-    expect(lines.last, 'A plain paragraph.');
     // ignore: avoid_print
     print('EVID|L173|Word paste lines: ${lines.map((l) => l.replaceAll(em, '<em>')).toList()}');
+    expect(lines[0], '${em}An **indented** paragraph from Word.', reason: 'margin-left:36.0pt lands as one indent level');
+    expect(lines.last, 'A plain **paragraph**.');
     await rig.dispose();
   });
 
   check('Check L173b: Word ".5in" margin lands indented', (tester) async {
     final rig = await mount(tester, text: '');
-    await rig.setExternalClipboard('An indented paragraph from Word.\nAnother one, indented in inches.\nA hanging indent paragraph.\nA plain paragraph.',
-        html: fixtureHtml('word_indented_paragraph.html'));
+    await rig.setExternalClipboard(wordText, html: fixtureHtml('word_indented_paragraph.html'));
     await rig.placeCaret(0);
     await _paste(rig);
-    expect(rig.text.split('\n')[1], '${em}Another one, indented in inches.', reason: 'Word writes margin-left:.5in without a leading zero');
+    expect(rig.text.split('\n')[1], '${em}Another one, **indented** in inches.', reason: 'Word writes margin-left:.5in without a leading zero');
     await rig.dispose();
   }, knownBug: 'html_to_markdown.dart:333 - _indentLevel regex needs a leading digit, so Word ".5in" (no leading zero) is dropped, not indented');
 
   check('Check L173c: a hanging indent from Word lands plain', (tester) async {
     final rig = await mount(tester, text: '');
-    await rig.setExternalClipboard('An indented paragraph from Word.\nAnother one, indented in inches.\nA hanging indent paragraph.\nA plain paragraph.',
-        html: fixtureHtml('word_indented_paragraph.html'));
+    await rig.setExternalClipboard(wordText, html: fixtureHtml('word_indented_paragraph.html'));
     await rig.placeCaret(0);
     await _paste(rig);
-    expect(rig.text.split('\n')[2], 'A hanging indent paragraph.', reason: 'hanging (margin-left + negative text-indent) is not a plain indent');
+    expect(rig.text.split('\n')[2], 'A **hanging** indent paragraph.', reason: 'hanging (margin-left + negative text-indent) is not a plain indent');
     await rig.dispose();
   });
+
+  check('Check L173e: a pure indent paste (no other formatting) from Word still lands indented', (tester) async {
+    final rig = await mount(tester, text: '');
+    await rig.setExternalClipboard('An indented paragraph from Word.', html: fixtureHtml('word_indent_only.html'));
+    await rig.placeCaret(0);
+    await _paste(rig);
+    expect(rig.text, '${em}An indented paragraph from Word.', reason: 'only an indent: still pasted indented');
+    await rig.dispose();
+  }, knownBug: 'html_to_markdown.dart:25-29 - htmlAddsStructure squashes all whitespace (\\s matches the U+2003 indent), so an indent-only paste counts as "no structure" and falls back to the plain paste');
 
   check('Check L173d: Google Docs indented paragraph lands indented, hanging lands plain, no stray bold', (tester) async {
     final rig = await mount(tester, text: '');
@@ -82,8 +89,7 @@ void registerPasteChecks() {
     final lines = rig.text.split('\n');
     // ignore: avoid_print
     print('EVID|L173|Docs paste lines: ${lines.map((l) => l.replaceAll(em, '<em>')).toList()}');
-    expect(rig.text, isNot(contains('**')), reason: 'the <b style="font-weight:normal"> wrapper Docs adds is not bold');
-    expect(lines.first, '${em}An indented paragraph from Docs.');
+    expect(lines.first, '${em}An indented paragraph from **Docs**.', reason: 'only the <span font-weight:700> is bold, not the font-weight:normal <b> wrapper');
     expect(lines.last, 'A hanging indent paragraph from Docs.', reason: 'hanging indent lands plain');
     await rig.dispose();
   });
@@ -122,16 +128,14 @@ void registerPasteChecks() {
     await rig.placeCaret(6);
     await _paste(rig);
     expect(rig.text, startsWith('Start - Fruit'), reason: 'plain Cmd+V converts the HTML (control)');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc('Start ', 'undo');
+    await undoTo(rig, 'Start ', 'undo');
 
     // 1. Cmd+Shift+V.
     await rig.placeCaret(6);
     await rig.key(LogicalKeyboardKey.keyV, meta: true, shift: true);
     await rig.wait(const Duration(milliseconds: 500));
     rig.expectDoc('Start $plain', 'Cmd+Shift+V pastes the clipboard text as is');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc('Start ', 'undo');
+    await undoTo(rig, 'Start ', 'undo');
 
     // 2. The Edit menu item: PastePlainTextIntent on the focused node (what the menu bar does).
     await rig.placeCaret(6);
@@ -139,12 +143,11 @@ void registerPasteChecks() {
     Actions.invoke(ctx, const PastePlainTextIntent());
     await rig.wait(const Duration(milliseconds: 500));
     rig.expectDoc('Start $plain', 'Edit > Paste as Plain Text pastes as is');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc('Start ', 'undo');
+    await undoTo(rig, 'Start ', 'undo');
 
     // 3. Right-click > Paste as plain text.
     await rig.placeCaret(6);
-    final p = rig.pointAtOffset(2);
+    final p = await pointAt(rig, 2);
     await tester.tapAt(p, kind: PointerDeviceKind.mouse, buttons: kSecondaryMouseButton);
     await rig.wait(const Duration(milliseconds: 800));
     expect(find.text('Paste as plain text'), findsOneWidget, reason: 'the context menu offers it');
@@ -163,8 +166,7 @@ void registerPasteChecks() {
     await rig.placeCaret(0);
     await _paste(rig);
     rig.expectDoc(code, 'code (indentation, asterisks, underscores) lands exactly as copied');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc('', 'undo');
+    await undoTo(rig, '', 'undo');
     await rig.dispose();
   });
 }

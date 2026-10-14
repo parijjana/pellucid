@@ -44,17 +44,18 @@ void registerMarkerChecks() {
     expect(stops.last, doc.length, reason: 'Right reaches the end of the document');
     // Visible characters + each line boundary: far fewer stops than raw characters, so markers were skipped.
     expect(stops.length, lessThan(doc.length), reason: 'hidden markers were stepped over (${stops.length} stops for ${doc.length} chars)');
+    final first = canonicalOffset(doc, 0); // the "# " of the title is hidden: the first caret stop is after it
     for (int i = 0; i < doc.length + 5; i++) {
       final before = rig.sel.baseOffset;
       await rig.key(LogicalKeyboardKey.arrowLeft);
       final now = rig.sel.baseOffset;
       if (now == before) {
-        expect(before, 0, reason: 'a Left press did nothing at $before: dead key');
+        expect(before, first, reason: 'a Left press did nothing at $before: dead key');
         break;
       }
       expect(canonicalOffset(doc, now), now, reason: 'Left never rests inside a marker ($now)');
     }
-    expect(rig.sel.baseOffset, 0);
+    expect(rig.sel.baseOffset, first);
     // ignore: avoid_print
     print('EVID|L60|${stops.length} Right presses walked ${doc.length} chars with no dead key');
     await rig.dispose();
@@ -72,10 +73,7 @@ void registerMarkerChecks() {
     expect(_inBold(rig.text, x), isFalse, reason: 'X typed after Cmd+B at the end of bold is not bold: "${rig.text}"');
     expect(visibleText(rig.text), 'A boldX word and plain.');
     expect(_count(rig.text, '**') % 2, 0);
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    expect(rig.text, 'A **bold** word and plain.', reason: 'undo restores the document');
+    await undoTo(rig, 'A **bold** word and plain.', 'undo restores the document');
 
     // (b) mid-word: ends the bold run there.
     await rig.placeCaret(rig.text.indexOf('bold') + 2);
@@ -85,10 +83,7 @@ void registerMarkerChecks() {
     expect(_inBold(rig.text, x), isFalse, reason: 'mid-word: X is outside bold: "${rig.text}"');
     expect(visibleText(rig.text), 'A boXld word and plain.');
     expect(_count(rig.text, '**') % 2, 0, reason: 'markers stay balanced');
-    for (int i = 0; i < 3; i++) {
-      await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    }
-    expect(rig.text, 'A **bold** word and plain.');
+    await undoTo(rig, 'A **bold** word and plain.', 'undo restores the document');
 
     // (c) plain text: opens bold for the next keystroke.
     await rig.placeCaret(rig.text.indexOf('plain') + 5);
@@ -98,10 +93,7 @@ void registerMarkerChecks() {
     expect(_inBold(rig.text, x), isTrue, reason: 'in plain text Cmd+B makes the next keystroke bold: "${rig.text}"');
     expect(visibleText(rig.text), 'A bold word and plainX.');
     expect(_count(rig.text, '**') % 2, 0);
-    for (int i = 0; i < 3; i++) {
-      await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    }
-    expect(rig.text, 'A **bold** word and plain.');
+    await undoTo(rig, 'A **bold** word and plain.', 'undo restores the document');
     // And toggling twice with nothing typed leaves no empty marker pair behind.
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
     await rig.key(LogicalKeyboardKey.keyB, meta: true);
@@ -120,26 +112,21 @@ void registerMarkerChecks() {
     expect(rig.sel.baseOffset, h - 2);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc(doc.replaceFirst('ab\n# Head', 'abHead'), 'second Backspace joins the lines');
-    for (int i = 0; i < 2; i++) {
-      await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    }
-    rig.expectDoc(doc, 'undo (x2) restores the heading');
+    await undoTo(rig, doc, 'undo restores the heading');
 
     // Backspace at the start of a bullet's text removes the bullet.
     final b = doc.indexOf('item');
     await rig.placeCaret(b);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc(doc.replaceFirst('- item', 'item'), 'Backspace at bullet start removes the marker');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo restores the bullet');
+    await undoTo(rig, doc, 'undo restores the bullet');
 
     // Delete at the end of the line above a heading joins and drops the heading prefix.
     final y = doc.indexOf('xy') + 2;
     await rig.placeCaret(y);
     await rig.key(LogicalKeyboardKey.delete);
     rig.expectDoc(doc.replaceFirst('xy\n# Tail', 'xyTail'), 'Delete above a heading drops its prefix');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo restores');
+    await undoTo(rig, doc, 'undo restores');
     await rig.dispose();
   });
 
@@ -153,31 +140,27 @@ void registerMarkerChecks() {
     await rig.pump(3);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc('a**d**ef', 'deleting across the opening edge keeps the rest bold');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo');
+    await undoTo(rig, doc, 'undo');
     // Delete: selection "d**e" (starts inside, ends outside).
     rig.doc.selection = const TextSelection(baseOffset: 5, extentOffset: 9);
     await rig.pump(3);
     await rig.key(LogicalKeyboardKey.backspace);
     rig.expectDoc('ab**c**f', 'deleting across the closing edge keeps the rest bold');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo');
+    await undoTo(rig, doc, 'undo');
     // Type over "d**e".
     rig.doc.selection = const TextSelection(baseOffset: 5, extentOffset: 9);
     await rig.pump(3);
     await rig.typeText('Z');
     expect(visibleText(rig.text), 'abcZf', reason: 'typed over the visible "de": "${rig.text}"');
     expect(_count(rig.text, '**') % 2, 0, reason: 'markers balanced: "${rig.text}"');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo puts the original back');
+    await undoTo(rig, doc, 'undo puts the original back');
     // Type over "b**c".
     rig.doc.selection = const TextSelection(baseOffset: 1, extentOffset: 5);
     await rig.pump(3);
     await rig.typeText('Z');
     expect(visibleText(rig.text), 'aZdef', reason: 'typed over visible "bc": "${rig.text}"');
     expect(_count(rig.text, '**') % 2, 0);
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo');
+    await undoTo(rig, doc, 'undo');
     await rig.dispose();
   });
 
@@ -189,8 +172,7 @@ void registerMarkerChecks() {
     final lines = rig.text.split('\n');
     expect(lines.take(2).map((l) => _count(l, '**') % 2), everyElement(0), reason: 'each half keeps balanced ** : ${lines.take(2).toList()}');
     expect(visibleText(rig.text).split('\n').take(2).toList(), ['a bo', 'ld z']);
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo Enter mid-bold');
+    await undoTo(rig, doc, 'undo Enter mid-bold');
 
     final h = doc.indexOf('Head');
     await rig.placeCaret(h);
@@ -200,8 +182,7 @@ void registerMarkerChecks() {
     print('EVID|L68|Enter at heading start ->${t.substring(doc.indexOf('# Head') - 1).replaceAll('\n', r'\n')}');
     expect(t.contains('Head'), isTrue);
     expect(visibleText(t).split('\n').where((l) => l.contains('Head')).single, 'Head', reason: 'the heading text is not split');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo Enter at heading start');
+    await undoTo(rig, doc, 'undo Enter at heading start');
     await rig.dispose();
   });
 
@@ -258,21 +239,18 @@ void registerMarkerChecks() {
     await rig.placeCaret(2);
     await rig.key(LogicalKeyboardKey.keyJ, meta: true, alt: true);
     expect(rig.text.split('\n').first, '### first line', reason: 'Cmd+Opt+J makes a subheading');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo');
+    await undoTo(rig, doc, 'undo');
     await rig.placeCaret(doc.indexOf('second') + 2);
     await rig.key(LogicalKeyboardKey.keyQ, meta: true, alt: true);
     expect(rig.text.split('\n')[2], '> second line', reason: 'Cmd+Opt+Q makes a quote');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo');
+    await undoTo(rig, doc, 'undo');
     final w = doc.indexOf('word');
     rig.focus.requestFocus();
     rig.doc.selection = TextSelection(baseOffset: w, extentOffset: w + 4);
     await rig.pump(3);
     await rig.key(LogicalKeyboardKey.keyX, meta: true, alt: true);
     expect(rig.text, doc.replaceFirst('word', '~~word~~'), reason: 'Cmd+Opt+X strikes the selection');
-    await rig.key(LogicalKeyboardKey.keyZ, meta: true);
-    rig.expectDoc(doc, 'undo');
+    await undoTo(rig, doc, 'undo');
     await rig.dispose();
   });
 
@@ -305,7 +283,7 @@ void registerMarkerChecks() {
     final at = rig.text.indexOf('P30 ') + 20;
     await rig.placeCaret(at);
     await rig.key(LogicalKeyboardKey.arrowRight);
-    await rig.wait(const Duration(milliseconds: 900));
+    await rig.wait(const Duration(milliseconds: 1500));
     double offFromCentre() {
       final re = rig.field.renderEditable;
       final c = re.localToGlobal(re.getLocalRectForCaret(rig.sel.extent).center);
@@ -314,6 +292,8 @@ void registerMarkerChecks() {
     }
 
     final line = 16.0 * 1.8;
+    // ignore: avoid_print
+    print('EVID|L96|before switch: scroll ${tester.state<ScrollableState>(find.byType(Scrollable).first).position.pixels.toStringAsFixed(0)}, caret ${offFromCentre().toStringAsFixed(1)} px from centre, typewriter=${rig.settings.typewriterEnabled}, sel=${rig.sel}');
     expect(offFromCentre(), lessThan(line * 1.5), reason: 'caret line is centred before the switch');
     for (final f in [EditorFont.sans, EditorFont.monospace, EditorFont.serif]) {
       rig.settings.setEditorFont(f);

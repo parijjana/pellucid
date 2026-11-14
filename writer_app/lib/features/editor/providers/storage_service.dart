@@ -134,8 +134,25 @@ class StorageService {
     try {
       final file = _fileSystem.file('$projectPath/$_docName');
       if (!await file.exists()) return const ReadResult.missing('');
-      return ReadResult.ok(await file.readAsString());
+      final content = await file.readAsString();
+      // A cloud placeholder (iCloud/Drive) or a half-synced file can read as
+      // empty while the directory entry says it has bytes. Trust the bytes on
+      // disk over the empty string: the content is unknown, not blank.
+      if (content.isEmpty && await file.length() > 0) {
+        return ReadResult.failed(
+            '', const FormatException('document.md read as empty but is not empty on disk'));
+      }
+      return ReadResult.ok(content);
     } catch (e) {
+      // The file vanished between the existence check and the read: that is a
+      // missing document, not an unreadable one.
+      try {
+        if (!await _fileSystem.file('$projectPath/$_docName').exists() &&
+            e is FileSystemException &&
+            e.osError?.errorCode == 2) {
+          return const ReadResult.missing('');
+        }
+      } catch (_) {}
       return ReadResult.failed('', e);
     }
   }

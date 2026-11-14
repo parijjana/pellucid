@@ -24,7 +24,9 @@ String? htmlToMarkdown(String html) {
 /// the conversion is worth using over a plain paste.
 bool htmlAddsStructure(String markdown, String? plain) {
   if (plain == null) return true;
-  String squash(String s) => s.replaceAll(RegExp(r'\s+'), '');
+  // Em-spaces (U+2003) are the indent markers this converter emits, so they
+  // count as structure: an indent-only paste must not collapse to plain text.
+  String squash(String s) => s.replaceAll(RegExp(r'[^\S ]+'), '');
   return squash(markdown) != squash(plain);
 }
 
@@ -313,12 +315,16 @@ class _Converter {
     // unclear (negative, tiny, odd unit) is dropped.
     if (!preserve && prefix.isEmpty && lists.isEmpty && (e.localName == 'p' || e.localName == 'div')) {
       final st = _style(e);
-      final left = _indentLevel(st, const ['margin-left', 'padding-left']);
+      // A hanging indent (Word/Docs: margin-left plus a negative text-indent)
+      // only offsets wrapped lines; the first line starts at the margin, so it
+      // is a plain paragraph here.
+      final hanging = RegExp(r'(?:^|;)text-indent:-').hasMatch(st);
+      final left = hanging ? 0 : _indentLevel(st, const ['margin-left', 'padding-left']);
       if (left > 0) {
         _emitParagraph(segs, '\u2003' * left, preserve);
         return;
       }
-      final first = _indentLevel(st, const ['text-indent']);
+      final first = hanging ? 0 : _indentLevel(st, const ['text-indent']);
       if (first > 0) {
         _emitParagraph(segs, prefix, preserve, first: '\u2003' * first);
         return;
@@ -331,7 +337,7 @@ class _Converter {
   /// style string [st] to a plain positive length; 0 when absent or unclear.
   static int _indentLevel(String st, List<String> props) {
     for (final prop in props) {
-      final m = RegExp('(?:^|;)$prop:(\\d+(?:\\.\\d+)?)(px|pt|em|in|cm)(?:;|\$)').firstMatch(st);
+      final m = RegExp('(?:^|;)$prop:(\\d*\\.?\\d+)(px|pt|em|in|cm)(?:;|\$)').firstMatch(st);
       if (m == null) continue;
       final value = double.parse(m.group(1)!);
       final px = value *

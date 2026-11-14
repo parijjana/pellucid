@@ -279,4 +279,22 @@ Writer''');
       expect(md('<ul><li style="margin-left:0.5in">x</li></ul>'), '- x');
     });
   });
+
+  group('Word indent paste (MAC-1..3)', () {
+    const em = '\u2003';
+    test('MAC-1 margin-left:.5in (no leading digit) is an indent', () {
+      expect(md('<p style="margin-left:.5in">a</p>'), '${em}a');
+      expect(md('<p style="margin-left:.5in;">a</p>'), '${em}a');
+    });
+    test('MAC-2 hanging indent (margin-left + negative text-indent) is plain', () {
+      expect(md('<p style="margin-left:.5in;text-indent:-.5in">a</p>'), 'a');
+      expect(md('<p style="margin-left:36.0pt;text-indent:-18.0pt">a</p>'), 'a');
+    });
+    test('MAC-3 an indent-only paste still counts as structure', () {
+      final converted = md('<p style="margin-left:.5in">Hello</p>');
+      expect(htmlAddsStructure(converted, 'Hello'), isTrue);
+      expect(htmlAddsStructure('Hello', 'Hello'), isFalse);
+      expect(htmlAddsStructure('Hello  world', 'Hello world'), isFalse);
+    });
+  });
 }

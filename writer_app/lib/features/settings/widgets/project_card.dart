@@ -9,6 +9,11 @@ import '../../sidebar/widgets/snapshot_management_dialog.dart';
 import '../screens/stats_screen.dart';
 import 'project_goal_line.dart';
 
+/// Height of a project card's grid cell. The tallest variant (active, with a
+/// word goal and a wrapped second row of buttons) needs ~201 px; the old 1.4
+/// aspect ratio gave 157 px and overflowed by up to 44 px (MAC-5).
+const double kProjectCardExtent = 208;
+
 class ProjectCard extends StatelessWidget {
   final String name;
   final int wordCount;

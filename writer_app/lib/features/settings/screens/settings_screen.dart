@@ -492,7 +492,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           maxCrossAxisExtent: 220,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.4,
+          mainAxisExtent: kProjectCardExtent,
         ),
         itemCount: filtered.length + 1,
         itemBuilder: (context, index) {

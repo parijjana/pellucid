@@ -640,6 +640,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         onOpenNote: _openNote,
                                         spellCheckEnabled: settings.spellCheckEnabled == true,
                                         editorFont: settings.editorFont,
+                                        typewriterEnabled: settings.typewriterEnabled,
                                         grammarHintsEnabled: settings.grammarHintsEnabled == true,
                                         smartPunctuationEnabled: settings.smartPunctuationEnabled == true,
                                         onChanged: (val) {

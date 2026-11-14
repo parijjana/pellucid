@@ -19,6 +19,7 @@ import 'smart_punctuation_scope.dart';
 import 'checklist_tap.dart';
 import '../list_editing.dart';
 import '../long_document/windowed_paper_area.dart';
+import 'typewriter_scroll.dart' show kEditorTextBottomInset;
 
 /// Extra Redo binding for non-Apple platforms (see [EditorPaperArea]).
 Map<ShortcutActivator, Intent> get _redoShortcuts =>
@@ -64,6 +65,11 @@ class EditorPaperArea extends StatelessWidget {
   final bool grammarHintsEnabled;
   final bool smartPunctuationEnabled;
 
+  /// Typewriter scrolling is on: the page gets half a viewport of slack below
+  /// the text so the caret line can reach the centre even on the last line
+  /// (PEL-10 / MAC-4: without it the caret stalled ~300 px below centre).
+  final bool typewriterEnabled;
+
   const EditorPaperArea({
     super.key,
     required this.theme,
@@ -82,6 +88,7 @@ class EditorPaperArea extends StatelessWidget {
     this.editorFont = EditorFont.defaultFont,
     this.grammarHintsEnabled = false,
     this.smartPunctuationEnabled = false,
+    this.typewriterEnabled = false,
   });
 
   /// Tab / Shift+Tab inside a list moves the item one level. True when the
@@ -110,9 +117,15 @@ class EditorPaperArea extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       alignment: Alignment(horizontalPos * 2 - 1, 0),
-      child: SingleChildScrollView(
+      child: LayoutBuilder(builder: (context, box) {
+      // The text sits kEditorTextBottomInset above the scroll content's end;
+      // centring the last line needs half a viewport below it.
+      final double slack = typewriterEnabled
+          ? (box.maxHeight / 2 - kEditorTextBottomInset).clamp(0.0, double.infinity)
+          : 0.0;
+      return SingleChildScrollView(
         controller: scrollController,
-        padding: const EdgeInsets.symmetric(vertical: 100),
+        padding: EdgeInsets.only(top: 100, bottom: 100 + slack),
         child: Container(
           width: pageWidth,
           constraints: const BoxConstraints(minHeight: 1000),
@@ -224,7 +237,8 @@ class EditorPaperArea extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      );
+      }),
     );
   }
 }

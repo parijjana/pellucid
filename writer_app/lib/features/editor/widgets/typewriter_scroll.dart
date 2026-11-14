@@ -6,8 +6,12 @@ import 'package:flutter/material.dart';
 import '../providers/editor_font.dart';
 
 /// Vertical inset between the top of the scroll content and the first text
-/// line: SingleChildScrollView vertical padding (100) + paper padding (60).
-const double kEditorTextTopInset = 160.0;
+/// line: SingleChildScrollView vertical padding (100) + paper padding (60) +
+/// the TextField's own content padding (8, measured).
+const double kEditorTextTopInset = 168.0;
+
+/// Same on the bottom.
+const double kEditorTextBottomInset = 168.0;
 
 /// Returns the scroll offset that vertically centers the caret line in the
 /// viewport. Mirrors the editor's text style parameters (16.0 * zoom,

@@ -7,6 +7,7 @@ import 'package:pellucid/features/editor/providers/storage_service.dart';
 
 
 void main() {
+  group('atomic write', atomicWriteTests);
   late io.Directory tmp;
   late StorageService storage;
 
@@ -87,3 +88,28 @@ void main() {
 
 class _MockFs extends Mock implements FileSystem {}
 class _MockFile extends Mock implements File {}
+
+void atomicWriteTests() {
+  late io.Directory tmp;
+  late StorageService storage;
+  setUp(() {
+    tmp = io.Directory.systemTemp.createTempSync('pel17w_');
+    storage = StorageService(fileSystem: const LocalFileSystem());
+  });
+  tearDown(() => tmp.deleteSync(recursive: true));
+
+  test('save is atomic: a failed temp write leaves the original intact', () async {
+    io.File('${tmp.path}/document.md').writeAsStringSync('precious');
+    // Block the temp path so the write cannot succeed.
+    io.Directory('${tmp.path}/document.md.tmp').createSync();
+    await expectLater(storage.saveDocument(tmp.path, 'new'), throwsA(anything));
+    expect(io.File('${tmp.path}/document.md').readAsStringSync(), 'precious');
+  });
+
+  test('save replaces content and leaves no temp file', () async {
+    io.File('${tmp.path}/document.md').writeAsStringSync('old');
+    await storage.saveDocument(tmp.path, 'new');
+    expect(io.File('${tmp.path}/document.md').readAsStringSync(), 'new');
+    expect(io.File('${tmp.path}/document.md.tmp').existsSync(), isFalse);
+  });
+}

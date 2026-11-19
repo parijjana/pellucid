@@ -160,7 +160,22 @@ class StorageService {
   Future<void> saveDocument(String projectPath, String content) async {
     final file = _fileSystem.file('$projectPath/$_docName');
     if (!await file.parent.exists()) await file.parent.create(recursive: true);
-    await file.writeAsString(content, flush: true); // Immediate flush to OS
+    await _writeAtomic(file, content);
+  }
+
+  /// Writes to a sibling temp file, flushes, then renames over [file], so a
+  /// crash or a failed write never leaves a truncated document.
+  Future<void> _writeAtomic(File file, String content) async {
+    final tmp = _fileSystem.file('${file.path}.tmp');
+    try {
+      await tmp.writeAsString(content, flush: true);
+      await tmp.rename(file.path);
+    } catch (e) {
+      try {
+        if (await tmp.exists()) await tmp.delete();
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   /// Reads `notes.json`. Same contract as [readDocument]: an empty list from a
@@ -182,7 +197,7 @@ class StorageService {
     final file = _fileSystem.file('$projectPath/$_notesName');
     if (!await file.parent.exists()) await file.parent.create(recursive: true);
     final String jsonString = jsonEncode(cards.map((c) => c.toJson()).toList());
-    await file.writeAsString(jsonString, flush: true); // Immediate flush
+    await _writeAtomic(file, jsonString);
   }
 
   // Project Stats I/O

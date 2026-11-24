@@ -32,8 +32,8 @@ Set-Location $app
 if (-not $app.Path.StartsWith('D:\', [StringComparison]::OrdinalIgnoreCase)) { throw "Run from a checkout on D:" }
 
 # --- version and output folder -------------------------------------------------------------
-if ($Mode -eq 'store') { $version = "$BaseVersion.0"; $outDir = Join-Path $OutRoot "Pellucid Store Submission $version" }
-else { $version = "$BaseVersion.$TestBuild"; $outDir = Join-Path $OutRoot "Pellucid Test MSIX $version" }
+if ($Mode -eq 'store') { $version = "$BaseVersion.0"; $outDir = Join-Path $OutRoot "Pellucid Store Submission $version$OutSuffix" }
+else { $version = "$BaseVersion.$TestBuild"; $outDir = Join-Path $OutRoot "Pellucid Test MSIX $version$OutSuffix" }
 $outMsix = Join-Path $outDir "pellucid-$version.msix"
 if ((Test-Path $outMsix) -and -not $Force) { throw "$outMsix exists; pass -Force to overwrite (only if rebuilding from the same commit)." }
 

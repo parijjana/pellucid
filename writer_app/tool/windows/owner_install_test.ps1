@@ -19,7 +19,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Msix = 'D:\projects\Pellucid Test MSIX 1.1.0.2\pellucid-1.1.0.2.msix',
+  [string]$Msix = 'D:\projects\Pellucid Test MSIX 1.1.0.3\pellucid-1.1.0.3.msix',
   [string]$CerOut = 'D:\projects\.scratch\pellucid_test.cer',
   [switch]$SkipTrust,
   [switch]$Yes
@@ -33,7 +33,7 @@ $ver = (Get-AuthenticodeSignature $Msix).SignerCertificate
 if (-not $ver) { throw 'The MSIX has no signature (is it the Store build? use the test build).' }
 "Test package: $Msix"
 "Signed by:    $($ver.Subject)"
-if ($installed -and [version]$installed.Version -ge [version]'1.1.0.2') { Write-Warning "Installed version $($installed.Version) is not lower than the test package; Add-AppxPackage will refuse a downgrade." }
+if ($installed -and [version]$installed.Version -ge [version]'1.1.0.3') { Write-Warning "Installed version $($installed.Version) is not lower than the test package; Add-AppxPackage will refuse a downgrade." }
 
 if (-not $Yes) {
   $a = Read-Host 'Trust this certificate on this machine (LocalMachine\TrustedPeople) and install over the current Pellucid? [y/N]'

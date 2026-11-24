@@ -13,7 +13,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Msix = 'D:\projects\Pellucid Test MSIX 1.1.0.2\pellucid-1.1.0.2.msix',
+  [string]$Msix = 'D:\projects\Pellucid Test MSIX 1.1.0.3\pellucid-1.1.0.3.msix',
   [string]$Report = 'D:\projects\.scratch\wack.xml'
 )
 $ErrorActionPreference = 'Stop'

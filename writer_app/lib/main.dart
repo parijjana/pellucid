@@ -27,10 +27,12 @@ import 'features/editor/widgets/alarm_setter_dialog.dart';
 import 'features/search/providers/search_provider.dart';
 import 'features/editor/widgets/mac_menu_bar_wrapper.dart';
 import 'core/platform_context.dart';
+import 'core/data_dir_override.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+  applyDataDirOverride();
+
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;

@@ -302,6 +302,8 @@ Future<void> ensureWindowSize(WidgetTester tester, Size logical) async {
     _windowSized = true;
     try {
       await windowManager.ensureInitialized();
+      // As lib/main.dart: no native caption (the app draws its own WindowCaption), so layout matches the real window.
+      if (Platform.isWindows || Platform.isLinux) await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
       await windowManager.setSize(logical);
       await windowManager.center();
     } catch (e) {

@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert' show HtmlEscape, HtmlEscapeMode, utf8;
 import 'dart:typed_data';
+import 'package:archive/archive.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:epub_builder/epub_builder.dart' as eb;
@@ -115,15 +117,40 @@ class ExportService {
 
       book.addChapter(
         eb.EpubChapter(
-          title: chapter.title.isEmpty ? 'Chapter ${i + 1}' : chapter.title,
-          content: '<h1>${chapter.title}</h1>$htmlContent',
+          // epub_builder 0.2.2 writes the title unescaped into <title>, the <h1> and the nav, and adds the chapter's
+          // one <h1> itself: so escape it here and do not add another heading.
+          title: _escapeHtml(chapter.title.isEmpty ? 'Chapter ${i + 1}' : chapter.title),
+          content: htmlContent,
         ),
       );
     }
 
     final bytes = eb.EpubBuilder(book).encode();
     if (bytes == null) throw Exception('Failed to encode EPUB');
-    return Uint8List.fromList(bytes);
+    return _wellFormed(Uint8List.fromList(bytes));
+  }
+
+  static const HtmlEscape _escape = HtmlEscape(HtmlEscapeMode.element);
+  static String _escapeHtml(String s) => _escape.convert(s);
+
+  /// epub_builder 0.2.2 emits `<link ...>` unclosed, which is not well-formed XHTML (EPUB readers that parse
+  /// strictly, and epubcheck, reject it). Closes it in every XHTML file; mimetype stays first and stored.
+  static Uint8List _wellFormed(Uint8List zip) {
+    final src = ZipDecoder().decodeBytes(zip);
+    final out = Archive();
+    final unclosedLink = RegExp(r'<link([^>]*?[^/>])>');
+    for (final f in src.files) {
+      if (!f.isFile) continue;
+      var data = f.content as List<int>;
+      if (f.name.endsWith('.xhtml')) {
+        final fixed = utf8.decode(data).replaceAllMapped(unclosedLink, (m) => '<link${m[1]}/>');
+        data = utf8.encode(fixed);
+      }
+      final nf = ArchiveFile.bytes(f.name, data);
+      if (f.name == 'mimetype') nf.compression = CompressionType.none;
+      out.add(nf);
+    }
+    return Uint8List.fromList(ZipEncoder().encode(out));
   }
 
   Future<void> exportToEpub({

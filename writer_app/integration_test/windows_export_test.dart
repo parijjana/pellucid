@@ -6,6 +6,7 @@
 //     --dart-define=PELLUCID_EXPORT_OUT=D:\projects\.scratch\export-out
 //   python -I tool\windows\validate_exports.py D:\projects\.scratch\export-out
 
+import 'dart:convert' show LineSplitter;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -35,7 +36,7 @@ It was a bright cold day in April, and the **clocks** were striking thirteen. Sh
 
 Caf\u00e9 na\u00efve ~~struck~~ text with `code` and a [link](https://example.com).
 
-# Chapter Two
+# Chapter Two & <More>
 
 Plain closing paragraph with an ampersand & angle <brackets> that must be escaped.
 ''';
@@ -69,4 +70,14 @@ void main() {
     print('EVID|export|30k words: pdf ${pdfMs} ms (${File('$_out\\long.pdf').lengthSync()} bytes), '
         'epub ${sw.elapsedMilliseconds} ms (${File('$_out\\long.epub').lengthSync()} bytes)');
   }, timeout: const Timeout(Duration(minutes: 5)));
+
+  testWidgets('validate_exports.py passes on every export (well-formed XHTML, one h1 per chapter, PDF parses)',
+      (tester) async {
+    // Needs the venv with pypdf: D:\projects\.scratch\pdfval-venv (see tool/windows/validate_exports.py).
+    final r = await tester.runAsync(() => Process.run(
+        r'D:\projects\.scratch\pdfval-venv\Scripts\python.exe', ['-I', 'tool/windows/validate_exports.py', _out]));
+    // ignore: avoid_print
+    print('EVID|export|validator: ${LineSplitter.split(r!.stdout as String).where((l) => l.contains('FAIL') || l.contains('RESULT')).take(8).join(' | ')}');
+    expect(r.exitCode, 0, reason: r.stdout.toString());
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

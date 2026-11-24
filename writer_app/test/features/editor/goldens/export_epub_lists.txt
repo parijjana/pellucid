@@ -19,11 +19,11 @@ chapter:
   <head>
   <meta charset="utf-8"/>
   <title>Lists</title>
-  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../styles.css"/>
 </head>
 <body>
   <h1 id="ch_ID">Lists</h1>
-  <h1>Lists</h1><ul>
+  <ul>
 <li>bullet one
 <ul>
 <li>nested bullet

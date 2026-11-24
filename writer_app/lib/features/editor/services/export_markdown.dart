@@ -62,7 +62,11 @@ final List<md.InlineSyntax> _extraInlineSyntaxes = <md.InlineSyntax>[
 
 final md.ExtensionSet exportExtensionSet = md.ExtensionSet(
   [...md.ExtensionSet.commonMark.blockSyntaxes, ..._extraBlockSyntaxes],
-  [..._extraInlineSyntaxes, ...md.ExtensionSet.commonMark.inlineSyntaxes],
+  [
+    ..._extraInlineSyntaxes,
+    // A writer's "<brackets>" is text, not markup: raw inline HTML would reach the EPUB as ill-formed XHTML.
+    ...md.ExtensionSet.commonMark.inlineSyntaxes.where((x) => x is! md.InlineHtmlSyntax),
+  ],
 );
 
 /// A list item that starts with a checkbox is marked so a stylesheet can drop

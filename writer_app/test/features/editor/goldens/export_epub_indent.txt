@@ -19,11 +19,11 @@ chapter:
   <head>
   <meta charset="utf-8"/>
   <title>Indent</title>
-  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../styles.css"/>
 </head>
 <body>
   <h1 id="ch_ID">Indent</h1>
-  <h1>Indent</h1><p class="in1">First level paragraph
+  <p class="in1">First level paragraph
 soft break</p>
 <p class="in3">Third level</p>
 <p>Plain paragraph</p>

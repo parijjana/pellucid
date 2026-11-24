@@ -343,6 +343,7 @@ Future<Rig> mount(WidgetTester tester,
     bool codex = false,
     bool typewriter = false,
     bool realClipboard = false,
+    SyncProvider? syncProvider,
     Directory? reuse}) async {
   step('mount start');
   await assertIsolated();
@@ -378,10 +379,12 @@ Future<Rig> mount(WidgetTester tester,
   settings.toggleCodexLinking(codex);
   settings.toggleSpellCheck(spell);
   settings.toggleTypewriter(typewriter);
-  final sync = _Sync();
-  when(() => sync.status).thenReturn(SyncStatus.idle);
-  when(() => sync.isLoggedIn).thenReturn(false);
-  when(() => sync.lastSynced).thenReturn(null);
+  final SyncProvider sync = syncProvider ?? _Sync();
+  if (syncProvider == null) {
+    when(() => sync.status).thenReturn(SyncStatus.idle);
+    when(() => sync.isLoggedIn).thenReturn(false);
+    when(() => sync.lastSynced).thenReturn(null);
+  }
   final hist = _Hist();
   when(() => hist.history).thenReturn([]);
   when(() => hist.currentProjectStats).thenReturn(ProjectStats());

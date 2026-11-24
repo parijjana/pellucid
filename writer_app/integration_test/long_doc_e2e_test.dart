@@ -2,11 +2,14 @@
 // which builds this under an isolated bundle id and guards the owner's data.
 // Check numbers follow the owner's manual list ("step 6: big manuscript").
 
+import 'dart:io' show Platform;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:pellucid/core/data_dir_override.dart';
 import 'package:pellucid/features/editor/hidden_markers.dart';
 import 'package:pellucid/features/editor/long_document/windowed_editor.dart';
 
@@ -17,6 +20,7 @@ import 'support/harness.dart';
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.onlyPumps;
+  if (Platform.isWindows) applyDataDirOverride(); // Windows runs: --dart-define=PELLUCID_DATA_DIR=D:\...
 
   check('Check 0: setup - 127k-word manuscript opens in the windowed editor', (tester) async {
     final rig = await mount(tester);

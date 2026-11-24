@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../sidebar/providers/note_card.dart';
 import '../services/native_spell_check_service.dart';
+import '../services/spell_chunk_checker.dart';
 import 'markdown_controller.dart';
 
 bool get _nativeSpellCheckAvailable =>
@@ -88,6 +89,14 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
   Timer? _debounce;
   String? _checkedText;
 
+  // The check runs as many short native calls and remembers each paragraph's answer, so one edit costs
+  // one paragraph and the first check of a long manuscript never freezes the UI (the Windows checker
+  // runs on the UI thread). Anything that changes what the OS says clears it.
+  late final SpellChunkChecker _chunks =
+      SpellChunkChecker((t) async => _service.fetchSpellCheckSuggestions(_locale, t));
+  String? _chunksLocale;
+  int _generation = 0;
+
   /// Lower-cased words ignored this session (also the fallback if the native
   /// call fails).
   final Set<String> _ignored = {};
@@ -132,6 +141,7 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
     }
     if (oldWidget.enabled != widget.enabled || recheck) {
       _debounce?.cancel();
+      _chunks.clear();
       _checkedText = null;
       _check();
     }
@@ -146,6 +156,7 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
 
   void _onTextChanged() {
     if (!_active || widget.controller.text == _checkedText) return;
+    _generation++; // supersede a check still running: its text is out of date
     _debounce?.cancel();
     _debounce = Timer(_pause, _check);
   }
@@ -167,13 +178,25 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
       return;
     }
     final text = markdown.text;
+    final tag = _locale.toLanguageTag();
+    if (_chunksLocale != tag) {
+      _chunks.clear();
+      _chunksLocale = tag;
+    }
+    final generation = ++_generation;
+    // Stale: the writer kept typing (a newer check is queued) or it was switched off while the OS was checking.
+    bool stale() => !mounted || !_active || generation != _generation || markdown.text != text;
     final spans = text.isEmpty
         ? const <SuggestionSpan>[]
-        : await _service.fetchSpellCheckSuggestions(_locale, text) ?? const <SuggestionSpan>[];
-    // Stale: the writer kept typing (a newer check is queued) or it was
-    // switched off while the OS was checking.
-    if (!mounted || !_active || markdown.text != text) return;
+        : await _chunks.check(text, cancelled: stale, onProgress: (partial) {
+            if (!stale()) _apply(markdown, text, partial);
+          });
+    if (spans == null || stale()) return;
     _checkedText = text;
+    _apply(markdown, text, spans);
+  }
+
+  void _apply(MarkdownEditingController markdown, String text, List<SuggestionSpan> spans) {
     final kept = <SuggestionSpan>[];
     final suggestions = <String, List<String>>{};
     for (final s in spans) {
@@ -216,6 +239,7 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
   Future<void> learn(String word) async {
     _ignored.add(word.toLowerCase()); // underline goes at once, even if native fails
     await _service.learnWord(word, locale: _locale);
+    _chunks.clear();
     _checkedText = null;
     await _check();
   }
@@ -224,6 +248,7 @@ class SpellCheckDriverState extends State<SpellCheckDriver> {
   Future<void> ignore(String word) async {
     _ignored.add(word.toLowerCase());
     await _service.ignoreWord(word, locale: _locale);
+    _chunks.clear();
     _checkedText = null;
     await _check();
   }

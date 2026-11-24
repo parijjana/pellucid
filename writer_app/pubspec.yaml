@@ -7,6 +7,7 @@ environment:
   sdk: ^3.11.4
 
 dependencies:
+  archive: ^4.0.9
   battery_plus: ^7.0.0
   crypto: ^3.0.7
   cupertino_icons: ^1.0.9
@@ -51,7 +52,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   mocktail: ^1.0.5
-  archive: ^4.0.9
   flutter_launcher_icons: ^0.13.1
   msix: ^3.18.0
 

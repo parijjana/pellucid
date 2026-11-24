@@ -121,7 +121,15 @@ class WindowsSpellChecker {
     return results;
   }
 
-  // UNTESTED ON WINDOWS (written on a Mac): adds the word to the user
+  // Suggestions for one word (the editor's context menu asks on demand).
+  EncodableList SuggestWord(const std::wstring& word,
+                            const std::vector<std::wstring>& languages) {
+    ISpellChecker* checker = CheckerFor(languages);
+    if (!checker || word.empty()) return EncodableList();
+    return Suggest(checker, word);
+  }
+
+  // Adds the word to the user
   // dictionary (ISpellChecker::Add) or ignores it for this session
   // (ISpellChecker::Ignore).
   bool WordAction(const std::wstring& word,
@@ -204,6 +212,20 @@ RegisterSpellCheckChannel(flutter::BinaryMessenger* messenger) {
   channel->SetMethodCallHandler(
       [checker](const flutter::MethodCall<EncodableValue>& call,
                 std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
+        if (call.method_name() == "suggest") {
+          const auto* sargs = std::get_if<EncodableMap>(call.arguments());
+          const std::string* sword = sargs ? StringArg(*sargs, "word") : nullptr;
+          std::vector<std::wstring> slangs;
+          if (sargs) {
+            if (const auto* l = StringArg(*sargs, "locale")) slangs.push_back(Utf16FromUtf8(*l));
+            if (const auto* l = StringArg(*sargs, "language")) slangs.push_back(Utf16FromUtf8(*l));
+          }
+          const std::wstring swide = sword ? Utf16FromUtf8(*sword) : std::wstring();
+          result->Success(EncodableValue(IsLearnableWord(swide)
+                                             ? checker->SuggestWord(swide, slangs)
+                                             : EncodableList()));
+          return;
+        }
         const bool is_word_action =
             call.method_name() == "learnWord" || call.method_name() == "ignoreWord";
         if (call.method_name() != "checkSpelling" && !is_word_action) {

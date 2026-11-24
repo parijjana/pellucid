@@ -94,17 +94,19 @@ void main() {
     expect(await _ch.invokeMethod<bool>('ignoreWord', <String, dynamic>{}), isFalse, reason: 'missing args');
   });
 
-  testWidgets('suggest method (context-menu suggestions on Windows)', (tester) async {
-    List<String> s = const [];
-    String how = 'ok';
-    try {
-      s = List<String>.from(
-          await _ch.invokeMethod<List<dynamic>>('suggest', {'word': 'jumpd', 'language': 'en'}) ?? []);
-    } on MissingPluginException {
-      how = 'NotImplemented natively';
-    }
+  testWidgets('suggestions appear for a misspelling (native suggest)', (tester) async {
+    final viaChannel = List<String>.from(await _ch.invokeMethod<List<dynamic>>(
+            'suggest', {'word': 'jumpd', 'language': 'en', 'locale': 'en-US'}) ??
+        []);
+    final viaService = await _svc.suggestionsFor('jumpd');
     // ignore: avoid_print
-    print('EVID|spell|suggest("jumpd") via channel: $how $s; service: ${await _svc.suggestionsFor("jumpd")}');
+    print('EVID|spell|suggest("jumpd"): channel=$viaChannel service=$viaService');
+    expect(viaChannel, isNotEmpty);
+    expect(viaChannel.length, lessThanOrEqualTo(5));
+    expect(viaChannel, contains('jumped'));
+    expect(viaService, viaChannel);
+    // The guard applies to suggest too.
+    expect(await _ch.invokeMethod<List<dynamic>>('suggest', {'word': 'two words', 'language': 'en'}), isEmpty);
   });
 
   testWidgets('Learn spelling round trip (needs PELLUCID_TEST_ALLOW_LEARN=true)', (tester) async {

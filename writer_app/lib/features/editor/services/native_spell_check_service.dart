@@ -83,6 +83,7 @@ class NativeSpellCheckService implements EditorSpellService, LazySuggestionServi
       final r = await _channel.invokeMethod<List<dynamic>>('suggest', {
         'word': word,
         'language': (locale ?? const Locale('en')).languageCode,
+        'locale': (locale ?? const Locale('en', 'US')).toLanguageTag(),
       });
       return r == null ? const [] : List<String>.from(r);
     } catch (_) {

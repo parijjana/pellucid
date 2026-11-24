@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pellucid/core/data_dir_override.dart';
 import 'package:pellucid/features/editor/long_document/windowed_editor.dart';
 import 'package:pellucid/features/editor/providers/editor_provider.dart';
 import 'package:pellucid/features/editor/providers/shortcuts_provider.dart';
@@ -66,6 +67,20 @@ class _Hist extends Mock implements HistoryProvider {}
 /// Refuses to run unless the test app is the isolated e2e bundle and every
 /// path it will touch is under the system temp directory.
 Future<void> assertIsolated() async {
+  if (Platform.isWindows) {
+    // Windows: isolation is the PELLUCID_DATA_DIR define (applyDataDirOverride must have run).
+    final root = dataDirOverride;
+    if (root == null || !root.toUpperCase().startsWith(r'D:')) {
+      throw StateError(r'E2E ISOLATION BREACH: run with --dart-define=PELLUCID_DATA_DIR=D:\projects\.scratch\...');
+    }
+    final support = (await getApplicationSupportDirectory()).path;
+    if (!support.toLowerCase().startsWith(root.toLowerCase())) {
+      throw StateError('E2E ISOLATION BREACH: app support dir is "$support", not under $root.');
+    }
+    // ignore: avoid_print
+    print('E2E|isolation|app support dir = $support');
+    return;
+  }
   final support = (await getApplicationSupportDirectory()).path;
   if (!support.contains('com.overengineeredhobbies.pellucid.e2e')) {
     throw StateError('E2E ISOLATION BREACH: app support dir is "$support", not the .e2e bundle. Aborting.');
@@ -103,7 +118,9 @@ class Rig {
   WindowedEditorState get win => tester.state<WindowedEditorState>(find.byType(WindowedEditor));
   String get text => doc.text;
   TextSelection get sel => doc.selection;
-  FocusNode get focus => win.widget.focusNode;
+  FocusNode get focus => find.byType(WindowedEditor).evaluate().isNotEmpty
+      ? win.widget.focusNode
+      : tester.state<EditableTextState>(find.byType(EditableText).first).widget.focusNode;
 
   /// Document equals [expected], reporting only the first difference (never the 600 kB).
   void expectDoc(String expected, String reason) {
@@ -217,6 +234,11 @@ class Rig {
   Future<void> key(LogicalKeyboardKey k,
       {bool meta = false, bool shift = false, bool alt = false, bool ctrl = false}) async {
     step('key ${k.keyLabel} meta=$meta shift=$shift');
+    if (Platform.isWindows && meta) {
+      // The suite is written with the Mac's Cmd; on Windows the same shortcut is Ctrl.
+      meta = false;
+      ctrl = true;
+    }
     if (meta) await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     if (alt) await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
@@ -310,10 +332,11 @@ Future<Rig> mount(WidgetTester tester,
     bool spell = false,
     bool codex = false,
     bool typewriter = false,
+    bool realClipboard = false,
     Directory? reuse}) async {
   step('mount start');
   await assertIsolated();
-  debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  debugDefaultTargetPlatformOverride = Platform.isWindows ? TargetPlatform.windows : TargetPlatform.macOS;
   // The integration binding talks to the real macOS text-input plugin; to drive composing text and
   // typing deterministically the platform channel is replaced by the test text-input harness. The
   // widget tree above it (EditableText, formatters, the windowed editor) is the real one.
@@ -360,7 +383,7 @@ Future<Rig> mount(WidgetTester tester,
   late Rig rig;
   richClipboard.clear();
   String clipboard = '';
-  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+  if (!realClipboard) tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
     if (call.method == 'Clipboard.setData') {
       clipboard = (call.arguments as Map)['text'] as String? ?? '';
       clip.add(clipboard);
@@ -373,7 +396,7 @@ Future<Rig> mount(WidgetTester tester,
   tester.binding.defaultBinaryMessenger
       .setMockMethodCallHandler(const MethodChannel('dev.fluttercommunity.plus/charging'), (_) async => null);
   // Pellucid's own rich-clipboard channel writes the REAL NSPasteboard on macOS; replace it with a store.
-  tester.binding.defaultBinaryMessenger
+  if (!realClipboard) tester.binding.defaultBinaryMessenger
       .setMockMethodCallHandler(const MethodChannel('com.overengineeredhobbies.pellucid/clipboard'), (call) async {
     switch (call.method) {
       case 'setRich':

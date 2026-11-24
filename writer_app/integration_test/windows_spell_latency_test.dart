@@ -1,5 +1,6 @@
 // Measures spell re-check latency: time from the last edit to the new misspelling being flagged, per
 // document size (3 runs each). Prints EVID|latency lines; asserts only that every run completes.
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -14,7 +15,8 @@ String _textOfWords(int words) {
   final b = StringBuffer();
   int n = 0, i = 0;
   while (n < words) {
-    final p = paras[i++ % paras.length];
+    // Unique paragraphs (a real manuscript does not repeat): the per-paragraph cache must not flatter the numbers.
+    final p = '${i + 1}. ${paras[i++ % paras.length]}';
     b.write('$p\n\n');
     n += p.split(RegExp(r'\s+')).length;
   }
@@ -29,6 +31,15 @@ void main() {
   for (final words in const [5000, 10000, 30000, 60000, 127000]) {
     testWidgets('spell re-check latency at $words words', (tester) async {
       final text = _textOfWords(words);
+      // Event-loop gap monitor from before the mount: the longest time the app did not run (UI frozen).
+      int gapMax = 0;
+      final gapClock = Stopwatch()..start();
+      int gapLast = 0;
+      final gapTimer = Timer.periodic(const Duration(milliseconds: 10), (_) {
+        final n = gapClock.elapsedMilliseconds;
+        if (n - gapLast > gapMax) gapMax = n - gapLast;
+        gapLast = n;
+      });
       final rig = await mount(tester, text: text, spell: true);
       final doc = rig.doc;
       final sw = Stopwatch()..start();
@@ -48,8 +59,21 @@ void main() {
       }
 
       final initial = await waitFlag(() => doc.misspellings.isNotEmpty, 240000);
-      // Let the first check settle (a second may follow once the window is laid out).
-      await rig.wait(const Duration(milliseconds: 4000));
+      // First full check: wait until the number of flagged words stops changing for 5 s.
+      int lastCount = -1;
+      final settle = Stopwatch()..start();
+      int lastChangeMs = 0;
+      while (settle.elapsedMilliseconds - lastChangeMs < 5000 && settle.elapsedMilliseconds < 200000) {
+        await waitFlag(() => false, 250);
+        if (doc.misspellings.length != lastCount) {
+          lastCount = doc.misspellings.length;
+          lastChangeMs = settle.elapsedMilliseconds;
+        }
+      }
+      final firstCheckMs = initial + lastChangeMs;
+      final firstCheckStall = maxStall;
+      final mountAndFirstCheckGap = gapMax;
+      gapMax = 0;
       maxStall = 0;
       final results = <int>[];
       final stalls = <int>[];
@@ -67,8 +91,9 @@ void main() {
       final sorted = [...results]..sort();
       // ignore: avoid_print
       print('EVID|latency|words=${rig.doc.text.split(RegExp(r"\s+")).length} chars=${doc.text.length} '
-          'initialCheckMs=$initial runsMs=$results median=${sorted[1]} max=${sorted[2]} maxLoopStallMs=$stalls '
+          'firstFlagMs=$initial firstFullCheckMs~$firstCheckMs firstCheckMaxStallMs=$firstCheckStall mountPlusFirstCheckMaxGapMs=$mountAndFirstCheckGap runsMs=$results median=${sorted[1]} max=${sorted[2]} maxLoopStallMs=$stalls '
           'misspellings=${doc.misspellings.length} mode=${const bool.fromEnvironment("dart.vm.product") ? "release" : (const bool.fromEnvironment("dart.vm.profile") ? "profile" : "debug")}');
+      gapTimer.cancel();
       await rig.dispose();
     }, timeout: const Timeout(Duration(minutes: 20)));
   }

@@ -12,6 +12,8 @@ import 'package:pellucid/core/data_dir_override.dart';
 
 IntegrationTestWidgetsFlutterBinding initWindowsTest() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // Frames only on pump(): a live frame policy can wait forever when the window is covered or minimised.
+  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.onlyPumps;
   if (!Platform.isWindows) {
     throw StateError('These tests are Windows-only.');
   }

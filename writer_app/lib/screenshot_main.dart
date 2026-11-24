@@ -72,13 +72,15 @@ import 'features/settings/providers/settings_provider.dart';
 import 'features/sync/providers/sync_provider.dart';
 import 'features/sidebar/providers/notes_provider.dart';
 import 'features/search/providers/search_provider.dart';
+import 'core/data_dir_override.dart';
 import 'features/sidebar/widgets/snapshot_management_dialog.dart';
 import 'screenshot_seed.dart';
 
 // Absolute path to the output root — the repo's committed store_screenshots/
 // directory. The harness creates <root>/<store>/ subfolders under it.
-const String _outRoot =
-    '/Users/animeshsarkar/code/projects/pellucid-shots/writer_app/store_screenshots/v1.1.0';
+// Override with --dart-define=SHOT_OUT_ROOT=<dir> (used on the Windows PC to write under D:).
+const String _outRoot = String.fromEnvironment('SHOT_OUT_ROOT',
+    defaultValue: '/Users/animeshsarkar/code/projects/pellucid-shots/writer_app/store_screenshots/v1.1.0');
 
 /// How long `_settle()` waits for a screen to stop animating before giving up
 /// and rasterizing anyway (recording a settle timeout). Set this comfortably
@@ -301,6 +303,7 @@ const Map<int, String> _expectedWidget = {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  applyDataDirOverride(); // Windows capture runs keep app data on D: (no-op elsewhere / without the define)
   // Layout hook: attribute any layout error to the shot being rendered now
   // (_currentShotId), then still present it normally so it shows in the console.
   // DEBUG-ONLY — Flutter only routes these here when assertions are on. See the
@@ -321,7 +324,7 @@ void main() async {
   };
   // Capture always runs on macOS; a hidden title bar keeps host chrome out of
   // the window while the off-screen raster (which never includes it) is taken.
-  if (!kIsWeb && Platform.isMacOS) {
+  if (!kIsWeb && (Platform.isMacOS || Platform.isWindows)) {
     await windowManager.ensureInitialized();
     const windowOptions = WindowOptions(
       size: Size(1480, 1000), // just needs to be >= the largest logical target

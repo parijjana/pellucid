@@ -221,12 +221,20 @@ class Rig {
     step('typeText');
     for (final ch in s.characters) {
       // The field's own current value (the test input channel's editingState goes stale).
-      final v = win.window.value;
+      final v = find.byType(WindowedEditor).evaluate().isNotEmpty
+          ? win.window.value
+          : tester.state<EditableTextState>(find.byType(EditableText).first).textEditingValue;
       final b = v.selection.baseOffset, e = v.selection.extentOffset;
       final lo = b < e ? b : e, hi = b < e ? e : b;
       final next = v.text.replaceRange(lo, hi, ch);
-      tester.testTextInput.updateEditingValue(
-          TextEditingValue(text: next, selection: TextSelection.collapsed(offset: lo + ch.length)));
+      final nv = TextEditingValue(text: next, selection: TextSelection.collapsed(offset: lo + ch.length));
+      if (find.byType(WindowedEditor).evaluate().isNotEmpty) {
+        tester.testTextInput.updateEditingValue(nv);
+      } else {
+        // Short documents: the same path the platform's input client takes (formatters run).
+        tester.state<EditableTextState>(find.byType(EditableText).first)
+            .userUpdateTextEditingValue(nv, SelectionChangedCause.keyboard);
+      }
       await tester.pump(Duration(milliseconds: gapMs));
     }
   }
@@ -385,6 +393,12 @@ Future<Rig> mount(WidgetTester tester,
   late Rig rig;
   richClipboard.clear();
   String clipboard = '';
+  if (realClipboard) {
+    // An earlier mount in this process may have installed the mocks; the real native channels are wanted here.
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('com.overengineeredhobbies.pellucid/clipboard'), null);
+  }
   if (!realClipboard) tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
     if (call.method == 'Clipboard.setData') {
       clipboard = (call.arguments as Map)['text'] as String? ?? '';

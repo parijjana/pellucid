@@ -22,6 +22,7 @@ param(
   [int]$TestBuild = 1,                       # test mode: version 1.1.0.<TestBuild>
   [string]$BaseVersion = '1.1.0',            # first three parts
   [string]$OutRoot = 'D:\projects',
+  [string]$OutSuffix = '',                   # appended to the folder name, e.g. ' (r2)'
   [switch]$Force,
   [switch]$SkipBuild                         # reuse existing build\windows\...\Release (package only)
 )
